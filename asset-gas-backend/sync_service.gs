@@ -1,7 +1,7 @@
 // sync_service.gs
 
 // The ProSupport Ticket System endpoint (configured later)
-const PROSUPPORT_API_URL = "YOUR_PROSUPPORT_API_URL_HERE";
+const PROSUPPORT_API_URL = "https://script.google.com/macros/s/AKfycbxMHiISb7-mnHbpr96ojPUJbeWHkX7EQpwJeCVAW-XyiPExTKSxpUOhCFPQICyXAdGb/exec";
 
 /**
  * Syncs a single complaint to the external ProSupport Ticket System.
