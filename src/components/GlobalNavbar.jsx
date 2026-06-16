@@ -58,9 +58,14 @@ const GlobalNavbar = () => {
               Track Ticket
             </NavLink>
             {user && (
-              <NavLink to="/dashboard" className={({ isActive }) => isActive ? 'nav-link active' : 'nav-link'} onClick={() => setIsMobileMenuOpen(false)}>
-                Dashboard
-              </NavLink>
+              <>
+                <NavLink to="/dashboard" className={({ isActive }) => isActive ? 'nav-link active' : 'nav-link'} onClick={() => setIsMobileMenuOpen(false)}>
+                  Ticket Dashboard
+                </NavLink>
+                <NavLink to="/asset-admin" className={({ isActive }) => isActive ? 'nav-link active' : 'nav-link'} onClick={() => setIsMobileMenuOpen(false)}>
+                  Asset Dashboard
+                </NavLink>
+              </>
             )}
           </div>
           <div className="nav-auth">

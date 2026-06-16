@@ -3,18 +3,11 @@
  * Adheres to a Database-Agnostic Design, transmitting generic JSON payloads.
  */
 
-// Resolve the GAS Web App URL, with robust fallback if VITE_ASSET_GAS_API_URL is unconfigured
-const getGasUrl = () => {
-  const assetUrl = import.meta.env.VITE_ASSET_GAS_API_URL;
-  const standardUrl = import.meta.env.VITE_GAS_API_URL;
-  
-  if (assetUrl && !assetUrl.includes('YOUR_ASSET_GAS_API_URL')) {
-    return assetUrl;
-  }
-  return standardUrl;
-};
+const GAS_URL = import.meta.env.VITE_ASSET_GAS_API_URL;
 
-const GAS_URL = getGasUrl();
+if (!GAS_URL || GAS_URL.includes('YOUR_ASSET_GAS_API_URL')) {
+  console.warn('WARNING: VITE_ASSET_GAS_API_URL is not configured in .env. Asset Management API requests will fail.');
+}
 
 /**
  * Sends a POST request to the Google Apps Script Web App.

@@ -54,7 +54,7 @@ function App() {
           <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
           
           {/* Standalone Asset System: Admin Hub */}
-          <Route path="/admin" element={<ProtectedRoute><AdminDashboardWrapper /></ProtectedRoute>} />
+          <Route path="/asset-admin" element={<ProtectedRoute><AdminDashboardWrapper /></ProtectedRoute>} />
           
           {/* Fallback to Home instead of Login */}
           <Route path="*" element={<Navigate to="/" replace />} />
