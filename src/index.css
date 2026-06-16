@@ -1,0 +1,251 @@
+:root {
+  /* Google Material Design 3 Palette & Surface Rules */
+  --md-sys-color-primary: #1a73e8; /* Google Blue */
+  --md-sys-color-success: #1e8e3e; /* Success Green */
+  --md-sys-color-error: #d93025; /* Error Red */
+  --md-sys-color-text-primary: #202124; /* Text Primary */
+  --md-sys-color-text-secondary: #5f6368; /* Text Secondary */
+  --md-sys-color-background: #f8f9fa; /* Global app background (light cool-gray) */
+  --md-sys-color-surface: #ffffff; /* Card / Modal / Table solid white background */
+  
+  --primary-deep: #174ea6;
+  --primary-action: var(--md-sys-color-primary);
+  --primary-hover: #174ea6;
+  --primary-active: #15408c;
+  --primary-light: rgba(26, 115, 232, 0.08);
+  
+  --slate-dark: var(--md-sys-color-text-primary);
+  --slate-gray: var(--md-sys-color-text-secondary);
+  --slate-medium: #80868b;
+  --slate-light: #f1f3f4;
+  --slate-bg: var(--md-sys-color-background);
+  --slate-border: #dadce0;
+  --slate-border-light: #e8eaed;
+  
+  --success: var(--md-sys-color-success);
+  --success-hover: #137333;
+  --success-light: #e6f4ea;
+  
+  --warning: #f9ab00;
+  --warning-hover: #f29900;
+  --warning-light: #fef7e0;
+  
+  --danger: var(--md-sys-color-error);
+  --danger-hover: #c5221f;
+  --danger-light: #fce8e6;
+  
+  --purple: #a142f4;
+  --purple-hover: #9334e6;
+  --purple-light: #f3e8fd;
+  
+  --font-sans: 'Inter', Roboto, -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif;
+  --shadow-sm: 0 1px 3px rgba(0,0,0,0.12), 0 1px 2px rgba(0,0,0,0.24);
+  --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.08), 0 2px 4px -2px rgba(0, 0, 0, 0.08);
+  --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.08), 0 4px 6px -4px rgba(0, 0, 0, 0.08);
+  
+  --transition-fast: 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  --transition-spring: 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+  
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 16px; /* Material Card / Modal / Table radius */
+  --radius-xl: 16px;
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  margin: 0;
+  font-family: var(--font-sans);
+  background-color: var(--slate-bg);
+  color: var(--slate-dark);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  min-height: 100vh;
+  font-size: 16px; /* Base global size: 16px minimum */
+  line-height: 1.5;
+}
+
+/* Typography scale */
+h1 {
+  font-size: 2.25rem;
+  font-weight: 700;
+  line-height: 1.2;
+  color: var(--slate-dark);
+}
+
+h2 {
+  font-size: 1.75rem;
+  font-weight: 600;
+  line-height: 1.25;
+  color: var(--slate-dark);
+}
+
+h3 {
+  font-size: 1.35rem;
+  font-weight: 600;
+  line-height: 1.3;
+  color: var(--slate-dark);
+}
+
+h4 {
+  font-size: 1.15rem;
+  font-weight: 600;
+  line-height: 1.35;
+  color: var(--slate-dark);
+}
+
+p {
+  font-size: 1rem;
+}
+
+/* Scrollbar styling */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--slate-bg);
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--slate-border);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--slate-medium);
+}
+
+/* Global Empty State UI */
+.empty-state {
+    background-color: #ffffff;
+    border: 1px solid var(--slate-border-light);
+    border-radius: var(--radius-lg);
+    padding: 60px 40px;
+    text-align: center;
+    box-shadow: var(--shadow-sm);
+    width: 100%;
+    margin-top: 20px;
+}
+
+.empty-state .empty-icon {
+    font-size: 48px;
+    margin-bottom: 20px;
+    opacity: 0.8;
+}
+
+.empty-state h3 {
+    color: var(--slate-dark);
+    font-size: 1.35rem;
+    margin-bottom: 8px;
+}
+
+.empty-state p {
+    color: var(--slate-gray);
+    font-size: 1rem;
+}
+
+/* Responsive Table Wrapper */
+.table-responsive {
+    width: 100%;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+}
+
+/* Global Error Banner */
+.error-banner {
+    background-color: var(--danger-light);
+    color: var(--danger);
+    padding: 12px 16px;
+    border-radius: var(--radius-sm);
+    border-left: 4px solid var(--danger);
+    font-weight: 500;
+    font-size: 1rem;
+    margin-top: 15px;
+    text-align: left;
+    display: block;
+    width: 100%;
+    box-sizing: border-box;
+}
+
+/* Material Surfaces instead of Glassmorphism */
+.glass-card, .card {
+    background-color: #ffffff;
+    box-shadow: var(--shadow-sm);
+    border-radius: var(--radius-lg);
+    border: 1px solid var(--slate-border-light);
+}
+
+.glassmorphism {
+    background-color: #ffffff;
+    border-bottom: 1px solid var(--slate-border-light);
+}
+
+/* Skeleton Loader Utilities */
+@keyframes shimmer {
+    0% { background-position: -1000px 0; }
+    100% { background-position: 1000px 0; }
+}
+
+.skeleton-pulse {
+    background: #e8eaed;
+    background-image: linear-gradient(to right, #e8eaed 0%, #f1f3f4 20%, #e8eaed 40%, #e8eaed 100%);
+    background-repeat: no-repeat;
+    background-size: 1000px 100%;
+    animation: shimmer 2s infinite linear;
+    border-radius: var(--radius-sm);
+}
+
+/* Global Button Refactoring: Pill-Shaped */
+button, .btn {
+  border-radius: 50px !important; /* Force pill shape across all buttons */
+  font-weight: 600;
+  font-family: var(--font-sans);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+/* Global Inputs Refactoring: Light gray with Blue outline on focus */
+input[type="text"],
+input[type="email"],
+input[type="password"],
+input[type="tel"],
+select,
+textarea {
+  background-color: #f1f3f4 !important;
+  border-radius: 8px !important;
+  border: 2px solid transparent !important;
+  outline: none !important;
+  padding: 12px 16px !important;
+  font-family: var(--font-sans) !important;
+  font-size: 1rem !important;
+  color: var(--slate-dark) !important;
+  transition: all var(--transition-fast) !important;
+}
+
+input[type="text"]:focus,
+input[type="email"]:focus,
+input[type="password"]:focus,
+input[type="tel"]:focus,
+select:focus,
+textarea:focus {
+  background-color: #ffffff !important;
+  border-color: var(--primary-action) !important;
+  box-shadow: 0 0 0 2px rgba(26, 115, 232, 0.2) !important;
+}
+
+@media (max-width: 768px) {
+  button,
+  .btn,
+  input,
+  select,
+  textarea {
+    min-height: 48px !important;
+  }
+}
