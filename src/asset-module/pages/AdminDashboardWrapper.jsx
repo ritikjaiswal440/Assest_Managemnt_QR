@@ -2,6 +2,8 @@ import { useState } from 'react';
 import { Navigate } from 'react-router-dom';
 import { useAuth } from "../../context/AuthContext";
 import './AdminDashboardWrapper.css';
+import AssetDashboard from './AssetDashboard';
+import CompanyDashboard from './CompanyDashboard';
 
 function AdminDashboardWrapper() {
   const { user, logout } = useAuth();
@@ -139,93 +141,8 @@ function AdminDashboardWrapper() {
         </header>
 
         {/* View switching logic */}
-        {activeTab === 'assets' && (
-          <section className="table-card">
-            <div className="table-actions">
-              <button className="action-btn-primary">+ Register New Asset</button>
-            </div>
-            
-            <div className="table-responsive">
-              <table className="material-table">
-                <thead>
-                  <tr>
-                    <th>Asset ID</th>
-                    <th>Name</th>
-                    <th>Client / Company</th>
-                    <th>Location</th>
-                    <th>Support Expiry</th>
-                    <th>State</th>
-                    <th>Actions</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {assets.map((asset) => (
-                    <tr key={asset.uuid}>
-                      <td className="bold-cell">{asset.id}</td>
-                      <td>{asset.name}</td>
-                      <td>{asset.companyName}</td>
-                      <td>{asset.location}</td>
-                      <td>
-                        <span className={`date-badge ${new Date(asset.supportExpiry) < new Date('2026-06-16') ? 'expired' : 'active'}`}>
-                          {asset.supportExpiry}
-                        </span>
-                      </td>
-                      <td>
-                        <span className={`status-badge ${asset.status.toLowerCase()}`}>
-                          {asset.status}
-                        </span>
-                      </td>
-                      <td>
-                        <button className="row-action-btn" onClick={() => alert(`View QR Code for asset ${asset.id}`)}>
-                          QR Code
-                        </button>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </section>
-        )}
-
-        {activeTab === 'companies' && (
-          <section className="table-card">
-            <div className="table-actions">
-              <button className="action-btn-primary">+ Add Client Profile</button>
-            </div>
-            
-            <div className="table-responsive">
-              <table className="material-table">
-                <thead>
-                  <tr>
-                    <th>Company Name</th>
-                    <th>AMC Contract Start</th>
-                    <th>AMC Contract End</th>
-                    <th>Support Tier</th>
-                    <th>Status</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {companies.map((comp) => (
-                    <tr key={comp.id}>
-                      <td className="bold-cell">{comp.name}</td>
-                      <td>{comp.amcStart}</td>
-                      <td>{comp.amcEnd}</td>
-                      <td>
-                        <span className="tier-badge">{comp.supportTier}</span>
-                      </td>
-                      <td>
-                        <span className={`status-badge ${new Date(comp.amcEnd) < new Date('2026-06-16') ? 'retired' : 'active'}`}>
-                          {new Date(comp.amcEnd) < new Date('2026-06-16') ? 'Expired' : 'Active Contract'}
-                        </span>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </section>
-        )}
+        {activeTab === 'assets' && <AssetDashboard />}
+        {activeTab === 'companies' && <CompanyDashboard />}
 
         {activeTab === 'complaints' && (
           <section className="table-card">

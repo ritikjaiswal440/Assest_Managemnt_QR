@@ -1,0 +1,112 @@
+/* PublicComplaintForm.css */
+.complaint-form-container {
+  background: var(--md-sys-color-surface, #ffffff);
+  border-radius: 16px;
+  padding: 24px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+  margin-top: 16px;
+}
+
+.complaint-form-container h2 {
+  margin-top: 0;
+  font-size: 1.25rem;
+  color: var(--md-sys-color-on-surface, #1d1b20);
+}
+
+.form-subtitle {
+  font-size: 0.875rem;
+  color: var(--md-sys-color-on-surface-variant, #49454f);
+  margin-bottom: 24px;
+}
+
+.md3-form {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.form-group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.form-group label {
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: var(--md-sys-color-on-surface-variant, #49454f);
+}
+
+.md3-input {
+  padding: 14px 16px;
+  background: #f1f3f4;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  font-size: 1rem;
+  color: var(--md-sys-color-on-surface, #1d1b20);
+  transition: all 0.2s;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.md3-input:focus {
+  outline: none;
+  border-bottom: 2px solid var(--md-sys-color-primary, #6750a4);
+  background: #e9ebee;
+}
+
+textarea.md3-input {
+  resize: vertical;
+  min-height: 100px;
+}
+
+.submit-btn {
+  margin-top: 8px;
+  padding: 14px 24px;
+  font-size: 1rem;
+  border-radius: 24px;
+  width: 100%;
+}
+
+.success-state {
+  background: var(--md-sys-color-surface, #ffffff);
+  border-radius: 16px;
+  padding: 40px 24px;
+  text-align: center;
+  box-shadow: 0 2px 12px rgba(0,0,0,0.1);
+  margin-top: 16px;
+}
+
+.success-icon {
+  width: 64px;
+  height: 64px;
+  background: #4caf50;
+  color: white;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 2rem;
+  margin: 0 auto 16px auto;
+}
+
+.success-state h2 {
+  color: #2e7d32;
+  margin-bottom: 8px;
+}
+
+.reference-box {
+  margin-top: 24px;
+  padding: 16px;
+  background: #f1f8e9;
+  border-radius: 8px;
+  color: #33691e;
+  font-size: 1.1rem;
+}
+
+@media (max-width: 600px) {
+  .complaint-form-container {
+    padding: 16px;
+    border-radius: 12px;
+  }
+}

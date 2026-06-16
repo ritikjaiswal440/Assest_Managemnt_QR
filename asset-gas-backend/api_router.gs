@@ -43,9 +43,15 @@ function handleRequest(e, method) {
       case 'health':
         responseData = { status: 'healthy', timestamp: new Date().toISOString() };
         break;
+      case 'getPublicAssetDetails':
+        responseData = handleGetPublicAssetDetails(payload);
+        break;
+      case 'submitComplaint':
+        responseData = handleSubmitComplaint(payload);
+        break;
       // Add other routes here, e.g.:
-      // case 'getAsset':
-      //   responseData = AssetRepository.findById(params.assetId);
+      // case 'getCompanies':
+      //   responseData = CompanyController.getCompanies(payload);
       //   break;
       default:
         throw new Error("Unknown route: " + route);

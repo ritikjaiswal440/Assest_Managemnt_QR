@@ -1,214 +1,144 @@
-/* Public Complaint Portal Styles (Material 3 Strict Guidelines) */
-
+/* PublicComplaintPortal.css */
 .portal-container {
-  max-width: 680px;
+  max-width: 800px;
   margin: 0 auto;
   padding: 24px 16px;
-  display: flex;
-  flex-direction: column;
-  gap: 24px;
-  min-height: 100vh;
-  box-sizing: border-box;
+  font-family: 'Roboto', 'Inter', sans-serif;
+  color: var(--md-sys-color-on-surface, #1d1b20);
 }
 
-/* Header */
 .portal-header {
   text-align: center;
-  margin-top: 16px;
-  margin-bottom: 8px;
+  margin-bottom: 24px;
 }
 
 .portal-title {
-  color: var(--md-sys-color-primary);
-  font-size: 1.8rem;
-  font-weight: 700;
-  margin-bottom: 4px;
+  font-size: 1.75rem;
+  margin: 0 0 8px 0;
+  color: var(--md-sys-color-primary, #6750a4);
 }
 
 .portal-subtitle {
-  color: var(--md-sys-color-text-secondary);
-  font-size: 0.95rem;
-  font-weight: 500;
+  font-size: 1rem;
+  color: var(--md-sys-color-on-surface-variant, #49454f);
+  margin: 0;
 }
 
-/* Cards */
-.portal-card {
-  background-color: var(--md-sys-color-surface);
-  border-radius: var(--radius-lg); /* 16px */
-  border: 1px solid var(--slate-border-light);
-  box-shadow: var(--shadow-md);
+.portal-card.md3-surface {
+  background: var(--md-sys-color-surface, #ffffff);
+  border-radius: 16px;
   padding: 24px;
-  display: flex;
-  flex-direction: column;
-  gap: 20px;
-}
-
-.portal-card h2 {
-  font-size: 1.35rem;
-  color: var(--md-sys-color-text-primary);
-  font-weight: 600;
-  margin-bottom: 4px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+  margin-bottom: 16px;
 }
 
 .card-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  flex-wrap: wrap-reverse;
-  gap: 12px;
+  border-bottom: 1px solid var(--md-sys-color-outline-variant, #cac4d0);
+  padding-bottom: 16px;
+  margin-bottom: 16px;
+}
+
+.card-header h2 {
+  margin: 0;
+  font-size: 1.25rem;
 }
 
 .badge-support-tier {
-  background-color: var(--primary-light);
-  color: var(--md-sys-color-primary);
-  font-size: 0.8rem;
-  font-weight: 600;
   padding: 6px 12px;
-  border-radius: 50px;
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
+  border-radius: 16px;
+  font-size: 0.875rem;
+  font-weight: 500;
 }
 
-/* Asset Details Grid */
+.tier-active {
+  background: #e8f5e9;
+  color: #2e7d32;
+}
+
+.tier-expired {
+  background: #ffebee;
+  color: #c62828;
+}
+
+.tier-standard {
+  background: #e3f2fd;
+  color: #1565c0;
+}
+
 .asset-details-grid {
   display: grid;
-  grid-template-columns: repeat(2, 1fr);
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
   gap: 16px;
-  border-top: 1px solid var(--slate-border-light);
-  padding-top: 20px;
-}
-
-@media (max-width: 500px) {
-  .asset-details-grid {
-    grid-template-columns: 1fr;
-  }
 }
 
 .detail-item {
   display: flex;
   flex-direction: column;
-  gap: 4px;
 }
 
 .detail-label {
   font-size: 0.75rem;
-  color: var(--md-sys-color-text-secondary);
   text-transform: uppercase;
-  font-weight: 600;
+  color: var(--md-sys-color-on-surface-variant, #49454f);
   letter-spacing: 0.5px;
 }
 
 .detail-value {
   font-size: 1rem;
-  color: var(--md-sys-color-text-primary);
   font-weight: 500;
-  word-break: break-all;
-}
-
-.active-text {
-  color: var(--md-sys-color-success);
-  font-weight: 600;
-}
-
-.expired-text {
-  color: var(--md-sys-color-error);
-  font-weight: 600;
 }
 
 .support-warning-box {
-  background-color: var(--danger-light);
-  color: var(--md-sys-color-error);
-  border-left: 4px solid var(--md-sys-color-error);
-  padding: 12px 16px;
-  border-radius: var(--radius-sm);
+  margin-top: 24px;
+  padding: 16px;
+  background: #fff3e0;
+  border-left: 4px solid #ef6c00;
+  color: #e65100;
+  border-radius: 4px;
   font-size: 0.9rem;
-  line-height: 1.4;
-  margin-top: 8px;
 }
 
-/* Complaint Form Styles */
-.form-description {
-  font-size: 0.9rem;
-  color: var(--md-sys-color-text-secondary);
-  line-height: 1.4;
-  margin-top: -12px;
-  margin-bottom: 8px;
-}
-
-.complaint-form {
+.error-banner {
+  background: #ffebee;
+  color: #c62828;
+  padding: 16px;
+  border-radius: 12px;
+  margin-bottom: 16px;
   display: flex;
-  flex-direction: column;
-  gap: 18px;
+  align-items: center;
+  gap: 12px;
 }
 
-.form-group {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-
-.form-group label {
-  font-size: 0.85rem;
-  font-weight: 600;
-  color: var(--md-sys-color-text-primary);
-}
-
-.form-group input,
-.form-group textarea {
-  width: 100%;
-  box-sizing: border-box;
-}
-
-.submit-btn {
-  background-color: var(--md-sys-color-primary);
-  color: #ffffff;
-  border: none;
-  font-size: 1rem;
-  font-weight: 600;
-  padding: 14px 28px;
-  border-radius: 50px !important; /* Pill shape */
-  width: 100%;
+.empty-state {
   text-align: center;
-  transition: background-color var(--transition-fast);
-  margin-top: 8px;
+  padding: 48px 24px !important;
 }
 
-.submit-btn:hover:not(:disabled) {
-  background-color: var(--primary-deep);
+.empty-icon {
+  font-size: 3rem;
+  margin-bottom: 16px;
 }
 
-.submit-btn:disabled {
-  background-color: var(--slate-medium);
-  opacity: 0.7;
-  cursor: not-allowed;
-}
-
-/* Banners */
-.success-banner {
-  background-color: var(--success-light);
-  color: var(--md-sys-color-success);
-  padding: 12px 16px;
-  border-radius: var(--radius-sm);
-  border-left: 4px solid var(--md-sys-color-success);
-  font-weight: 600;
-  font-size: 0.95rem;
-}
-
-/* Skeleton Loading State UI */
-.loading-container {
-  justify-content: center;
-}
-
-.skeleton-header {
-  height: 48px;
-  width: 60%;
-  margin: 0 auto;
-}
-
-.skeleton-card {
-  height: 220px;
-}
-
-.skeleton-form {
-  height: 300px;
+@media (max-width: 600px) {
+  .portal-container {
+    padding: 16px 8px;
+  }
+  
+  .portal-card.md3-surface {
+    padding: 16px;
+    border-radius: 12px;
+  }
+  
+  .card-header {
+    flex-direction: column-reverse;
+    align-items: flex-start;
+    gap: 12px;
+  }
+  
+  .asset-details-grid {
+    grid-template-columns: 1fr;
+  }
 }
