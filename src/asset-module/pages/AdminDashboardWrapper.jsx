@@ -5,6 +5,7 @@ import './AdminDashboardWrapper.css';
 import AssetDashboard from './AssetDashboard';
 import CompanyDashboard from './CompanyDashboard';
 import BulkDataPanel from '../components/BulkDataPanel';
+import ReportingDashboard from './ReportingDashboard';
 
 function AdminDashboardWrapper() {
   const { user, logout } = useAuth();
@@ -127,6 +128,12 @@ function AdminDashboardWrapper() {
           >
             <span>🗃️</span> Data Operations
           </button>
+          <button
+            className={`nav-item ${activeTab === 'analytics' ? 'active' : ''}`}
+            onClick={() => setActiveTab('analytics')}
+          >
+            <span>📈</span> Analytics & KPIs
+          </button>
         </nav>
 
         <div className="sidebar-footer">
@@ -144,6 +151,7 @@ function AdminDashboardWrapper() {
             {activeTab === 'companies' && 'Company Master Registry'}
             {activeTab === 'complaints' && 'QR Complaint Synchronization Hub'}
             {activeTab === 'bulk' && 'Bulk Operations & Migration'}
+            {activeTab === 'analytics' && 'Executive Reporting Engine'}
           </h1>
           <p className="subtitle-date">System Context Time: 2026-06-16</p>
         </header>
@@ -152,6 +160,7 @@ function AdminDashboardWrapper() {
         {activeTab === 'assets' && <AssetDashboard />}
         {activeTab === 'companies' && <CompanyDashboard />}
         {activeTab === 'bulk' && <BulkDataPanel />}
+        {activeTab === 'analytics' && <ReportingDashboard />}
 
         {activeTab === 'complaints' && (
           <section className="table-card">

@@ -61,6 +61,12 @@ function handleRequest(e, method) {
       case 'exportData':
         responseData = handleExportData(payload);
         break;
+      case 'getDashboardKPIs':
+        responseData = handleGetDashboardKPIs(payload);
+        break;
+      case 'getFailureTrends':
+        responseData = handleGetFailureTrends(payload);
+        break;
       default:
         throw new Error("Unknown route: " + route);
     }
