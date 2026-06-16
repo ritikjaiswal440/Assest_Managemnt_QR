@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Navigate } from 'react-router-dom';
-import { useAuth } from '../context/AuthContext';
+import { useAuth } from "../../context/AuthContext";
 import './AdminDashboardWrapper.css';
 
 function AdminDashboardWrapper() {
@@ -10,7 +10,7 @@ function AdminDashboardWrapper() {
   const [activeTab, setActiveTab] = useState('assets');
 
   // Hardcoded initial data demonstrating the data schemas and Repository states
-  const [assets, setAssets] = useState([
+  const [assets] = useState([
     {
       uuid: 'a6042f0b-e60d-45db-95f0-f9fbfeeb34dc',
       id: 'AVD/PD/000001',
@@ -40,7 +40,7 @@ function AdminDashboardWrapper() {
     }
   ]);
 
-  const [companies, setCompanies] = useState([
+  const [companies] = useState([
     {
       id: 'c-uuid-1',
       name: 'Apex Innovations Ltd',
@@ -57,7 +57,7 @@ function AdminDashboardWrapper() {
     }
   ]);
 
-  const [complaints, setComplaints] = useState([
+  const [complaints] = useState([
     {
       id: 'CMP-2026-000001',
       assetId: 'AVD/PD/000001',

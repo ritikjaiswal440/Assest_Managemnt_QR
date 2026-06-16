@@ -10,8 +10,8 @@ import TicketRequest from './pages/TicketRequest';
 import TrackTicket from './pages/TrackTicket';
 
 // Standalone Asset & Complaint System Page Imports
-import PublicComplaintPortal from './pages/PublicComplaintPortal';
-import AdminDashboardWrapper from './pages/AdminDashboardWrapper';
+import PublicComplaintPortal from './asset-module/pages/PublicComplaintPortal';
+import AdminDashboardWrapper from './asset-module/pages/AdminDashboardWrapper';
 
 // Protected Route Wrapper
 const ProtectedRoute = ({ children }) => {
