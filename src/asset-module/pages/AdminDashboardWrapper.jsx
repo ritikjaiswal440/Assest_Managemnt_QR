@@ -4,6 +4,7 @@ import { useAuth } from "../../context/AuthContext";
 import './AdminDashboardWrapper.css';
 import AssetDashboard from './AssetDashboard';
 import CompanyDashboard from './CompanyDashboard';
+import BulkDataPanel from '../components/BulkDataPanel';
 
 function AdminDashboardWrapper() {
   const { user, logout } = useAuth();
@@ -120,6 +121,12 @@ function AdminDashboardWrapper() {
           >
             <span>🎫</span> Complaint Logs
           </button>
+          <button
+            className={`nav-item ${activeTab === 'bulk' ? 'active' : ''}`}
+            onClick={() => setActiveTab('bulk')}
+          >
+            <span>🗃️</span> Data Operations
+          </button>
         </nav>
 
         <div className="sidebar-footer">
@@ -136,6 +143,7 @@ function AdminDashboardWrapper() {
             {activeTab === 'assets' && 'Asset Master Inventory'}
             {activeTab === 'companies' && 'Company Master Registry'}
             {activeTab === 'complaints' && 'QR Complaint Synchronization Hub'}
+            {activeTab === 'bulk' && 'Bulk Operations & Migration'}
           </h1>
           <p className="subtitle-date">System Context Time: 2026-06-16</p>
         </header>
@@ -143,6 +151,7 @@ function AdminDashboardWrapper() {
         {/* View switching logic */}
         {activeTab === 'assets' && <AssetDashboard />}
         {activeTab === 'companies' && <CompanyDashboard />}
+        {activeTab === 'bulk' && <BulkDataPanel />}
 
         {activeTab === 'complaints' && (
           <section className="table-card">

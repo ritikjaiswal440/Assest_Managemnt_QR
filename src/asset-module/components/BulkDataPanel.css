@@ -1,0 +1,244 @@
+/* BulkDataPanel.css */
+.bulk-data-panel {
+  padding: 24px;
+  border-radius: 16px;
+  background: var(--md-sys-color-surface, #ffffff);
+  box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+  margin-bottom: 24px;
+}
+
+.panel-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border-bottom: 1px solid var(--md-sys-color-outline-variant, #cac4d0);
+  padding-bottom: 16px;
+  margin-bottom: 24px;
+}
+
+.panel-header h2 {
+  margin: 0;
+  color: var(--md-sys-color-on-surface, #1d1b20);
+}
+
+.tab-switcher {
+  display: flex;
+  background: #f1f3f4;
+  border-radius: 20px;
+  padding: 4px;
+}
+
+.tab-btn {
+  background: transparent;
+  border: none;
+  padding: 8px 16px;
+  border-radius: 16px;
+  cursor: pointer;
+  font-weight: 500;
+  color: #49454f;
+  transition: all 0.2s;
+}
+
+.tab-btn.active {
+  background: #ffffff;
+  color: var(--md-sys-color-primary, #6750a4);
+  box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+}
+
+.operations-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 24px;
+}
+
+.operation-zone {
+  padding: 24px;
+  border-radius: 12px;
+  border: 1px solid var(--md-sys-color-outline-variant, #cac4d0);
+  background: #f8f9fa;
+  display: flex;
+  flex-direction: column;
+}
+
+.operation-zone h3 {
+  margin-top: 0;
+  margin-bottom: 16px;
+  color: var(--md-sys-color-on-surface, #1d1b20);
+}
+
+/* Drag Drop Zone */
+.drag-drop-zone {
+  border: 2px dashed #cac4d0;
+  border-radius: 12px;
+  padding: 32px 16px;
+  text-align: center;
+  background: #ffffff;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 150px;
+}
+
+.drag-drop-zone.drag-active {
+  border-color: var(--md-sys-color-primary, #6750a4);
+  background: #f3e5f5;
+}
+
+.drag-drop-zone.has-file {
+  border-style: solid;
+  border-color: #4caf50;
+  background: #e8f5e9;
+}
+
+.upload-icon {
+  font-size: 2rem;
+  display: block;
+  margin-bottom: 8px;
+}
+
+.upload-prompt p {
+  margin: 0 0 8px 0;
+  font-weight: 500;
+  color: #49454f;
+}
+
+.upload-prompt small {
+  color: #79747e;
+}
+
+.file-info {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+}
+
+.file-icon {
+  font-size: 2rem;
+}
+
+.file-info p {
+  margin: 0;
+  font-weight: bold;
+  color: #2e7d32;
+}
+
+/* Validation Banner */
+.validation-banner {
+  margin-top: 16px;
+  padding: 16px;
+  background: #ffffff;
+  border-radius: 8px;
+  border: 1px solid #e0e0e0;
+}
+
+.validation-banner h4 {
+  margin: 0 0 12px 0;
+}
+
+.stats-row {
+  display: flex;
+  gap: 16px;
+  margin-bottom: 16px;
+}
+
+.stat-box {
+  flex: 1;
+  background: #f1f3f4;
+  padding: 12px;
+  border-radius: 8px;
+  text-align: center;
+}
+
+.stat-box.highlight {
+  background: #e8f5e9;
+}
+
+.stat-val {
+  display: block;
+  font-size: 1.25rem;
+  font-weight: bold;
+  color: #1d1b20;
+}
+
+.stat-box.highlight .stat-val {
+  color: #2e7d32;
+  font-size: 1rem;
+}
+
+.stat-label {
+  font-size: 0.75rem;
+  color: #49454f;
+  text-transform: uppercase;
+  margin-top: 4px;
+  display: block;
+}
+
+.upload-action-btn {
+  width: 100%;
+  padding: 12px;
+  border-radius: 20px;
+}
+
+/* Result Banner */
+.result-banner {
+  margin-top: 16px;
+  padding: 16px;
+  border-radius: 8px;
+}
+
+.result-banner.success {
+  background: #e8f5e9;
+  color: #1b5e20;
+  border: 1px solid #c8e6c9;
+}
+
+.result-banner.error {
+  background: #ffebee;
+  color: #b71c1c;
+  border: 1px solid #ffcdd2;
+}
+
+.result-banner h4 {
+  margin: 0 0 8px 0;
+}
+
+.result-banner p {
+  margin: 0;
+}
+
+.error-list {
+  margin: 8px 0 0 0;
+  padding-left: 20px;
+  font-size: 0.9rem;
+}
+
+/* Export Zone */
+.export-desc {
+  color: #49454f;
+  line-height: 1.5;
+  margin-bottom: 24px;
+  flex: 1;
+}
+
+.export-action-btn {
+  width: 100%;
+  padding: 12px;
+  border-radius: 20px;
+  font-weight: bold;
+}
+
+@media (max-width: 768px) {
+  .operations-grid {
+    grid-template-columns: 1fr;
+  }
+  
+  .panel-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 16px;
+  }
+}

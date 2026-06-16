@@ -52,10 +52,15 @@ function handleRequest(e, method) {
       case 'submitComplaint':
         responseData = handleSubmitComplaint(payload);
         break;
-      // Add other routes here, e.g.:
-      // case 'getCompanies':
-      //   responseData = CompanyController.getCompanies(payload);
-      //   break;
+      case 'importAssets':
+        responseData = handleImportAssets(payload);
+        break;
+      case 'importCompanies':
+        responseData = handleImportCompanies(payload);
+        break;
+      case 'exportData':
+        responseData = handleExportData(payload);
+        break;
       default:
         throw new Error("Unknown route: " + route);
     }
