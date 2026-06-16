@@ -1,0 +1,94 @@
+/* QRLabel.css */
+.qr-label-card {
+  width: 3.5in;
+  height: 2in;
+  background: #ffffff;
+  border: 1px solid #000;
+  box-sizing: border-box;
+  padding: 0.1in;
+  font-family: 'Arial', sans-serif;
+  color: #000;
+  margin: 0 auto;
+}
+
+.qr-label-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border-bottom: 2px solid #000;
+  padding-bottom: 0.05in;
+  margin-bottom: 0.1in;
+}
+
+.label-brand {
+  margin: 0;
+  font-size: 14pt;
+  font-weight: bold;
+}
+
+.label-scan-text {
+  font-size: 10pt;
+  font-weight: bold;
+  background: #000;
+  color: #fff;
+  padding: 2px 6px;
+}
+
+.qr-label-body {
+  display: flex;
+  gap: 0.1in;
+  align-items: center;
+}
+
+.qr-code-wrapper {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid #ccc;
+}
+
+.qr-label-details {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  font-size: 9pt;
+}
+
+.detail-row {
+  display: flex;
+  align-items: flex-start;
+}
+
+.label-key {
+  width: 55px;
+  font-weight: bold;
+}
+
+.label-val {
+  flex: 1;
+}
+
+.fw-bold {
+  font-weight: bold;
+  font-size: 10pt;
+}
+
+/* Print Specific Styles */
+@media print {
+  body * {
+    visibility: hidden;
+  }
+  
+  #print-qr-label, #print-qr-label * {
+    visibility: visible;
+  }
+  
+  #print-qr-label {
+    position: absolute;
+    left: 0;
+    top: 0;
+    margin: 0;
+    border: none;
+  }
+}

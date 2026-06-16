@@ -46,6 +46,9 @@ function handleRequest(e, method) {
       case 'getPublicAssetDetails':
         responseData = handleGetPublicAssetDetails(payload);
         break;
+      case 'generateQRSig':
+        responseData = handleGenerateQRSig(payload);
+        break;
       case 'submitComplaint':
         responseData = handleSubmitComplaint(payload);
         break;

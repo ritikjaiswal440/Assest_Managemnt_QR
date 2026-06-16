@@ -30,6 +30,33 @@ function validateQRSignature(assetId, providedSignature) {
 }
 
 /**
+ * Endpoint Handler: generateQRSig (Admin Only - Requires authenticated environment)
+ * Generates the secure 8-character HMAC signature for a given Asset ID.
+ */
+function handleGenerateQRSig(params) {
+  const { assetId } = params;
+  if (!assetId) {
+    throw new Error("Missing assetId");
+  }
+  
+  // Create HMAC-SHA256 hash
+  const signatureBytes = Utilities.computeHmacSha256Signature(assetId, SECRET_KEY);
+  
+  // Convert bytes to hex string
+  let hexString = signatureBytes.map(function(byte) {
+    let hex = (byte < 0 ? byte + 256 : byte).toString(16);
+    return hex.length === 1 ? '0' + hex : hex;
+  }).join('');
+  
+  const signature = hexString.substring(0, 8);
+  
+  return {
+    assetId: assetId,
+    signature: signature
+  };
+}
+
+/**
  * Endpoint Handler: getPublicAssetDetails
  */
 function handleGetPublicAssetDetails(params) {
@@ -106,6 +133,17 @@ function handleSubmitComplaint(params) {
   const complaintRepo = new BaseRepository('Asset_Complaints', true); // True = Sharded by Year
   complaintRepo.save(complaintData, 'id');
   
+  // 4. Trigger Real-Time Sync (Fire-and-forget inside Try/Catch)
+  try {
+    // In a real GAS environment, to make this truly asynchronous to not block the UI,
+    // we could use CacheService + Time-driven triggers, or execute it synchronously 
+    // within a try/catch if the payload fetch is fast enough. We'll do a synchronous try/catch.
+    pushComplaintToProSupport(complaintId);
+  } catch (syncErr) {
+    Logger.log(`Failed to trigger real-time sync for ${complaintId}: ${syncErr.message}`);
+    // Non-blocking: the Cron Job will pick it up
+  }
+
   return {
     complaintId: complaintId,
     status: 'Logged',

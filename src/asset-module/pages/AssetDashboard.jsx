@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { assetApi } from '../services/assetApi';
 import AssetFormModal from '../components/AssetFormModal';
+import QRLabel from '../components/QRLabel';
 
 export default function AssetDashboard() {
   const [assets, setAssets] = useState([]);
@@ -10,6 +11,12 @@ export default function AssetDashboard() {
 
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingAsset, setEditingAsset] = useState(null);
+
+  // Print Label State
+  const [isPrintModalOpen, setIsPrintModalOpen] = useState(false);
+  const [printAssetData, setPrintAssetData] = useState(null);
+  const [printSignature, setPrintSignature] = useState('');
+  const [isGeneratingSig, setIsGeneratingSig] = useState(false);
 
   useEffect(() => {
     fetchData();
@@ -51,8 +58,10 @@ export default function AssetDashboard() {
           refCode: 'c-uuid-1',
           companyName: 'Apex Innovations Ltd',
           location: 'Conference Room Alpha',
+          roomName: 'Alpha',
           productMake: 'Epson',
           productModel: 'EB-L520U',
+          productSerial: 'EPS12345678',
           assetStatus: 'Active',
           signature: 'abc123xyz'
         },
@@ -62,8 +71,10 @@ export default function AssetDashboard() {
           refCode: 'c-uuid-1',
           companyName: 'Apex Innovations Ltd',
           location: 'Executive Boardroom',
+          roomName: 'Boardroom',
           productMake: 'Poly',
           productModel: 'Studio X50',
+          productSerial: 'PLY87654321',
           assetStatus: 'In_Repair',
           signature: 'def456uvw'
         }
@@ -77,7 +88,6 @@ export default function AssetDashboard() {
     setIsModalOpen(false);
     setLoading(true);
     
-    // Fallback Mock save logic
     setTimeout(() => {
       const company = companies.find(c => c.id === formData.refCode);
       const newAsset = {
@@ -95,6 +105,39 @@ export default function AssetDashboard() {
       }
       setLoading(false);
     }, 500);
+  };
+
+  const handlePrintLabel = async (asset) => {
+    setIsGeneratingSig(true);
+    try {
+      // Use assetApi to securely fetch the generated signature
+      const response = await assetApi('generateQRSig', { assetId: asset.id });
+      
+      if (response && response.success && response.data) {
+        setPrintSignature(response.data.signature);
+        setPrintAssetData(asset);
+        setIsPrintModalOpen(true);
+      } else {
+        alert("Failed to generate secure QR signature: " + (response?.message || "Unknown error"));
+        // Fallback for UI testing
+        setPrintSignature(asset.signature || 'mockSig1');
+        setPrintAssetData(asset);
+        setIsPrintModalOpen(true);
+      }
+    } catch (err) {
+      console.error("Error generating sig:", err);
+      alert("Network error generating QR signature.");
+      // Fallback for UI testing
+      setPrintSignature(asset.signature || 'mockSig1');
+      setPrintAssetData(asset);
+      setIsPrintModalOpen(true);
+    } finally {
+      setIsGeneratingSig(false);
+    }
+  };
+
+  const triggerPrint = () => {
+    window.print();
   };
 
   return (
@@ -149,13 +192,10 @@ export default function AssetDashboard() {
                   <td style={{ display: 'flex', gap: '8px' }}>
                     <button 
                       className="row-action-btn"
-                      onClick={() => {
-                        // Generate the expected QR URL hash structure
-                        const qrPath = `#/asset/${asset.id}.${asset.signature}`;
-                        window.open(qrPath, '_blank');
-                      }}
+                      onClick={() => handlePrintLabel(asset)}
+                      disabled={isGeneratingSig}
                     >
-                      View QR Link
+                      Print Label
                     </button>
                     <button 
                       className="row-action-btn"
@@ -186,6 +226,24 @@ export default function AssetDashboard() {
         initialData={editingAsset}
         companies={companies}
       />
+
+      {/* Print Modal Overlay */}
+      {isPrintModalOpen && (
+        <div className="modal-overlay">
+          <div className="modal-content md3-surface" style={{ maxWidth: '400px' }}>
+            <div className="modal-header">
+              <h2>Asset Label Preview</h2>
+              <button className="icon-button" onClick={() => setIsPrintModalOpen(false)}>✕</button>
+            </div>
+            <div className="modal-body" style={{ padding: '20px 0', background: '#f5f5f5', display: 'flex', justifyContent: 'center' }}>
+              <QRLabel asset={printAssetData} signature={printSignature} />
+            </div>
+            <div className="modal-actions" style={{ justifyContent: 'center' }}>
+              <button className="btn-filled" onClick={triggerPrint}>🖨️ Print to PDF / Label Printer</button>
+            </div>
+          </div>
+        </div>
+      )}
     </section>
   );
 }
