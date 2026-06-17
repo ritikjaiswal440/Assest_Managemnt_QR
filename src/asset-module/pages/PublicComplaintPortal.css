@@ -122,6 +122,25 @@
   margin-bottom: 16px;
 }
 
+.asset-section {
+  padding: 8px 0;
+}
+
+.section-title {
+  font-size: 1.1rem;
+  color: var(--md-sys-color-primary, #6750a4);
+  margin-top: 0;
+  margin-bottom: 16px;
+  font-weight: 500;
+}
+
+.section-divider {
+  border: none;
+  height: 1px;
+  background-color: var(--md-sys-color-outline-variant, #cac4d0);
+  margin: 16px 0;
+}
+
 @media (max-width: 600px) {
   .portal-container {
     padding: 16px 8px;

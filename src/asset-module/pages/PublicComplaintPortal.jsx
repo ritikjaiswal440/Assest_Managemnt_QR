@@ -104,26 +104,91 @@ export default function PublicComplaintPortal() {
               <h2>Hardware Verification</h2>
             </div>
             
-            <div className="asset-details-grid">
-              <div className="detail-item">
-                <span className="detail-label">Client / Organization</span>
-                <span className="detail-value">{asset.companyName || 'Unknown'}</span>
+            <div className="asset-details-sections">
+              <div className="asset-section">
+                <h3 className="section-title">Location</h3>
+                <div className="asset-details-grid">
+                  <div className="detail-item">
+                    <span className="detail-label">Location</span>
+                    <span className="detail-value">{asset.location || 'N/A'}</span>
+                  </div>
+                  <div className="detail-item">
+                    <span className="detail-label">Sub Location</span>
+                    <span className="detail-value">{asset.subLocation || 'N/A'}</span>
+                  </div>
+                  <div className="detail-item">
+                    <span className="detail-label">Floor</span>
+                    <span className="detail-value">{asset.floor || 'N/A'}</span>
+                  </div>
+                  <div className="detail-item">
+                    <span className="detail-label">Room Type</span>
+                    <span className="detail-value">{asset.roomType || 'N/A'}</span>
+                  </div>
+                  <div className="detail-item">
+                    <span className="detail-label">Room Name</span>
+                    <span className="detail-value">{asset.roomName || 'N/A'}</span>
+                  </div>
+                </div>
               </div>
-              <div className="detail-item">
-                <span className="detail-label">Hardware Maker</span>
-                <span className="detail-value">{asset.productMake || 'N/A'}</span>
+
+              <hr className="section-divider" />
+
+              <div className="asset-section">
+                <h3 className="section-title">Hardware</h3>
+                <div className="asset-details-grid">
+                  <div className="detail-item">
+                    <span className="detail-label">Client / Organization</span>
+                    <span className="detail-value">{asset.companyName || 'Unknown'}</span>
+                  </div>
+                  <div className="detail-item">
+                    <span className="detail-label">Hardware Maker</span>
+                    <span className="detail-value">{asset.productMake || 'N/A'}</span>
+                  </div>
+                  <div className="detail-item">
+                    <span className="detail-label">Model Name</span>
+                    <span className="detail-value">{asset.productModel || 'N/A'}</span>
+                  </div>
+                  <div className="detail-item">
+                    <span className="detail-label">Serial Number</span>
+                    <span className="detail-value">{asset.productSerial || 'N/A'}</span>
+                  </div>
+                </div>
               </div>
-              <div className="detail-item">
-                <span className="detail-label">Model Name</span>
-                <span className="detail-value">{asset.productModel || 'N/A'}</span>
-              </div>
-              <div className="detail-item">
-                <span className="detail-label">Site / Building</span>
-                <span className="detail-value">{asset.location || 'N/A'}</span>
-              </div>
-              <div className="detail-item">
-                <span className="detail-label">Room / Area</span>
-                <span className="detail-value">{asset.roomName || 'N/A'}</span>
+
+              <hr className="section-divider" />
+
+              <div className="asset-section">
+                <h3 className="section-title">Status & Warranty</h3>
+                <div className="asset-details-grid">
+                  <div className="detail-item">
+                    <span className="detail-label">Asset Status</span>
+                    <span className="detail-value">
+                      <span className={`badge-support-tier ${asset.assetStatus?.toLowerCase() === 'active' ? 'tier-active' : 'tier-expired'}`} style={{display: 'inline-block', marginTop: '4px'}}>
+                        {asset.assetStatus || 'N/A'}
+                      </span>
+                    </span>
+                  </div>
+                  <div className="detail-item">
+                    <span className="detail-label">Warranty Start</span>
+                    <span className="detail-value">{asset.warrantyStartDate ? new Date(asset.warrantyStartDate).toLocaleDateString() : 'N/A'}</span>
+                  </div>
+                  <div className="detail-item">
+                    <span className="detail-label">Warranty End</span>
+                    <span className="detail-value">{asset.warrantyEndDate ? new Date(asset.warrantyEndDate).toLocaleDateString() : 'N/A'}</span>
+                  </div>
+                  <div className="detail-item">
+                    <span className="detail-label">DLP Period</span>
+                    <span className="detail-value">{asset.dlpPeriod ? `${asset.dlpPeriod} Months` : 'N/A'}</span>
+                  </div>
+                  <div className="detail-item">
+                    <span className="detail-label">Days Left</span>
+                    <span className="detail-value">
+                       <span className={`badge-support-tier ${asset.warrantyDaysLeft > 0 ? 'tier-active' : 'tier-expired'}`} style={{display: 'inline-block', marginTop: '4px'}}>
+                         {asset.warrantyDaysLeft > 0 ? `${asset.warrantyDaysLeft} Days` : 'Expired'}
+                       </span>
+                    </span>
+                  </div>
+                </div>
               </div>
             </div>
 

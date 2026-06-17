@@ -54,6 +54,17 @@ class BaseRepository {
         productMake: dbObj['ProductMake'] || '',
         productModel: dbObj['ProductModel'] || '',
         productSerial: dbObj['ProductSerial'] || '',
+        subLocation: dbObj['Sub_Location'] || '',
+        roomType: dbObj['Room_Type'] || '',
+        floor: dbObj['Floor'] || '',
+        warrantyStartDate: dbObj['Warranty_Start_Date'] || '',
+        dlpPeriod: dbObj['DLP_Period'] || '',
+        warrantyEndDate: dbObj['Warranty_End_Date'] || '',
+        warrantyDaysLeft: dbObj['Warranty_Days_Left'] || '',
+        macId: dbObj['MAC_ID'] || '',
+        ipAddress: dbObj['IP_Address'] || '',
+        salesOrder: dbObj['Sales_Order'] || '',
+        invoiceNo: dbObj['Invoice_No'] || '',
         assetStatus: dbObj['Asset_Status'] || 'Active'
       };
     }
@@ -104,6 +115,17 @@ class BaseRepository {
         'ProductMake': obj.productMake,
         'ProductModel': obj.productModel,
         'ProductSerial': obj.productSerial,
+        'Sub_Location': obj.subLocation,
+        'Room_Type': obj.roomType,
+        'Floor': obj.floor,
+        'Warranty_Start_Date': obj.warrantyStartDate,
+        'DLP_Period': obj.dlpPeriod,
+        'Warranty_End_Date': obj.warrantyEndDate,
+        'Warranty_Days_Left': obj.warrantyDaysLeft,
+        'MAC_ID': obj.macId,
+        'IP_Address': obj.ipAddress,
+        'Sales_Order': obj.salesOrder,
+        'Invoice_No': obj.invoiceNo,
         'Asset_Status': obj.assetStatus,
         'Updated_At': new Date().toISOString()
       };

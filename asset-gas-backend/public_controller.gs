@@ -92,12 +92,21 @@ function handleGetPublicAssetDetails(params) {
     assetId: asset.id,
     companyName: asset.companyName,
     location: asset.location,
+    subLocation: asset.subLocation,
     roomName: asset.roomName,
+    roomType: asset.roomType,
+    floor: asset.floor,
     productMake: asset.productMake,
     productModel: asset.productModel,
+    productSerial: asset.productSerial,
     supportType: supportType,
     supportExpiryDate: asset.supportExpiry || (isExpired ? 'Expired' : 'Active'),
-    isExpired: isExpired || (asset.assetStatus === 'Retired')
+    isExpired: isExpired || (asset.assetStatus === 'Retired'),
+    warrantyStartDate: asset.warrantyStartDate,
+    warrantyEndDate: asset.warrantyEndDate,
+    dlpPeriod: asset.dlpPeriod,
+    warrantyDaysLeft: asset.warrantyDaysLeft,
+    assetStatus: asset.assetStatus
   };
 }
 
