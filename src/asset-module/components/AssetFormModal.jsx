@@ -162,7 +162,9 @@ export default function AssetFormModal({ isOpen, onClose, onSave, initialData, c
             >
               <option value="Active">Active</option>
               <option value="In_Repair">In Repair</option>
+              <option value="Transferred">Transferred</option>
               <option value="Retired">Retired</option>
+              <option value="Replaced">Replaced</option>
             </select>
           </div>
 

@@ -3,12 +3,14 @@ import { useState, useEffect } from 'react';
 import { assetApi } from '../services/assetApi';
 import AssetFormModal from '../components/AssetFormModal';
 import QRLabel from '../components/QRLabel';
+import html2canvas from 'html2canvas';
 
 export default function AssetDashboard() {
   const [assets, setAssets] = useState([]);
   const [companies, setCompanies] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [searchTerm, setSearchTerm] = useState('');
 
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingAsset, setEditingAsset] = useState(null);
@@ -88,26 +90,40 @@ export default function AssetDashboard() {
   }, []);
 
   const handleSaveAsset = async (formData) => {
-    setIsModalOpen(false);
     setLoading(true);
     
-    setTimeout(() => {
+    try {
       const company = companies.find(c => c.id === formData.refCode);
-      const newAsset = {
+      const payload = {
         ...formData,
-        companyName: company ? company.name : 'Unknown',
-        signature: 'mock_sig_' + Date.now().toString().slice(-4)
+        companyName: company ? company.name : 'Unknown'
       };
 
       if (formData.id) {
-        setAssets(prev => prev.map(a => a.id === formData.id ? { ...a, ...newAsset } : a));
+        // Update existing
+        const response = await assetApi('updateAsset', payload);
+        if (response && response.success) {
+          setAssets(prev => prev.map(a => a.id === formData.id ? { ...a, ...response.data } : a));
+          setIsModalOpen(false);
+        } else {
+          alert('Failed to update asset: ' + (response?.message || 'Unknown error'));
+        }
       } else {
-        newAsset.id = 'AVD/PD/NEW' + Math.floor(Math.random() * 1000);
-        newAsset.uuid = 'uuid-new-' + Date.now();
-        setAssets(prev => [...prev, newAsset]);
+        // Create new
+        const response = await assetApi('createAsset', payload);
+        if (response && response.success) {
+          setAssets(prev => [...prev, response.data]);
+          setIsModalOpen(false);
+        } else {
+          alert('Failed to create asset: ' + (response?.message || 'Unknown error'));
+        }
       }
+    } catch (err) {
+      console.error(err);
+      alert('An error occurred while saving the asset.');
+    } finally {
       setLoading(false);
-    }, 500);
+    }
   };
 
   const handlePrintLabel = async (asset) => {
@@ -143,11 +159,44 @@ export default function AssetDashboard() {
     window.print();
   };
 
+  const handleDownloadLabel = async () => {
+    const labelElement = document.getElementById('qr-label-preview');
+    if (!labelElement) return;
+    try {
+      const canvas = await html2canvas(labelElement);
+      const dataUrl = canvas.toDataURL('image/png');
+      const a = document.createElement('a');
+      a.href = dataUrl;
+      a.download = `${printAssetData?.id || 'Asset'}_Label.png`;
+      a.click();
+    } catch (err) {
+      console.error('Failed to generate label image', err);
+      alert('Failed to download label as PNG.');
+    }
+  };
+
+  const filteredAssets = assets.filter(asset => {
+    const term = searchTerm.toLowerCase();
+    return (
+      (asset.id && asset.id.toLowerCase().includes(term)) ||
+      (asset.companyName && asset.companyName.toLowerCase().includes(term)) ||
+      (asset.location && asset.location.toLowerCase().includes(term)) ||
+      (asset.productSerial && asset.productSerial.toLowerCase().includes(term))
+    );
+  });
+
   return (
     <section className="table-card">
       <div className="table-actions" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <div className="filter-bar">
-          <input type="text" placeholder="Search Assets..." className="md3-input" style={{ padding: '8px 16px', borderRadius: '20px' }} />
+          <input 
+            type="text" 
+            placeholder="Search Assets..." 
+            className="md3-input" 
+            style={{ padding: '8px 16px', borderRadius: '20px' }} 
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+          />
         </div>
         <button 
           className="btn-filled" 
@@ -180,7 +229,7 @@ export default function AssetDashboard() {
               </tr>
             </thead>
             <tbody>
-              {assets.map((asset) => (
+              {filteredAssets.map((asset) => (
                 <tr key={asset.uuid || asset.id}>
                   <td className="bold-cell">{asset.id}</td>
                   <td>{asset.companyName}</td>
@@ -212,7 +261,7 @@ export default function AssetDashboard() {
                   </td>
                 </tr>
               ))}
-              {assets.length === 0 && (
+              {filteredAssets.length === 0 && (
                 <tr>
                   <td colSpan="7" style={{ textAlign: 'center' }}>No assets found.</td>
                 </tr>
@@ -239,10 +288,13 @@ export default function AssetDashboard() {
               <button className="icon-button" onClick={() => setIsPrintModalOpen(false)}>✕</button>
             </div>
             <div className="modal-body" style={{ padding: '20px 0', background: '#f5f5f5', display: 'flex', justifyContent: 'center' }}>
-              <QRLabel asset={printAssetData} signature={printSignature} />
+              <div id="qr-label-preview">
+                <QRLabel asset={printAssetData} signature={printSignature} />
+              </div>
             </div>
-            <div className="modal-actions" style={{ justifyContent: 'center' }}>
-              <button className="btn-filled" onClick={triggerPrint}>🖨️ Print to PDF / Label Printer</button>
+            <div className="modal-actions" style={{ justifyContent: 'center', gap: '8px', display: 'flex', flexWrap: 'wrap' }}>
+              <button className="btn-filled" onClick={handleDownloadLabel}>⬇️ Download PNG</button>
+              <button className="btn-filled" onClick={triggerPrint}>🖨️ Print PDF</button>
             </div>
           </div>
         </div>

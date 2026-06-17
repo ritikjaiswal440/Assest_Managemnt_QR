@@ -58,6 +58,7 @@
 .detail-row {
   display: flex;
   align-items: flex-start;
+  flex-wrap: wrap;
 }
 
 .label-key {
@@ -67,11 +68,15 @@
 
 .label-val {
   flex: 1;
+  word-wrap: break-word;
+  overflow-wrap: break-word;
+  white-space: normal;
+  font-size: clamp(6pt, 2vw, 9pt);
 }
 
 .fw-bold {
   font-weight: bold;
-  font-size: 10pt;
+  font-size: clamp(7pt, 2vw, 10pt);
 }
 
 /* Print Specific Styles */

@@ -75,6 +75,12 @@ function handleRequest(e, method) {
       case 'getFailureTrends':
         responseData = handleGetFailureTrends(payload).data;
         break;
+      case 'createAsset':
+        responseData = handleCreateAsset(payload);
+        break;
+      case 'updateAsset':
+        responseData = handleUpdateAsset(payload);
+        break;
       default:
         throw new Error("Unknown route: " + route);
     }
@@ -131,4 +137,43 @@ function createErrorResponse(errorMessage) {
 function doOptions(e) {
   return ContentService.createTextOutput("")
     .setMimeType(ContentService.MimeType.JSON);
+}
+
+/**
+ * Handle Asset Creation with sequential Unique_Product_Id
+ */
+function handleCreateAsset(payload) {
+  const assetRepo = new BaseRepository('Assets', false);
+  const existingAssets = assetRepo.findAll();
+  
+  let maxSeq = 0;
+  for (let i = 0; i < existingAssets.length; i++) {
+    const asset = existingAssets[i];
+    if (asset.id && asset.id.startsWith('AVD/PD/')) {
+      const numStr = asset.id.replace('AVD/PD/', '');
+      const num = parseInt(numStr, 10);
+      if (!isNaN(num) && num > maxSeq) {
+        maxSeq = num;
+      }
+    }
+  }
+  
+  const nextSeq = maxSeq + 1;
+  const newId = 'AVD/PD/' + nextSeq.toString().padStart(6, '0');
+  
+  payload.id = newId;
+  const savedAsset = assetRepo.save(payload, 'id');
+  return savedAsset;
+}
+
+/**
+ * Handle Asset Update
+ */
+function handleUpdateAsset(payload) {
+  if (!payload.id) {
+    throw new Error("Missing asset ID for update.");
+  }
+  const assetRepo = new BaseRepository('Assets', false);
+  const updatedAsset = assetRepo.save(payload, 'id');
+  return updatedAsset;
 }
