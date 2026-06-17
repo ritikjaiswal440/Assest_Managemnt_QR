@@ -45,22 +45,25 @@ export default function ReportingDashboard() {
       if (kpiRes && kpiRes.success && kpiRes.data) {
         setKpiMetrics(kpiRes.data.metrics || {});
         setExpiringAssets(kpiRes.data.expiringSoon || []);
+        if (kpiRes.data.filterOptions) {
+           setFilterOptions({
+             companies: kpiRes.data.filterOptions.companies || [],
+             locations: kpiRes.data.filterOptions.locations || [],
+             rooms: kpiRes.data.filterOptions.rooms || []
+           });
+        } else if (filterOptions.companies.length === 0) {
+           // Fallback to mock options if backend hasn't been updated yet
+           setFilterOptions({
+             companies: ['Apex Innovations Ltd', 'Vertex Solutions Corp'],
+             locations: ['Conference Room Alpha', 'Executive Boardroom'],
+             rooms: ['Alpha', 'Boardroom', 'Training B']
+           });
+        }
       }
 
       if (trendsRes && trendsRes.success && trendsRes.data) {
         setFailureTrends(trendsRes.data || []);
       }
-      
-      // Ideally fetch unique companies, locations, rooms separately for the dropdowns. 
-      // Mocking options since we don't have a distinct endpoint for them right now.
-      if (filterOptions.companies.length === 0) {
-        setFilterOptions({
-          companies: ['Apex Innovations Ltd', 'Vertex Solutions Corp'],
-          locations: ['Conference Room Alpha', 'Executive Boardroom'],
-          rooms: ['Alpha', 'Boardroom', 'Training B']
-        });
-      }
-
     } catch (err) {
       console.error(err);
       setError("Failed to aggregate analytics. Backend sync error.");

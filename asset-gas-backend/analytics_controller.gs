@@ -17,6 +17,11 @@ function handleGetDashboardKPIs(params) {
   const filterRoom = params.roomName;
   const filterCompany = params.companyName; // By refCode or CompanyName
 
+  // Extract unique options for frontend dropdowns before filtering
+  const uniqueCompanies = Array.from(new Set(assets.map(a => a.companyName).filter(Boolean))).sort();
+  const uniqueLocations = Array.from(new Set(assets.map(a => a.location).filter(Boolean))).sort();
+  const uniqueRooms = Array.from(new Set(assets.map(a => a.roomName).filter(Boolean))).sort();
+
   let filteredAssets = assets;
 
   // Apply filters if provided
@@ -120,7 +125,12 @@ function handleGetDashboardKPIs(params) {
     success: true,
     data: {
       metrics: metrics,
-      expiringSoon: expiringSoonAssets
+      expiringSoon: expiringSoonAssets,
+      filterOptions: {
+        companies: uniqueCompanies,
+        locations: uniqueLocations,
+        rooms: uniqueRooms
+      }
     }
   };
 }
