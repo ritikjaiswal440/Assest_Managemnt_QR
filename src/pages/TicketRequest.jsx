@@ -152,7 +152,7 @@ const TicketRequest = () => {
     return (
       <div className="page-wrapper" style={{display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '20px'}}>
         <div className="card" style={{textAlign: 'center', padding: '60px 40px', display: 'flex', flexDirection: 'column', alignItems: 'center'}}>
-          <img src="/logo-1.png" alt="AV Dynamic" className="success-logo-img" />
+          <img src={`${import.meta.env.BASE_URL}logo-1.png`} alt="AV Dynamic" className="success-logo-img" />
           <div className="success-icon">✓</div>
           <h2 style={{fontSize: '28px', color: 'var(--slate-dark)', marginBottom: '10px'}}>Ticket Generated</h2>
           <p style={{color: 'var(--slate-gray)', marginBottom: '30px'}}>Your service request has been logged successfully.</p>
@@ -170,7 +170,7 @@ const TicketRequest = () => {
         {/* Auth View */}
         {view === 'auth' && (
           <div className="card" id="authView">
-             <img src="/logo-1.png" alt="AV Dynamic" className="auth-logo-img" />
+             <img src={`${import.meta.env.BASE_URL}logo-1.png`} alt="AV Dynamic" className="auth-logo-img" />
              <h1>Welcome to ProSupport</h1>
              <p className="subtitle">Secure enterprise service request system.</p>
              <div className="input-group" style={{marginBottom: '30px', width: '100%'}}>

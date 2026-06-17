@@ -34,7 +34,7 @@ const Login = () => {
     <div className="login-container">
       <div className="login-card">
         <div className="login-header">
-          <img src="/logo-1.png" alt="AV Dynamic" className="login-logo-img" />
+          <img src={`${import.meta.env.BASE_URL}logo-1.png`} alt="AV Dynamic" className="login-logo-img" />
           <p>ProSupport Dashboard Login</p>
         </div>
 

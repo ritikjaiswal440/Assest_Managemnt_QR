@@ -33,7 +33,7 @@ const GlobalNavbar = () => {
     <nav className="global-navbar">
       <div className="navbar-container">
         <div className="nav-logo" onClick={() => { setIsMobileMenuOpen(false); navigate('/'); }}>
-          <img src="/logo-1.png" alt="AV Dynamic" className="nav-logo-img" />
+          <img src={`${import.meta.env.BASE_URL}logo-1.png`} alt="AV Dynamic" className="nav-logo-img" />
           <span className="logo-sub">ProSupport</span>
         </div>
 

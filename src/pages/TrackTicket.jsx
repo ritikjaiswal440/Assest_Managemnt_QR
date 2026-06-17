@@ -52,7 +52,7 @@ const TrackTicket = () => {
   return (
     <div className="track-container">
       <div className="track-header">
-        <img src="/logo-1.png" alt="AV Dynamic" className="track-logo-img" />
+        <img src={`${import.meta.env.BASE_URL}logo-1.png`} alt="AV Dynamic" className="track-logo-img" />
         <p>ProSupport Ticket Tracking</p>
       </div>
 
