@@ -19,13 +19,8 @@ function doPost(e) {
  */
 function handleRequest(e, method) {
   try {
-    const params = e.parameter;
-    const route = params.route || params.action;
+    const params = e.parameter || {};
     
-    if (!route) {
-      throw new Error("No route provided.");
-    }
-
     let payload = {};
     if (method === 'POST' && e.postData && e.postData.contents) {
       try {
@@ -33,6 +28,13 @@ function handleRequest(e, method) {
       } catch(err) {
         throw new Error("Invalid JSON payload.");
       }
+    }
+
+    // Extract route from parameters or body payload
+    const route = params.route || params.action || payload.route || payload.action;
+    
+    if (!route) {
+      throw new Error("No route provided.");
     }
 
     // Example Route Dispatcher
@@ -59,13 +61,19 @@ function handleRequest(e, method) {
         responseData = handleImportCompanies(payload);
         break;
       case 'exportData':
-        responseData = handleExportData(payload);
+        responseData = handleExportData(payload).data;
+        break;
+      case 'getAssets':
+        responseData = handleExportData({ entityType: 'Assets' }).data;
+        break;
+      case 'getCompanies':
+        responseData = handleExportData({ entityType: 'Companies' }).data;
         break;
       case 'getDashboardKPIs':
-        responseData = handleGetDashboardKPIs(payload);
+        responseData = handleGetDashboardKPIs(payload).data;
         break;
       case 'getFailureTrends':
-        responseData = handleGetFailureTrends(payload);
+        responseData = handleGetFailureTrends(payload).data;
         break;
       default:
         throw new Error("Unknown route: " + route);
@@ -84,9 +92,19 @@ function handleRequest(e, method) {
 function createSuccessResponse(data, message = "Operation successful") {
   const response = {
     status: "success",
+    success: true,
     data: data,
     message: message
   };
+  
+  // If data is a structured object with stats or success fields (like from import handlers),
+  // bubble them up to the root response to match client expectations
+  if (data && typeof data === 'object' && !Array.isArray(data)) {
+    if (data.hasOwnProperty('success')) response.success = data.success;
+    if (data.hasOwnProperty('message')) response.message = data.message;
+    if (data.hasOwnProperty('stats')) response.stats = data.stats;
+  }
+  
   return ContentService.createTextOutput(JSON.stringify(response))
     .setMimeType(ContentService.MimeType.JSON);
 }
@@ -97,6 +115,7 @@ function createSuccessResponse(data, message = "Operation successful") {
 function createErrorResponse(errorMessage) {
   const response = {
     status: "error",
+    success: false,
     data: null,
     message: errorMessage
   };
