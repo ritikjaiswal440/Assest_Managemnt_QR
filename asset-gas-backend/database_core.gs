@@ -14,7 +14,14 @@ const DB_CONFIG = {
  * Returns the main Spreadsheet object.
  */
 function getSpreadsheet() {
-  return SpreadsheetApp.openById(DB_CONFIG.SHEET_ID);
+  try {
+    if (DB_CONFIG.SHEET_ID && DB_CONFIG.SHEET_ID !== "YOUR_GOOGLE_SHEET_ID_HERE") {
+      return SpreadsheetApp.openById(DB_CONFIG.SHEET_ID);
+    }
+  } catch(e) {
+    Logger.log("openById failed, falling back to active spreadsheet: " + e.message);
+  }
+  return SpreadsheetApp.getActiveSpreadsheet();
 }
 
 /**
