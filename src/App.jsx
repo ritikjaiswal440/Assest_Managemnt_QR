@@ -47,7 +47,7 @@ function App() {
           <Route path="/track" element={<TrackTicket />} />
           
           {/* Standalone Asset System: Public QR Complaint Portal */}
-          <Route path="/asset/:assetIdAndSignature" element={<PublicComplaintPortal />} />
+          <Route path="/asset/*" element={<PublicComplaintPortal />} />
           
           {/* Auth Gates */}
           <Route path="/login" element={<PublicRoute><Login /></PublicRoute>} />

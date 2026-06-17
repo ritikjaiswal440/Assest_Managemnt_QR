@@ -1,7 +1,12 @@
+/* eslint-disable react-hooks/set-state-in-effect */
 import { useState, useEffect } from 'react';
+import { assetApi } from '../services/assetApi';
 import './CompanyFormModal.css'; // Re-use the modal styling
 
-export default function AssetFormModal({ isOpen, onClose, onSave, initialData, companies }) {
+export default function AssetFormModal({ isOpen, onClose, onSave, initialData, companies: propCompanies }) {
+  const [fetchedCompanies, setFetchedCompanies] = useState([]);
+  const companies = propCompanies && propCompanies.length > 0 ? propCompanies : fetchedCompanies;
+
   const [formData, setFormData] = useState({
     id: '',
     refCode: '',
@@ -29,6 +34,24 @@ export default function AssetFormModal({ isOpen, onClose, onSave, initialData, c
       });
     }
   }, [initialData, isOpen, companies]);
+
+  useEffect(() => {
+    let active = true;
+    const fetchCompanies = async () => {
+      try {
+        const response = await assetApi('getCompanies');
+        if (active && response && response.success) {
+          setFetchedCompanies(response.data || []);
+        }
+      } catch (err) {
+        console.error("Failed to fetch companies for dropdown", err);
+      }
+    };
+    if (isOpen && (!propCompanies || propCompanies.length === 0)) {
+      fetchCompanies();
+    }
+    return () => { active = false; };
+  }, [isOpen, propCompanies]);
 
   if (!isOpen) return null;
 

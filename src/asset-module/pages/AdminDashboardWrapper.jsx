@@ -13,54 +13,6 @@ function AdminDashboardWrapper() {
   // Tab/View Navigation state: 'assets' | 'companies' | 'complaints'
   const [activeTab, setActiveTab] = useState('assets');
 
-  // Hardcoded initial data demonstrating the data schemas and Repository states
-  const [assets] = useState([
-    {
-      uuid: 'a6042f0b-e60d-45db-95f0-f9fbfeeb34dc',
-      id: 'AVD/PD/000001',
-      name: 'Epson EB-L520U Laser Projector',
-      location: 'Conference Room Alpha',
-      companyName: 'Apex Innovations Ltd',
-      status: 'Active',
-      supportExpiry: '2027-12-31'
-    },
-    {
-      uuid: 'd748f3b1-7a2e-4b4f-8012-a192bc58d193',
-      id: 'AVD/PD/000002',
-      name: 'Poly Studio X50 Video Bar',
-      location: 'Executive Boardroom',
-      companyName: 'Apex Innovations Ltd',
-      status: 'In_Repair',
-      supportExpiry: '2026-02-15' // Expired (Expired in past relative to 2026-06-16)
-    },
-    {
-      uuid: 'e2849b29-10cf-4e92-9382-bdf9e2c4819e',
-      id: 'AVD/PD/000003',
-      name: 'Samsung Flip 2 65-Inch',
-      location: 'Training Room B',
-      companyName: 'Vertex Solutions Corp',
-      status: 'Retired',
-      supportExpiry: '2025-05-01' // Expired
-    }
-  ]);
-
-  const [companies] = useState([
-    {
-      id: 'c-uuid-1',
-      name: 'Apex Innovations Ltd',
-      amcStart: '2024-01-01',
-      amcEnd: '2027-12-31',
-      supportTier: 'Enterprise 24/7'
-    },
-    {
-      id: 'c-uuid-2',
-      name: 'Vertex Solutions Corp',
-      amcStart: '2023-05-01',
-      amcEnd: '2025-05-01',
-      supportTier: 'Standard Support'
-    }
-  ]);
-
   const [complaints] = useState([
     {
       id: 'CMP-2026-000001',

@@ -42,6 +42,7 @@ export default function PublicComplaintForm({ assetId, signature }) {
         setError(response?.message || 'Failed to log complaint. Please try again.');
       }
     } catch (err) {
+      console.error(err);
       setError('A network error occurred. Please try again.');
     } finally {
       setIsSubmitting(false);

@@ -1,3 +1,4 @@
+/* eslint-disable react-hooks/set-state-in-effect */
 import { useState, useEffect } from 'react';
 import { assetApi } from '../services/assetApi';
 import AssetFormModal from '../components/AssetFormModal';
@@ -17,10 +18,6 @@ export default function AssetDashboard() {
   const [printAssetData, setPrintAssetData] = useState(null);
   const [printSignature, setPrintSignature] = useState('');
   const [isGeneratingSig, setIsGeneratingSig] = useState(false);
-
-  useEffect(() => {
-    fetchData();
-  }, []);
 
   const fetchData = async () => {
     setLoading(true);
@@ -42,6 +39,7 @@ export default function AssetDashboard() {
         const aResult = await assetRes.json();
         if (aResult.status === 'success') {
           setAssets(aResult.data || []);
+          setError('');
         } else {
           throw new Error(aResult.message);
         }
@@ -50,6 +48,7 @@ export default function AssetDashboard() {
       }
     } catch (err) {
       console.error(err);
+      setError('Failed to fetch assets. Operating with sandbox/offline fallback data.');
       // Fallback mock data
       setAssets([
         {
@@ -83,6 +82,10 @@ export default function AssetDashboard() {
       setLoading(false);
     }
   };
+
+  useEffect(() => {
+    fetchData();
+  }, []);
 
   const handleSaveAsset = async (formData) => {
     setIsModalOpen(false);

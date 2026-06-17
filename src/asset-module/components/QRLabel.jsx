@@ -1,4 +1,3 @@
-import React from 'react';
 import { QRCodeSVG } from 'qrcode.react';
 import './QRLabel.css';
 
@@ -6,7 +5,7 @@ export default function QRLabel({ asset, signature }) {
   if (!asset || !signature) return null;
 
   // URL matching the format: https://prosupport.avdynamic.co.in/#/asset/{Unique_Product_Id}.{Signature}
-  const qrUrl = `https://prosupport.avdynamic.co.in/#/asset/${asset.id}.${signature}`;
+  const qrUrl = `https://prosupport.avdynamic.co.in/#/asset/${encodeURIComponent(asset.id)}.${signature}`;
 
   return (
     <div id="print-qr-label" className="qr-label-card">

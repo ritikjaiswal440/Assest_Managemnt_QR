@@ -1,5 +1,5 @@
+/* eslint-disable react-hooks/set-state-in-effect */
 import { useState, useEffect } from 'react';
-import { assetApi } from '../services/assetApi';
 import CompanyFormModal from '../components/CompanyFormModal';
 
 export default function CompanyDashboard() {
@@ -9,10 +9,6 @@ export default function CompanyDashboard() {
   
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingCompany, setEditingCompany] = useState(null);
-
-  useEffect(() => {
-    fetchCompanies();
-  }, []);
 
   const fetchCompanies = async () => {
     setLoading(true);
@@ -53,6 +49,10 @@ export default function CompanyDashboard() {
     }
   };
 
+  useEffect(() => {
+    fetchCompanies();
+  }, []);
+
   const handleSaveCompany = async (formData) => {
     // In real implementation, this posts to assetApi
     setIsModalOpen(false);
@@ -74,7 +74,11 @@ export default function CompanyDashboard() {
     const end = new Date(amcEndDate);
     const today = new Date(); // In testing, could be '2026-06-16'
     
-    const diffTime = end - today;
+    if (isNaN(end.getTime())) {
+      return { text: 'Invalid Date', className: 'retired' };
+    }
+    
+    const diffTime = end.getTime() - today.getTime();
     const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
 
     if (diffDays < 0) {

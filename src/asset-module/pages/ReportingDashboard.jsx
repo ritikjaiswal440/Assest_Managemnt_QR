@@ -1,3 +1,4 @@
+/* eslint-disable react-hooks/set-state-in-effect */
 import { useState, useEffect } from 'react';
 import { assetApi } from '../services/assetApi';
 import './ReportingDashboard.css';
@@ -31,11 +32,6 @@ export default function ReportingDashboard() {
     locations: [],
     rooms: []
   });
-
-  useEffect(() => {
-    fetchAnalytics();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [filters]); // Re-fetch when filters change
 
   const fetchAnalytics = async () => {
     setLoading(true);
@@ -72,6 +68,11 @@ export default function ReportingDashboard() {
       setLoading(false);
     }
   };
+
+  useEffect(() => {
+    fetchAnalytics();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [filters]); // Re-fetch when filters change
 
   const handleFilterChange = (e) => {
     const { name, value } = e.target;

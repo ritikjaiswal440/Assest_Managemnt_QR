@@ -109,6 +109,7 @@ export default function BulkDataPanel() {
         });
       }
     } catch (err) {
+      console.error(err);
       setUploadResult({
         type: 'error',
         message: 'Network error during import.'
@@ -158,6 +159,7 @@ export default function BulkDataPanel() {
         alert("Export failed: " + (response?.message || 'Unknown error'));
       }
     } catch (err) {
+      console.error(err);
       alert("Network error during export.");
     } finally {
       setIsUploading(false);

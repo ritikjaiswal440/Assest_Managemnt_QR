@@ -1,16 +1,15 @@
 import { useState, useEffect } from 'react';
-import { useParams } from 'react-router-dom';
 import { assetApi } from '../services/assetApi';
 import PublicComplaintForm from '../components/PublicComplaintForm';
 import './PublicComplaintPortal.css';
 
 export default function PublicComplaintPortal() {
-  const { assetIdAndSignature } = useParams();
-  
-  // Extract ID and Signature by splitting at the first period
-  const dotIndex = assetIdAndSignature?.indexOf('.') ?? -1;
-  const assetId = dotIndex !== -1 ? assetIdAndSignature.substring(0, dotIndex) : assetIdAndSignature;
-  const signature = dotIndex !== -1 ? assetIdAndSignature.substring(dotIndex + 1) : '';
+  // Extract ID and Signature from hash (e.g. #/asset/AVD/PD/000001.abc123xyz)
+  const hashPath = window.location.hash.replace('#/asset/', '');
+  const decodedPath = decodeURIComponent(hashPath);
+  const dotIndex = decodedPath.lastIndexOf('.');
+  const assetId = dotIndex !== -1 ? decodedPath.substring(0, dotIndex) : decodedPath;
+  const signature = dotIndex !== -1 ? decodedPath.substring(dotIndex + 1) : '';
 
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);

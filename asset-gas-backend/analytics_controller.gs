@@ -59,11 +59,17 @@ function handleGetDashboardKPIs(params) {
       supportType = (comp.supportTier || '').toLowerCase();
       if (comp.amcEnd) {
         const endDate = new Date(comp.amcEnd);
-        const diffTime = endDate - today;
-        daysLeft = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-        if (daysLeft < 0) {
-          isExpired = true;
+        if (!isNaN(endDate.getTime())) {
+          const diffTime = endDate.getTime() - today.getTime();
+          daysLeft = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+          if (daysLeft < 0) {
+            isExpired = true;
+          }
+        } else {
+          isExpired = true; // Default to expired if invalid date
         }
+      } else {
+        isExpired = true; // No AMC date provided
       }
     }
 
