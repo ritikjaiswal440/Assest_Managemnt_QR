@@ -62,8 +62,9 @@
 }
 
 .label-key {
-  width: 55px;
+  width: 75px;
   font-weight: bold;
+  flex-shrink: 0;
 }
 
 .label-val {
