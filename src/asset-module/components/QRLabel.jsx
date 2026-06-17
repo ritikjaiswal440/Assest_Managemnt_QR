@@ -4,8 +4,9 @@ import './QRLabel.css';
 export default function QRLabel({ asset, signature }) {
   if (!asset || !signature) return null;
 
-  // URL matching the format: https://prosupport.avdynamic.co.in/#/asset/{Unique_Product_Id}.{Signature}
-  const qrUrl = `https://prosupport.avdynamic.co.in/#/asset/${encodeURIComponent(asset.id)}.${signature}`;
+  const baseUrl = window.location.origin + window.location.pathname;
+  const encodedId = encodeURIComponent(asset.id);
+  const qrUrl = `${baseUrl}#/asset/${encodedId}.${signature}`;
 
   return (
     <div id="print-qr-label" className="qr-label-card">

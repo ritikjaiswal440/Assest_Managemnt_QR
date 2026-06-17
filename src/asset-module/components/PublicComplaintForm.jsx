@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { assetApi } from '../services/assetApi';
 import './PublicComplaintForm.css';
 
-export default function PublicComplaintForm({ assetId, signature }) {
+export default function PublicComplaintForm({ asset, signature }) {
   const [formData, setFormData] = useState({
     requestedBy: '',
     clientEmail: '',
@@ -31,7 +31,8 @@ export default function PublicComplaintForm({ assetId, signature }) {
 
     try {
       const response = await assetApi('submitComplaint', {
-        assetId,
+        assetId: asset?.id,
+        companyName: asset?.companyName,
         signature,
         ...formData
       });

@@ -134,7 +134,7 @@ export default function PublicComplaintPortal() {
             )}
           </section>
 
-          <PublicComplaintForm assetId={assetId} signature={signature} />
+          <PublicComplaintForm asset={asset} signature={signature} />
         </main>
       ) : (
         !isLoading && !error && (
