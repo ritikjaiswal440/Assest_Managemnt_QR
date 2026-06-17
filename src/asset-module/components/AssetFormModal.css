@@ -1,0 +1,41 @@
+/* AssetFormModal.css */
+.large-modal {
+  max-width: 800px !important;
+  width: 90% !important;
+}
+
+.form-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px 24px;
+}
+
+.form-section {
+  background: var(--md-sys-color-surface-variant, #f4f6f8);
+  padding: 16px;
+  border-radius: 8px;
+  border: 1px solid var(--md-sys-color-outline-variant, #cac4d0);
+  margin-bottom: 8px;
+}
+
+.form-section h4 {
+  margin-top: 0;
+  margin-bottom: 12px;
+  color: var(--md-sys-color-primary, #6750a4);
+  font-size: 1.1rem;
+  font-weight: 500;
+  border-bottom: 1px solid var(--md-sys-color-outline-variant, #cac4d0);
+  padding-bottom: 8px;
+}
+
+.read-only-input {
+  background-color: #e0e0e0;
+  cursor: not-allowed;
+  color: #555;
+}
+
+@media (max-width: 768px) {
+  .form-grid {
+    grid-template-columns: 1fr;
+  }
+}
