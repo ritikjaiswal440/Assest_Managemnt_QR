@@ -166,6 +166,9 @@ function handleCreateAsset(payload) {
   const newId = 'AVD/PD/' + nextSeq.toString().padStart(6, '0');
   
   payload.id = newId;
+  if (!payload.Created_At && !payload.createdAt) {
+    payload.Created_At = new Date().toISOString();
+  }
   const savedAsset = assetRepo.save(payload, 'id');
   return savedAsset;
 }

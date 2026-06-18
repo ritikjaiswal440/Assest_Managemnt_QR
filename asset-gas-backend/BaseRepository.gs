@@ -65,7 +65,9 @@ class BaseRepository {
         ipAddress: dbObj['IP_Address'] || '',
         salesOrder: dbObj['Sales_Order'] || '',
         invoiceNo: dbObj['Invoice_No'] || '',
-        assetStatus: dbObj['Asset_Status'] || 'Active'
+        assetStatus: dbObj['Asset_Status'] || 'Active',
+        createdAt: dbObj['Created_At'] || '',
+        updatedAt: dbObj['Updated_At'] || ''
       };
     }
     if (sheetName === 'Asset_Complaints' || sheetName.startsWith('Asset_Complaints')) {
@@ -127,7 +129,8 @@ class BaseRepository {
         'Sales_Order': obj.salesOrder,
         'Invoice_No': obj.invoiceNo,
         'Asset_Status': obj.assetStatus,
-        'Updated_At': new Date().toISOString()
+        'Created_At': obj.Created_At || obj.createdAt,
+        'Updated_At': obj.Updated_At || new Date().toISOString()
       };
     }
     if (sheetName === 'Asset_Complaints' || sheetName.startsWith('Asset_Complaints')) {
