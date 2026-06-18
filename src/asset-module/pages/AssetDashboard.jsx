@@ -163,7 +163,7 @@ export default function AssetDashboard() {
     const labelElement = document.getElementById('qr-label-preview');
     if (!labelElement) return;
     try {
-      const canvas = await html2canvas(labelElement);
+      const canvas = await html2canvas(labelElement, { scale: 2, useCORS: true });
       const dataUrl = canvas.toDataURL('image/png');
       const a = document.createElement('a');
       a.href = dataUrl;

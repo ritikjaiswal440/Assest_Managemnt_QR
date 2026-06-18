@@ -72,12 +72,12 @@
   word-wrap: break-word;
   overflow-wrap: break-word;
   white-space: normal;
-  font-size: clamp(6pt, 2vw, 9pt);
+  font-size: 9pt;
 }
 
 .fw-bold {
   font-weight: bold;
-  font-size: clamp(7pt, 2vw, 10pt);
+  font-size: 10pt;
 }
 
 /* Print Specific Styles */
