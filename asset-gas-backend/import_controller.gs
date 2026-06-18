@@ -53,8 +53,8 @@ function handleImportCompanies(params) {
   const companyRepo = new BaseRepository('Companies', false);
   const existingCompanies = companyRepo.findAll();
   
-  // Create a Set of existing refCodes for quick deduplication
-  const existingRefCodes = new Set(existingCompanies.map(c => String(c.id).toLowerCase()));
+  // Create a Set of existing composite keys (Ref_Code-Company_Name) for quick deduplication
+  const existingKeys = new Set(existingCompanies.map(c => `${String(c.id).toLowerCase()}-${String(c.name).toLowerCase()}`));
   
   let importedCount = 0;
   let skippedCount = 0;
@@ -73,11 +73,12 @@ function handleImportCompanies(params) {
     }
     
     const normalizedRefCode = normalizeString(rawRefCode);
-    const lowerRef = normalizedRefCode.toLowerCase();
+    const normalizedName = normalizeString(row.name || row.Company_Name || "");
+    const lowerKey = `${normalizedRefCode.toLowerCase()}-${normalizedName.toLowerCase()}`;
     
-    if (existingRefCodes.has(lowerRef)) {
+    if (existingKeys.has(lowerKey)) {
       skippedCount++;
-      skippedRows.push({ rowIndex: i, reason: `Duplicate Ref_Code: ${normalizedRefCode}` });
+      skippedRows.push({ rowIndex: i, reason: `Duplicate Company: ${normalizedRefCode} - ${normalizedName}` });
       continue;
     }
     
@@ -92,7 +93,7 @@ function handleImportCompanies(params) {
     };
     
     newCompaniesToInsert.push(newCompany);
-    existingRefCodes.add(lowerRef); // Prevent duplicates within the same batch
+    existingKeys.add(lowerKey); // Prevent duplicates within the same batch
   }
   
   // Write to database (Batch insert would be better, but we loop save for now with BaseRepository)

@@ -93,12 +93,12 @@ export default function AssetFormModal({ isOpen, onClose, onSave, initialData, c
     const { name, value } = e.target;
     
     // Company & Ref_Code Sync
-    if (name === 'refCode') {
-      const selectedCompany = companies.find(c => c.id === value);
+    if (name === 'companyName') {
+      const selectedBranch = companies.find(c => c.name === value);
       setFormData(prev => ({
         ...prev,
-        refCode: value,
-        companyName: selectedCompany ? selectedCompany.name : ''
+        companyName: value,
+        refCode: selectedBranch ? selectedBranch.id : ''
       }));
     } else {
       setFormData(prev => ({ ...prev, [name]: value }));
@@ -131,15 +131,15 @@ export default function AssetFormModal({ isOpen, onClose, onSave, initialData, c
               <div className="form-group">
                 <label>Company</label>
                 <select 
-                  name="refCode" 
-                  value={formData.refCode} 
+                  name="companyName" 
+                  value={formData.companyName} 
                   onChange={handleChange}
                   className="md3-input"
                   required
                 >
-                  <option value="" disabled>Select Company</option>
+                  <option value="" disabled>Select Company Branch</option>
                   {companies && companies.map(c => (
-                    <option key={c.id} value={c.id}>{c.name}</option>
+                    <option key={`${c.id}-${c.name}`} value={c.name}>{c.name} ({c.id})</option>
                   ))}
                 </select>
               </div>

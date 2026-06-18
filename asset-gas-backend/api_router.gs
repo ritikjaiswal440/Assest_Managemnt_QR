@@ -143,6 +143,10 @@ function doOptions(e) {
  * Handle Asset Creation with sequential Unique_Product_Id
  */
 function handleCreateAsset(payload) {
+  if (!payload.refCode || !payload.companyName) {
+    throw new Error("Missing required fields: Both Company Name and Ref Code are required for Hardware Assignment.");
+  }
+
   const assetRepo = new BaseRepository('Assets', false);
   const existingAssets = assetRepo.findAll();
   

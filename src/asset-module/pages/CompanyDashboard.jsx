@@ -130,7 +130,7 @@ export default function CompanyDashboard() {
               {companies.map((comp) => {
                 const badge = getAmcBadge(comp.amcEnd);
                 return (
-                  <tr key={comp.id}>
+                  <tr key={`${comp.id}-${comp.name}`}>
                     <td className="bold-cell">{comp.id}</td>
                     <td>{comp.name}</td>
                     <td><span className="tier-badge">{comp.supportTier}</span></td>
