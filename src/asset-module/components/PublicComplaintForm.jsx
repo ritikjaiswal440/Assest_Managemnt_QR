@@ -36,6 +36,8 @@ export default function PublicComplaintForm({ asset, signature }) {
         security_signature: signature
       };
       
+      console.log("🔍 TRACE - Final Payload Leaving Browser:", payload);
+      
       const response = await submitComplaint(payload);
 
       if (response && response.success) {

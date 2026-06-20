@@ -33,6 +33,15 @@ function handleRequest(e, method) {
     if (method === 'POST' && e.postData && e.postData.contents) {
       try {
         payload = JSON.parse(e.postData.contents);
+        
+        // Debug Tracer for Complaint Submission
+        if (payload.action === 'submitComplaint' && !payload.security_signature) {
+          return ContentService.createTextOutput(JSON.stringify({ 
+              status: "error", 
+              message: "403 Forbidden: Missing Security Signature.",
+              debug_received_payload: payload 
+          })).setMimeType(ContentService.MimeType.JSON);
+        }
       } catch(err) {
         throw new Error("Invalid JSON payload.");
       }

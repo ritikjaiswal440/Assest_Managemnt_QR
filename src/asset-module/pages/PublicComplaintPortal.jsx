@@ -4,12 +4,13 @@ import PublicComplaintForm from '../components/PublicComplaintForm';
 import './PublicComplaintPortal.css';
 
 export default function PublicComplaintPortal() {
-  // Extract ID and Signature from hash (e.g. #/asset/AVD/PD/000001.abc123xyz)
-  const hashPath = window.location.hash.replace('#/asset/', '');
-  const decodedPath = decodeURIComponent(hashPath);
-  const dotIndex = decodedPath.lastIndexOf('.');
-  const assetId = dotIndex !== -1 ? decodedPath.substring(0, dotIndex) : decodedPath;
-  const signature = dotIndex !== -1 ? decodedPath.substring(dotIndex + 1) : '';
+  const hashString = window.location.hash; // e.g., #/asset/AVD%2FPD%2F000001.abc123xyz
+  const decodedPath = decodeURIComponent(hashString.replace('#/asset/', ''));
+  const parts = decodedPath.split('.');
+  const assetId = parts.length > 0 ? parts[0] : decodedPath;
+  const signature = parts.length > 1 ? parts[1] : '';
+  
+  console.log("🔍 TRACE - Extracted Signature on Mount:", signature);
 
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
