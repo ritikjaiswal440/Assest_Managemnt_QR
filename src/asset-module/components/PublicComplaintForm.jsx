@@ -30,15 +30,27 @@ export default function PublicComplaintForm({ asset, signature }) {
     setError(null);
 
     try {
-      const payload = {
-        ...formData,
-        Unique_Product_Id: asset?.id || asset?.Unique_Product_Id,
+      const assetId = asset?.Unique_Product_Id || asset?.unique_product_id || asset?.id || asset?.assetId;
+
+      const finalPayload = {
+        requestedBy: formData.requestedBy,
+        clientEmail: formData.clientEmail,
+        phoneNumber: formData.phoneNumber,
+        description: formData.description,
+        Unique_Product_Id: assetId, // Guaranteed resolution
         security_signature: signature
       };
       
-      console.log("🔍 TRACE - Final Payload Leaving Browser:", payload);
+      if (!finalPayload.Unique_Product_Id) {
+          console.error("CRITICAL: Asset ID is missing before submission!");
+          alert("System Error: Physical Asset ID could not be mapped. Please re-scan the QR code.");
+          setIsSubmitting(false);
+          return; // Prevent submitting a broken payload
+      }
+
+      console.log("🔍 TRACE - Final Payload Leaving Browser:", finalPayload);
       
-      const response = await submitComplaint(payload);
+      const response = await submitComplaint(finalPayload);
 
       if (response && response.success) {
         setSuccessReference(response.data?.complaintId || response.message || 'CMP-SUCCESS');

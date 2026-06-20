@@ -142,24 +142,16 @@ export const updateCompany = async (originalKeys, updatedData) => {
  */
 export const submitComplaint = async (payload) => {
   try {
-    const response = await fetch(GAS_URL, {
+    const url = new URL(GAS_URL);
+    url.searchParams.append("action", "submitComplaint");
+    const response = await fetch(url, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'text/plain;charset=utf-8',
-      },
-      body: JSON.stringify({ 
-        action: 'submitComplaint', 
-        route: 'submitComplaint', 
-        ...payload 
-      })
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+      body: JSON.stringify(payload),
+      redirect: "follow"
     });
-
-    if (!response.ok) {
-      throw new Error(`HTTP network error! Status: ${response.status}`);
-    }
-
-    const data = await response.json();
-    return data;
+    if (!response.ok) throw new Error("API operational failure");
+    return await response.json();
   } catch (error) {
     console.error(`Asset API POST failure [submitComplaint]:`, error);
     throw error;
