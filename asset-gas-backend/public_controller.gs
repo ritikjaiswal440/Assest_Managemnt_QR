@@ -114,10 +114,21 @@ function handleGetPublicAssetDetails(params) {
  * Endpoint Handler: submitComplaint
  */
 function handleSubmitComplaint(params) {
-  const { assetId, signature, requestedBy, clientEmail, phoneNumber, description } = params;
+  // Extract keys dynamically based on what the frontend passes
+  const assetId = params.Unique_Product_Id || params.assetId;
+  const signature = params.security_signature || params.signature;
+  const { requestedBy, clientEmail, phoneNumber, description } = params;
   
   // 1. Validate Security (Must prove physical scan to submit)
-  validateQRSignature(assetId, signature);
+  try {
+    validateQRSignature(assetId, signature);
+  } catch (err) {
+    // Return exact 403 Forbidden error via JSON instead of throwing a runtime exception
+    return {
+      success: false,
+      message: err.message
+    };
+  }
   
   // 2. Prepare Complaint Record
   const currentYear = new Date().getFullYear();

@@ -136,3 +136,32 @@ export const updateCompany = async (originalKeys, updatedData) => {
     throw error;
   }
 };
+
+/**
+ * Perform a POST request to submit a public complaint.
+ */
+export const submitComplaint = async (payload) => {
+  try {
+    const response = await fetch(GAS_URL, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'text/plain;charset=utf-8',
+      },
+      body: JSON.stringify({ 
+        action: 'submitComplaint', 
+        route: 'submitComplaint', 
+        ...payload 
+      })
+    });
+
+    if (!response.ok) {
+      throw new Error(`HTTP network error! Status: ${response.status}`);
+    }
+
+    const data = await response.json();
+    return data;
+  } catch (error) {
+    console.error(`Asset API POST failure [submitComplaint]:`, error);
+    throw error;
+  }
+};

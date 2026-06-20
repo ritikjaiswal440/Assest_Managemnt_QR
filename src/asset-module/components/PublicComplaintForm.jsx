@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { assetApi } from '../services/assetApi';
+import { assetApi, submitComplaint } from '../services/assetApi';
 import './PublicComplaintForm.css';
 
 export default function PublicComplaintForm({ asset, signature }) {
@@ -30,12 +30,13 @@ export default function PublicComplaintForm({ asset, signature }) {
     setError(null);
 
     try {
-      const response = await assetApi('submitComplaint', {
-        assetId: asset?.id,
-        companyName: asset?.companyName,
-        signature,
-        ...formData
-      });
+      const payload = {
+        ...formData,
+        Unique_Product_Id: asset?.id || asset?.Unique_Product_Id,
+        security_signature: signature
+      };
+      
+      const response = await submitComplaint(payload);
 
       if (response && response.success) {
         setSuccessReference(response.data?.complaintId || response.message || 'CMP-SUCCESS');
