@@ -53,8 +53,8 @@ function handleImportCompanies(params) {
   const companyRepo = new BaseRepository('Companies', false);
   const existingCompanies = companyRepo.findAll();
   
-  // Create a Set of existing composite keys (Ref_Code-Company_Name) for quick deduplication
-  const existingKeys = new Set(existingCompanies.map(c => `${String(c.id).toLowerCase()}-${String(c.name).toLowerCase()}`));
+  // Create a Set of existing composite keys (Ref_Code-Company_Name-Branch) for quick deduplication
+  const existingKeys = new Set(existingCompanies.map(c => `${String(c.id).toLowerCase()}-${String(c.name).toLowerCase()}-${String(c.branch || '').toLowerCase()}`));
   
   let importedCount = 0;
   let skippedCount = 0;
@@ -74,18 +74,20 @@ function handleImportCompanies(params) {
     
     const normalizedRefCode = normalizeString(rawRefCode);
     const normalizedName = normalizeString(row.name || row.Company_Name || "");
-    const lowerKey = `${normalizedRefCode.toLowerCase()}-${normalizedName.toLowerCase()}`;
+    const normalizedBranch = normalizeString(row.branch || row.Branch || "");
+    const lowerKey = `${normalizedRefCode.toLowerCase()}-${normalizedName.toLowerCase()}-${normalizedBranch.toLowerCase()}`;
     
     if (existingKeys.has(lowerKey)) {
       skippedCount++;
-      skippedRows.push({ rowIndex: i, reason: `Duplicate Company: ${normalizedRefCode} - ${normalizedName}` });
+      skippedRows.push({ rowIndex: i, reason: `Duplicate Company: ${normalizedRefCode} - ${normalizedName} - ${normalizedBranch}` });
       continue;
     }
     
     // Normalize Data
     const newCompany = {
       id: normalizedRefCode,
-      name: normalizeString(row.name || row.Company_Name || ""),
+      name: normalizedName,
+      branch: normalizedBranch,
       supportTier: normalizeString(row.supportTier || row.Support_Type || ""),
       amcStart: normalizeDate(row.amcStart || row.AMC_Start_Date || ""),
       amcEnd: normalizeDate(row.amcEnd || row.AMC_End_Date || ""),

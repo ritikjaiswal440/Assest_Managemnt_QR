@@ -77,3 +77,62 @@ export const assetApi = async (action, payload = {}, options = {}) => {
     };
   }
 };
+
+/**
+ * Perform a GET request to fetch companies, bypassing browser cache.
+ */
+export const getCompanies = async () => {
+  try {
+    const url = new URL(GAS_URL);
+    url.searchParams.append("route", "getCompanies");
+    url.searchParams.append("t", new Date().getTime());
+
+    const response = await fetch(url.toString(), {
+      method: 'GET',
+      cache: 'no-store'
+    });
+
+    if (!response.ok) {
+      throw new Error(`HTTP network error! Status: ${response.status}`);
+    }
+
+    const data = await response.json();
+    return data;
+  } catch (error) {
+    console.error(`Asset API GET failure [getCompanies]:`, error);
+    throw error;
+  }
+};
+
+/**
+ * Perform a POST request to update an existing company based on composite keys.
+ */
+export const updateCompany = async (originalKeys, updatedData) => {
+  try {
+    const response = await fetch(GAS_URL, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'text/plain;charset=utf-8',
+      },
+      body: JSON.stringify({ 
+        action: 'updateCompany', 
+        route: 'updateCompany', // sending both for compatibility
+        originalKeys, 
+        newData: updatedData 
+      })
+    });
+
+    if (!response.ok) {
+      throw new Error(`HTTP network error! Status: ${response.status}`);
+    }
+
+    const data = await response.json();
+    if (!data.success) {
+      throw new Error(data.message || 'Backend transaction failed.');
+    }
+    return data;
+  } catch (error) {
+    console.error(`Asset API POST failure [updateCompany]:`, error);
+    throw error;
+  }
+};

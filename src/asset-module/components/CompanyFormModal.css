@@ -1,10 +1,7 @@
 /* CompanyFormModal.css */
 .modal-overlay {
   position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
+  top: 0; left: 0; right: 0; bottom: 0;
   background: rgba(0, 0, 0, 0.4);
   display: flex;
   justify-content: center;
@@ -13,27 +10,31 @@
   backdrop-filter: blur(2px);
 }
 
-.modal-content.md3-surface {
+.modal-content.large-modal {
   background: var(--md-sys-color-surface, #ffffff);
   border-radius: 28px;
   width: 90%;
-  max-width: 500px;
-  padding: 24px;
+  max-width: 900px;
+  max-height: 90vh;
   box-shadow: 0 4px 16px rgba(0, 0, 0, 0.1);
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  overflow: hidden;
 }
 
 .modal-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
+  padding: 24px 24px 16px 24px;
+  border-bottom: 1px solid #e0e0e0;
+  background: var(--md-sys-color-surface, #ffffff);
+  z-index: 10;
 }
 
 .modal-header h2 {
   margin: 0;
-  font-size: 1.25rem;
+  font-size: 1.5rem;
   font-weight: 500;
   color: var(--md-sys-color-on-surface, #1d1b20);
 }
@@ -53,25 +54,39 @@
   background: var(--md-sys-color-surface-variant, #e7e0ec);
 }
 
-.md3-form {
+.modal-body {
+  padding: 24px;
+  overflow-y: auto;
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: 24px;
+}
+
+.form-section {
+  background: #f8f9fa;
+  border: 1px solid #e0e0e0;
+  border-radius: 16px;
+  padding: 20px;
+}
+
+.form-section h4 {
+  margin-top: 0;
+  margin-bottom: 16px;
+  font-size: 1.1rem;
+  color: var(--md-sys-color-primary, #6750a4);
+  font-weight: 500;
+}
+
+.form-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 20px;
 }
 
 .form-group {
   display: flex;
   flex-direction: column;
-  gap: 4px;
-}
-
-.form-row {
-  display: flex;
-  gap: 16px;
-}
-
-.form-row .form-group {
-  flex: 1;
+  gap: 8px;
 }
 
 .form-group label {
@@ -82,8 +97,8 @@
 
 .md3-input {
   padding: 12px 16px;
-  background: #f1f3f4;
-  border: 1px solid transparent;
+  background: #ffffff;
+  border: 1px solid #c4c7c5;
   border-radius: 8px;
   font-size: 1rem;
   color: var(--md-sys-color-on-surface, #1d1b20);
@@ -92,15 +107,17 @@
 
 .md3-input:focus {
   outline: none;
-  border-bottom: 2px solid var(--md-sys-color-primary, #6750a4);
-  background: #e9ebee;
+  border-color: var(--md-sys-color-primary, #6750a4);
+  box-shadow: 0 0 0 2px rgba(103, 80, 164, 0.2);
 }
 
 .modal-actions {
   display: flex;
   justify-content: flex-end;
-  gap: 8px;
-  margin-top: 16px;
+  gap: 12px;
+  padding: 16px 24px 24px 24px;
+  border-top: 1px solid #e0e0e0;
+  background: var(--md-sys-color-surface, #ffffff);
 }
 
 .btn-text {
@@ -111,6 +128,7 @@
   font-weight: 500;
   border-radius: 20px;
   cursor: pointer;
+  transition: background 0.2s;
 }
 
 .btn-text:hover {
@@ -125,8 +143,15 @@
   font-weight: 500;
   border-radius: 20px;
   cursor: pointer;
+  transition: opacity 0.2s;
 }
 
 .btn-filled:hover {
   opacity: 0.9;
+}
+
+.tier-badge.out-of-support {
+  background-color: #fce4e4;
+  color: #d32f2f;
+  font-weight: 600;
 }

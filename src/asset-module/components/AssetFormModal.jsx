@@ -3,6 +3,66 @@ import { useState, useEffect } from 'react';
 import { assetApi } from '../services/assetApi';
 import './AssetFormModal.css';
 
+const formatDateToYYYYMMDD = (dateVal) => {
+  if (!dateVal) return '';
+  
+  if (typeof dateVal === 'string') {
+    const trimmed = dateVal.trim();
+    
+    // Check if it matches ISO/YYYY-MM-DD format (starts with YYYY-MM-DD)
+    const yyyymmddRegex = /^(\d{4})[-/](\d{1,2})[-/](\d{1,2})/;
+    const matchY = trimmed.match(yyyymmddRegex);
+    if (matchY) {
+      const year = matchY[1];
+      const month = matchY[2].padStart(2, '0');
+      const day = matchY[3].padStart(2, '0');
+      return `${year}-${month}-${day}`;
+    }
+    
+    // Check if it matches DD-MM-YYYY or DD/MM/YYYY format
+    const ddmmyyyyRegex = /^(\d{1,2})[-/](\d{1,2})[-/](\d{4})/;
+    const matchD = trimmed.match(ddmmyyyyRegex);
+    if (matchD) {
+      const day = matchD[1].padStart(2, '0');
+      const month = matchD[2].padStart(2, '0');
+      const year = matchD[3];
+      return `${year}-${month}-${day}`;
+    }
+  }
+
+  try {
+    const d = new Date(dateVal);
+    if (!isNaN(d.getTime())) {
+      const year = d.getFullYear();
+      const month = String(d.getMonth() + 1).padStart(2, '0');
+      const day = String(d.getDate()).padStart(2, '0');
+      return `${year}-${month}-${day}`;
+    }
+  } catch (e) {
+    console.error("Error parsing date:", dateVal, e);
+  }
+  
+  return '';
+};
+
+const getDurationInMonths = (startDateStr, endDateStr) => {
+  if (!startDateStr || !endDateStr) return 'Custom';
+  const start = new Date(startDateStr);
+  const end = new Date(endDateStr);
+  if (isNaN(start.getTime()) || isNaN(end.getTime())) return 'Custom';
+  
+  const yearDiff = end.getFullYear() - start.getFullYear();
+  const monthDiff = end.getMonth() - start.getMonth();
+  const totalMonths = yearDiff * 12 + monthDiff;
+  
+  if (totalMonths === 12) return '12 Months';
+  if (totalMonths === 24) return '24 Months';
+  if (totalMonths === 36) return '36 Months';
+  if (totalMonths === 60) return '60 Months';
+  
+  return 'Custom';
+};
+
 export default function AssetFormModal({ isOpen, onClose, onSave, initialData, companies: propCompanies }) {
   const [fetchedCompanies, setFetchedCompanies] = useState([]);
   const companies = propCompanies && propCompanies.length > 0 ? propCompanies : fetchedCompanies;
@@ -11,6 +71,7 @@ export default function AssetFormModal({ isOpen, onClose, onSave, initialData, c
     id: '',
     refCode: '',
     companyName: '',
+    branch: '',
     salesOrder: '',
     invoiceNo: '',
     location: '',
@@ -35,13 +96,22 @@ export default function AssetFormModal({ isOpen, onClose, onSave, initialData, c
 
   useEffect(() => {
     if (initialData) {
-      setFormData({ ...defaultState, ...initialData });
-      setWarrantyDuration('Custom');
+      const formattedStartDate = formatDateToYYYYMMDD(initialData.warrantyStartDate);
+      const formattedEndDate = formatDateToYYYYMMDD(initialData.warrantyEndDate);
+      setFormData({ 
+        ...defaultState, 
+        ...initialData,
+        warrantyStartDate: formattedStartDate,
+        warrantyEndDate: formattedEndDate
+      });
+      const inferredDuration = getDurationInMonths(formattedStartDate, formattedEndDate);
+      setWarrantyDuration(inferredDuration);
     } else {
       setFormData({
         ...defaultState,
-        refCode: companies && companies.length > 0 ? companies[0].id : '',
-        companyName: companies && companies.length > 0 ? companies[0].name : ''
+        refCode: companies && companies.length > 0 ? (companies[0].id || companies[0].Ref_Code) : '',
+        companyName: companies && companies.length > 0 ? (companies[0].name || companies[0].Company_Name) : '',
+        branch: companies && companies.length > 0 ? companies[0].Branch : ''
       });
       setWarrantyDuration('12 Months');
     }
@@ -108,11 +178,12 @@ export default function AssetFormModal({ isOpen, onClose, onSave, initialData, c
     
     // Company & Ref_Code Sync
     if (name === 'companyName') {
-      const selectedBranch = companies.find(c => c.name === value);
+      const selectedBranch = companies.find(c => c.name === value || c.Company_Name === value);
       setFormData(prev => ({
         ...prev,
         companyName: value,
-        refCode: selectedBranch ? selectedBranch.id : ''
+        refCode: selectedBranch ? (selectedBranch.id || selectedBranch.Ref_Code) : '',
+        branch: selectedBranch ? selectedBranch.Branch : ''
       }));
     } else {
       setFormData(prev => ({ ...prev, [name]: value }));
@@ -157,9 +228,14 @@ export default function AssetFormModal({ isOpen, onClose, onSave, initialData, c
                     required
                   >
                     <option value="" disabled>Select Company Branch</option>
-                    {companies && companies.map(c => (
-                      <option key={`${c.id}-${c.name}`} value={c.name}>{c.name} ({c.id})</option>
-                    ))}
+                    {companies && companies.map(c => {
+                      const cName = c.name || c.Company_Name;
+                      const cId = c.id || c.Ref_Code;
+                      const cLocation = c.Location || '';
+                      const cBranch = c.Branch || '';
+                      const label = `${cName} - ${cLocation} (${cBranch})`;
+                      return <option key={`${cId}-${cName}-${cBranch}`} value={cName}>{label}</option>;
+                    })}
                   </select>
                 </div>
                 <div className="form-group">

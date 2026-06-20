@@ -36,11 +36,27 @@ class BaseRepository {
     if (sheetName === 'Companies' || sheetName === 'Company_Master') {
       return {
         id: String(dbObj['Ref_Code'] || ''),
+        Ref_Code: String(dbObj['Ref_Code'] || ''),
         name: dbObj['Company_Name'] || '',
+        Company_Name: dbObj['Company_Name'] || '',
+        location: dbObj['Location'] || '',
+        Location: dbObj['Location'] || '',
+        branch: dbObj['Branch'] || '',
+        Branch: dbObj['Branch'] || '',
         supportTier: dbObj['Support_Type'] || '',
+        Support_Type: dbObj['Support_Type'] || '',
         amcStart: dbObj['AMC_Start_Date'] || '',
+        AMC_Start_Date: dbObj['AMC_Start_Date'] || '',
         amcEnd: dbObj['AMC_End_Date'] || '',
-        status: dbObj['Status'] || 'Active'
+        AMC_End_Date: dbObj['AMC_End_Date'] || '',
+        primaryContact: dbObj['Primary_Contact'] || '',
+        Primary_Contact: dbObj['Primary_Contact'] || '',
+        primaryEmail: dbObj['Primary_Email'] || '',
+        Primary_Email: dbObj['Primary_Email'] || '',
+        primaryPhone: dbObj['Primary_Phone'] || '',
+        Primary_Phone: dbObj['Primary_Phone'] || '',
+        status: dbObj['Status'] || 'Active',
+        Status: dbObj['Status'] || 'Active'
       };
     }
     if (sheetName === 'Assets' || sheetName === 'Asset_Master') {
@@ -98,12 +114,17 @@ class BaseRepository {
   _objToDb(sheetName, obj) {
     if (sheetName === 'Companies' || sheetName === 'Company_Master') {
       return {
-        'Ref_Code': obj.id,
-        'Company_Name': obj.name,
-        'Support_Type': obj.supportTier,
-        'AMC_Start_Date': obj.amcStart,
-        'AMC_End_Date': obj.amcEnd,
-        'Status': obj.status,
+        'Ref_Code': obj.id || obj.Ref_Code,
+        'Company_Name': obj.name || obj.Company_Name,
+        'Location': obj.location || obj.Location,
+        'Branch': obj.branch || obj.Branch,
+        'Support_Type': obj.supportTier || obj.Support_Type,
+        'AMC_Start_Date': obj.amcStart || obj.AMC_Start_Date,
+        'AMC_End_Date': obj.amcEnd || obj.AMC_End_Date,
+        'Primary_Contact': obj.primaryContact || obj.Primary_Contact,
+        'Primary_Email': obj.primaryEmail || obj.Primary_Email,
+        'Primary_Phone': obj.primaryPhone || obj.Primary_Phone,
+        'Status': obj.status || obj.Status,
         'Created_At': obj.createdAt || new Date().toISOString()
       };
     }
