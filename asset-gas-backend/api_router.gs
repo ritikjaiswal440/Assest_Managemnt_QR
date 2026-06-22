@@ -89,6 +89,9 @@ function handleRequest(e, method) {
       case 'getComplaints':
         responseData = handleGetComplaints();
         break;
+      case 'pushToIntake':
+        responseData = handlePushToIntake(payload);
+        break;
       case 'getDashboardKPIs':
         responseData = handleGetDashboardKPIs(payload).data;
         break;
@@ -384,4 +387,71 @@ function handleGetComplaints() {
   }
   
   return results;
+}
+
+/**
+ * Handle cross-sheet transfer from Asset_Complaints_2026 to Requests.
+ */
+function handlePushToIntake(payload) {
+  if (!payload.Complaint_ID) {
+    throw new Error("Missing Complaint_ID in payload.");
+  }
+
+  // Step A: Append to Requests
+  const requestsSheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName('Requests');
+  if (!requestsSheet) {
+    throw new Error("Target sheet 'Requests' not found. Please verify standard ITSM schema.");
+  }
+  
+  // Create an array mapping the QR data to the standard Requests schema
+  // Standard generic ITSM mapping assumption:
+  // [Timestamp, Reference/ID, Requester, Email, Department/Company, Issue, Asset, Status]
+  const newRequestRow = [
+    new Date().toISOString(),            // Timestamp
+    payload.Complaint_ID || '',          // Reference / Original ID
+    payload.Requested_By || '',          // Requester
+    payload.Client_Email || '',          // Email
+    payload.Company_Name || '',          // Company / Department
+    payload.Description || '',           // Issue Description
+    payload.Unique_Product_Id || '',     // Asset ID
+    "New Intake Queue"                   // Initial Status
+  ];
+  
+  try {
+    requestsSheet.appendRow(newRequestRow);
+  } catch(err) {
+    throw new Error("Failed to append to Requests sheet: " + err.message);
+  }
+
+  // Step B: Update Staging Status
+  const complaintsSheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName('Asset_Complaints_2026');
+  if (!complaintsSheet) {
+    throw new Error("Source sheet 'Asset_Complaints_2026' not found.");
+  }
+
+  const data = complaintsSheet.getDataRange().getValues();
+  let foundRowIndex = -1;
+  // Row 1 is header (index 0), data starts at Row 2 (index 1)
+  for (let i = 1; i < data.length; i++) {
+    if (String(data[i][0]).trim() === String(payload.Complaint_ID).trim()) {
+      foundRowIndex = i + 1; // Google Sheets is 1-indexed
+      break;
+    }
+  }
+
+  if (foundRowIndex === -1) {
+    throw new Error("Could not find the original complaint in Asset_Complaints_2026 to update status.");
+  }
+
+  try {
+    // Overwrite its Status column (Index 22 => Column 23, "Status") to "Transferred to Intake"
+    complaintsSheet.getRange(foundRowIndex, 23).setValue("Transferred to Intake");
+  } catch(err) {
+    throw new Error("Failed to update status in Asset_Complaints_2026: " + err.message);
+  }
+
+  return {
+    success: true,
+    message: "Ticket successfully transferred to Intake Queue."
+  };
 }

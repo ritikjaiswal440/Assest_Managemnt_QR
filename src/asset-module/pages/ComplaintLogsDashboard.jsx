@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { getComplaints } from '../services/assetApi';
+import { getComplaints, pushToIntakeQueue } from '../services/assetApi';
 import './ReportingDashboard.css'; // Inherit base table styles
 import './ComplaintLogsDashboard.css'; // Modal and specific styles
 
@@ -12,6 +12,7 @@ export default function ComplaintLogsDashboard() {
   // Modal State
   const [selectedTicket, setSelectedTicket] = useState(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isPushing, setIsPushing] = useState(false);
 
   useEffect(() => {
     let isMounted = true;
@@ -57,6 +58,35 @@ export default function ComplaintLogsDashboard() {
     setIsModalOpen(false);
     setSelectedTicket(null);
   };
+
+  const handlePushToQueue = async () => {
+    if (!selectedTicket) return;
+    const confirmPush = window.confirm(`Are you sure you want to push Complaint ${selectedTicket.Complaint_ID} to the Intake Queue?`);
+    if (!confirmPush) return;
+
+    try {
+      setIsPushing(true);
+      setError(null);
+      const res = await pushToIntakeQueue(selectedTicket);
+      if (res && res.success) {
+        // Update local state dynamically so Admin sees it immediately
+        setComplaints(prev => prev.map(c => 
+          c.Complaint_ID === selectedTicket.Complaint_ID 
+            ? { ...c, Status: 'Transferred to Intake' }
+            : c
+        ));
+        closeModal();
+      } else {
+        throw new Error(res.message || 'Push failed');
+      }
+    } catch(err) {
+      console.error(err);
+      setError(err.message || "Failed to push ticket to intake queue.");
+    } finally {
+      setIsPushing(false);
+    }
+  };
+
 
   // Search Filter Math
   const filteredComplaints = complaints.filter(c => {
@@ -168,7 +198,18 @@ export default function ComplaintLogsDashboard() {
           <div className="modal-content-wrapper" onClick={(e) => e.stopPropagation()}>
             <div className="modal-header">
               <h2>🎟️ Ticket: {selectedTicket.Complaint_ID}</h2>
-              <button className="close-btn" onClick={closeModal}>&times;</button>
+              <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
+                {selectedTicket.Status !== 'Transferred to Intake' && selectedTicket.Status !== 'Promoted' && (
+                  <button 
+                    onClick={handlePushToQueue} 
+                    disabled={isPushing}
+                    style={{ background: '#1a73e8', color: 'white', border: 'none', padding: '8px 16px', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold' }}
+                  >
+                    {isPushing ? 'Pushing...' : '📥 Push to Intake Queue'}
+                  </button>
+                )}
+                <button className="close-btn" onClick={closeModal}>&times;</button>
+              </div>
             </div>
             
             <div className="modal-body">

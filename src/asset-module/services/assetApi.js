@@ -184,3 +184,24 @@ export const getComplaints = async () => {
     throw error;
   }
 };
+
+/**
+ * Perform a POST request to push a QR complaint into the Intake Queue (Requests).
+ */
+export const pushToIntakeQueue = async (complaintData) => {
+  try {
+    const url = new URL(GAS_URL);
+    url.searchParams.append("action", "pushToIntake");
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+      body: JSON.stringify(complaintData),
+      redirect: "follow"
+    });
+    if (!response.ok) throw new Error("API operational failure");
+    return await response.json();
+  } catch (error) {
+    console.error(`Asset API POST failure [pushToIntakeQueue]:`, error);
+    throw error;
+  }
+};
