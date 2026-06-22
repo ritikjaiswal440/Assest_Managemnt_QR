@@ -1,6 +1,6 @@
 /* eslint-disable react-hooks/set-state-in-effect */
 import { useState, useEffect } from 'react';
-import { assetApi } from '../services/assetApi';
+import { assetApi } from '../../services/apiClient';
 import AssetFormModal from '../components/AssetFormModal';
 import QRLabel from '../components/QRLabel';
 import html2canvas from 'html2canvas';
@@ -25,7 +25,7 @@ export default function AssetDashboard() {
     setLoading(true);
     try {
       // Mocked simultaneous fetching since backend may not be fully connected yet.
-      const companyRes = await fetch(`${import.meta.env.VITE_ASSET_GAS_API_URL}?route=getCompanies`).catch(() => null);
+      const companyRes = await fetch(`${import.meta.env.VITE_GAS_API_URL}?route=getCompanies`).catch(() => null);
       let companyData = [];
       if (companyRes && companyRes.ok) {
         const cResult = await companyRes.json();
@@ -36,7 +36,7 @@ export default function AssetDashboard() {
       }
       setCompanies(companyData);
 
-      const assetRes = await fetch(`${import.meta.env.VITE_ASSET_GAS_API_URL}?route=getAssets`).catch(() => null);
+      const assetRes = await fetch(`${import.meta.env.VITE_GAS_API_URL}?route=getAssets`).catch(() => null);
       if (assetRes && assetRes.ok) {
         const aResult = await assetRes.json();
         if (aResult.status === 'success') {

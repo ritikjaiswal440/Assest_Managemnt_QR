@@ -1,7 +1,7 @@
 /* eslint-disable react-hooks/set-state-in-effect */
 import { useState, useEffect } from 'react';
 import CompanyFormModal from '../components/CompanyFormModal';
-import { getCompanies } from '../services/assetApi';
+import { getCompanies } from '../../services/apiClient';
 
 export default function CompanyDashboard() {
   const [companies, setCompanies] = useState([]);

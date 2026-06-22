@@ -1,6 +1,6 @@
 /* eslint-disable react-hooks/set-state-in-effect */
 import { useState, useEffect } from 'react';
-import { gasApi } from '../services/api';
+import { gasApi } from '../services/apiClient';
 
 const initialState = {
   serviceRequestId: '',

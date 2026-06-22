@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { assetApi } from '../services/assetApi';
+import { getPublicAssetDetails } from '../../services/apiClient';
 import PublicComplaintForm from '../components/PublicComplaintForm';
 import './PublicComplaintPortal.css';
 
@@ -31,11 +31,7 @@ export default function PublicComplaintPortal() {
       setError(null);
 
       try {
-        const response = await assetApi(
-          'getPublicAssetDetails', 
-          { assetId, signature }, 
-          { signal: abortController.signal }
-        );
+        const response = await getPublicAssetDetails({ assetId, signature });
 
         if (!active) return;
 

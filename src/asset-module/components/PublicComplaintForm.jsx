@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { assetApi, submitComplaint } from '../services/assetApi';
+import { submitComplaint } from '../../services/apiClient';
 import './PublicComplaintForm.css';
 
 export default function PublicComplaintForm({ asset, signature }) {

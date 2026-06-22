@@ -1,6 +1,6 @@
 /* eslint-disable react-hooks/set-state-in-effect */
 import { useState, useEffect } from 'react';
-import { gasApi } from '../services/api';
+import { gasApi, resolveTicket, resolveTask } from '../services/apiClient';
 
 const UpdateTaskModal = ({ isOpen, onClose, taskConfig, currentUser, onSuccess }) => {
   const [statusVal, setStatusVal] = useState('');
@@ -37,20 +37,33 @@ const UpdateTaskModal = ({ isOpen, onClose, taskConfig, currentUser, onSuccess }
     e.preventDefault();
     setStatus({ loading: true, error: null });
 
-    const payload = {
-      childId: taskConfig?.childId || '',
-      parentId: taskConfig?.parentId || '',
-      status: statusVal,
-      remark: remark,
-      actorEmail: currentUser?.email || '',
-      userRole: currentUser?.role || ''
-    };
-
     try {
-      const response = await gasApi('updateChildTicket', payload);
+      let response;
+      if (taskConfig?.Task_ID || taskConfig?.childId) {
+        // Engineer Task / Legacy Child Workflow
+        const payload = {
+          Task_ID: taskConfig.Task_ID || taskConfig.childId,
+          Ticket_ID_Ref: taskConfig.Ticket_ID || taskConfig.Ticket_ID_Ref || taskConfig.parentId || '',
+          Status: statusVal,
+          Engineer_Email: currentUser?.email || '',
+          Remarks: remark
+        };
+        response = await resolveTask(payload);
+      } else if (taskConfig?.Ticket_ID) {
+        // Master Ticket Workflow
+        const payload = {
+          Ticket_ID: taskConfig.Ticket_ID,
+          Status: statusVal,
+          Remarks: remark,
+          actorEmail: currentUser?.email || ''
+        };
+        response = await resolveTicket(payload);
+      } else {
+        throw new Error("Invalid Task Configuration: Missing ID reference.");
+      }
       
       if (response?.success) {
-        onSuccess(); // Triggers Dashboard to pull fresh data
+        onSuccess(statusVal, remark); // Pass updated status/remark back
         onClose();   // Hides the modal
       } else {
         setStatus({ loading: false, error: response?.message || 'Error occurred.' });
@@ -81,7 +94,8 @@ const UpdateTaskModal = ({ isOpen, onClose, taskConfig, currentUser, onSuccess }
             >
               <option value="Assigned">Assigned</option>
               <option value="In Progress">In Progress</option>
-              <option value="Waiting for Parts">Waiting for Parts</option>
+              <option value="Pending Parts">Pending Parts</option>
+              <option value="Resolved">Resolved</option>
               <option value="Closed">Closed</option>
             </select>
           </div>

@@ -1,6 +1,6 @@
 /* eslint-disable react-hooks/set-state-in-effect */
 import { useState, useEffect } from 'react';
-import { assetApi } from '../services/assetApi';
+import { assetApi } from '../../services/apiClient';
 import './ReportingDashboard.css';
 
 export default function ReportingDashboard() {

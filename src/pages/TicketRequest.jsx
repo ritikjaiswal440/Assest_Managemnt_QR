@@ -1,7 +1,7 @@
 /* eslint-disable react-hooks/set-state-in-effect */
 import { useState, useEffect, useCallback } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { gasApi } from '../services/api';
+import { validateRef, submitIntake } from '../services/apiClient';
 import './TicketRequest.css';
 
 const TicketRequest = () => {
@@ -37,7 +37,7 @@ const TicketRequest = () => {
     setStatus({ loading: true, error: null });
     
     try {
-      const response = await gasApi('validateRef', { ref: codeToUse });
+      const response = await validateRef({ ref: codeToUse });
       if (response?.success) {
         setCompanyName(response?.data?.companyName || "Verified Client");
         setView('form');
@@ -134,7 +134,7 @@ const TicketRequest = () => {
     };
 
     try {
-      const response = await gasApi('submitRequest', payload);
+      const response = await submitIntake(payload);
       if (response?.success) {
         setReqId(response?.data?.requestId || 'Generated Successfully');
         setView('success');

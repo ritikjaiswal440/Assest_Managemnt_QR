@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { gasApi } from '../services/api';
+import { loginUser } from '../services/apiClient';
 import { useAuth } from '../context/AuthContext';
 import './Login.css';
 
@@ -15,7 +15,7 @@ const Login = () => {
     setStatus({ loading: true, error: null });
 
     try {
-      const response = await gasApi('login', { identifier, email: identifier, password });
+      const response = await loginUser(identifier, password);
 
       if (response?.success && response?.data?.user) {
         login(response.data.user);

@@ -1,7 +1,7 @@
 /* eslint-disable react-hooks/set-state-in-effect */
 import { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '../context/AuthContext';
-import { gasApi } from '../services/api';
+import { gasApi } from '../services/apiClient';
 import KpiCards from '../components/KpiCards';
 import FilterBar from '../components/FilterBar';
 import TicketTable from '../components/TicketTable';

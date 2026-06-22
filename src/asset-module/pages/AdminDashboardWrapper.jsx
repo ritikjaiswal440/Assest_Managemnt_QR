@@ -6,15 +6,12 @@ import AssetDashboard from './AssetDashboard';
 import CompanyDashboard from './CompanyDashboard';
 import BulkDataPanel from '../components/BulkDataPanel';
 import ReportingDashboard from './ReportingDashboard';
-import ComplaintLogsDashboard from './ComplaintLogsDashboard';
 
 function AdminDashboardWrapper() {
   const { user, logout } = useAuth();
   
-  // Tab/View Navigation state: 'assets' | 'companies' | 'complaints'
+  // Tab/View Navigation state: 'assets' | 'companies' | 'bulk' | 'analytics'
   const [activeTab, setActiveTab] = useState('assets');
-
-  // The mock complaints state has been completely removed to consume the live API
 
   // Auth Guard: If not logged in, redirect to login page
   if (!user) {
@@ -47,12 +44,6 @@ function AdminDashboardWrapper() {
             <span>🏢</span> Company Master
           </button>
           <button
-            className={`nav-item ${activeTab === 'complaints' ? 'active' : ''}`}
-            onClick={() => setActiveTab('complaints')}
-          >
-            <span>🎫</span> Complaint Logs
-          </button>
-          <button
             className={`nav-item ${activeTab === 'bulk' ? 'active' : ''}`}
             onClick={() => setActiveTab('bulk')}
           >
@@ -79,7 +70,6 @@ function AdminDashboardWrapper() {
           <h1>
             {activeTab === 'assets' && 'Asset Master Inventory'}
             {activeTab === 'companies' && 'Company Master Registry'}
-            {activeTab === 'complaints' && 'QR Complaint Synchronization Hub'}
             {activeTab === 'bulk' && 'Bulk Operations & Migration'}
             {activeTab === 'analytics' && 'Executive Reporting Engine'}
           </h1>
@@ -91,8 +81,6 @@ function AdminDashboardWrapper() {
         {activeTab === 'companies' && <CompanyDashboard />}
         {activeTab === 'bulk' && <BulkDataPanel />}
         {activeTab === 'analytics' && <ReportingDashboard />}
-
-        {activeTab === 'complaints' && <ComplaintLogsDashboard />}
       </main>
     </div>
   );

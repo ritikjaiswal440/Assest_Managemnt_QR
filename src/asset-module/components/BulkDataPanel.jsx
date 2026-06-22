@@ -1,5 +1,5 @@
 import { useState, useRef } from 'react';
-import { assetApi } from '../services/assetApi';
+import { exportBulkData, importBulkData } from '../../services/apiClient';
 import './BulkDataPanel.css';
 
 export default function BulkDataPanel() {
@@ -25,27 +25,59 @@ export default function BulkDataPanel() {
     }
   };
 
-  const parseCSV = (text) => {
-    // A lightweight CSV string-to-array parser
-    const rows = text.split('\n').filter(row => row.trim() !== '');
-    if (rows.length < 2) return [];
-
-    const headers = rows[0].split(',').map(h => h.trim().replace(/^"|"$/g, ''));
+  /**
+   * RFC 4180 Compliant CSV string to 2D array parser
+   */
+  const parseCSVToMatrix = (text) => {
+    const lines = [];
+    let row = [];
+    let val = '';
+    let inQuotes = false;
     
-    const parsedRows = rows.slice(1).map(rowStr => {
-      // Handle commas inside quotes
-      const values = rowStr.match(/(".*?"|[^",\s]+)(?=\s*,|\s*$)/g) || rowStr.split(',');
-      const rowObj = {};
+    for (let i = 0; i < text.length; i++) {
+      const char = text[i];
+      const nextChar = text[i+1];
       
-      headers.forEach((header, index) => {
-        let val = values[index] ? values[index].trim() : "";
-        val = val.replace(/^"|"$/g, ''); // Remove wrapping quotes
-        rowObj[header] = val;
-      });
-      return rowObj;
-    });
-
-    return parsedRows;
+      if (inQuotes) {
+        if (char === '"' && nextChar === '"') {
+          val += '"';
+          i++; // Skip the second quote
+        } else if (char === '"') {
+          inQuotes = false;
+        } else {
+          val += char;
+        }
+      } else {
+        if (char === '"') {
+          inQuotes = true;
+        } else if (char === ',') {
+          row.push(val);
+          val = '';
+        } else if (char === '\n' || char === '\r') {
+          if (char === '\r' && nextChar === '\n') {
+            i++;
+          }
+          row.push(val);
+          // Only push rows that have elements or non-empty first values
+          if (row.length > 1 || (row.length === 1 && row[0] !== '')) {
+            lines.push(row);
+          }
+          row = [];
+          val = '';
+        } else {
+          val += char;
+        }
+      }
+    }
+    
+    if (row.length > 0 || val !== '') {
+      row.push(val);
+      if (row.length > 1 || (row.length === 1 && row[0] !== '')) {
+        lines.push(row);
+      }
+    }
+    
+    return lines;
   };
 
   const handleDrop = (e) => {
@@ -76,29 +108,36 @@ export default function BulkDataPanel() {
     const reader = new FileReader();
     reader.onload = (e) => {
       const text = e.target.result;
-      const data = parseCSV(text);
-      setParsedData(data);
-      setStats({ total: data.length, valid: data.length }); // Basic validation logic can be expanded here
+      const matrix = parseCSVToMatrix(text);
+      if (matrix.length < 2) {
+        alert("The uploaded CSV file is empty or missing data rows.");
+        resetForm();
+        return;
+      }
+      setParsedData(matrix);
+      // Exclude header row for pre-flight stats
+      setStats({ total: matrix.length - 1, valid: matrix.length - 1 });
     };
     reader.readAsText(fileObj);
   };
 
   const handleUpload = async () => {
-    if (!parsedData || parsedData.length === 0) return;
+    if (!parsedData || parsedData.length < 2) return;
     
     setIsUploading(true);
     setUploadResult(null);
     
-    const route = activeTab === 'assets' ? 'importAssets' : 'importCompanies';
+    const selectedSheet = activeTab === 'assets' ? 'Asset_Master' : 'Company_Master';
+    const dataMatrix = parsedData.slice(1); // Exclude headers for append
     
     try {
-      const response = await assetApi(route, { rows: parsedData });
+      const response = await importBulkData(selectedSheet, dataMatrix);
       
       if (response && response.success) {
         setUploadResult({
           type: 'success',
-          message: response.message || 'Import successful.',
-          stats: response.stats
+          message: response.message || response.data?.message || 'Import successful.',
+          importedCount: response.data?.importedCount || dataMatrix.length
         });
         setFile(null);
         setParsedData(null);
@@ -121,37 +160,37 @@ export default function BulkDataPanel() {
 
   const handleExport = async (type) => {
     setIsUploading(true);
+    const selectedSheet = type === 'assets' ? 'Asset_Master' : 'Company_Master';
+    
     try {
-      const response = await assetApi('exportData', { entityType: type === 'assets' ? 'Assets' : 'Companies' });
-      if (response && response.success) {
-        // Convert JSON to CSV locally for download
-        const data = response.data;
-        if (data.length === 0) {
+      const response = await exportBulkData(selectedSheet);
+      if (response && response.success && Array.isArray(response.data)) {
+        const matrix = response.data;
+        if (matrix.length === 0) {
           alert("No data to export.");
           setIsUploading(false);
           return;
         }
 
-        const headers = Object.keys(data[0]);
-        const csvRows = [];
-        csvRows.push(headers.join(','));
+        // Convert the 2D array to CSV string
+        const csvString = matrix.map(row => 
+          row.map(val => {
+            const strVal = val === null || val === undefined ? '' : String(val);
+            const escaped = strVal.replace(/"/g, '""');
+            if (escaped.includes(',') || escaped.includes('\n') || escaped.includes('\r') || escaped.includes('"')) {
+              return `"${escaped}"`;
+            }
+            return escaped;
+          }).join(',')
+        ).join('\n');
 
-        for (const row of data) {
-          const values = headers.map(header => {
-            const escaped = ('' + (row[header] || '')).replace(/"/g, '""');
-            return `"${escaped}"`;
-          });
-          csvRows.push(values.join(','));
-        }
-
-        const csvString = csvRows.join('\n');
-        const blob = new Blob([csvString], { type: 'text/csv' });
+        const blob = new Blob([csvString], { type: 'text/csv;charset=utf-8;' });
         const url = window.URL.createObjectURL(blob);
         
         const a = document.createElement('a');
         a.setAttribute('hidden', '');
         a.setAttribute('href', url);
-        a.setAttribute('download', `${type}_export_${new Date().toISOString().split('T')[0]}.csv`);
+        a.setAttribute('download', `${selectedSheet}_export_${new Date().toISOString().split('T')[0]}.csv`);
         document.body.appendChild(a);
         a.click();
         document.body.removeChild(a);
@@ -196,7 +235,7 @@ export default function BulkDataPanel() {
       <div className="operations-grid">
         {/* IMPORT ZONE */}
         <div className="operation-zone import-zone">
-          <h3>📥 Bulk Import ({activeTab})</h3>
+          <h3>📥 Bulk Import ({activeTab === 'assets' ? 'Asset_Master' : 'Company_Master'})</h3>
           
           <div 
             className={`drag-drop-zone ${dragActive ? 'drag-active' : ''} ${file ? 'has-file' : ''}`}
@@ -224,7 +263,7 @@ export default function BulkDataPanel() {
               <div className="upload-prompt">
                 <span className="upload-icon">⬆️</span>
                 <p>Drag and drop a .csv file here, or click to browse</p>
-                <small>Requires specific column headers mapping to {activeTab}.</small>
+                <small>Requires specific column headers mapping to {activeTab === 'assets' ? 'Asset_Master' : 'Company_Master'}.</small>
               </div>
             )}
           </div>
@@ -239,8 +278,8 @@ export default function BulkDataPanel() {
                   <span className="stat-label">Rows Detected</span>
                 </div>
                 <div className="stat-box highlight">
-                  <span className="stat-val">Duplication Engine Active</span>
-                  <span className="stat-label">Will skip exact matches</span>
+                  <span className="stat-val">Append Mode</span>
+                  <span className="stat-label">Will insert records to sheets</span>
                 </div>
               </div>
               
@@ -259,10 +298,9 @@ export default function BulkDataPanel() {
             <div className={`result-banner ${uploadResult.type}`}>
               <h4>{uploadResult.type === 'success' ? '✅ Import Complete' : '❌ Import Failed'}</h4>
               <p>{uploadResult.message}</p>
-              {uploadResult.stats && (
+              {uploadResult.importedCount !== undefined && (
                 <ul className="error-list">
-                  <li>Successfully Inserted: {uploadResult.stats.importedCount}</li>
-                  <li>Skipped/Duplicates: {uploadResult.stats.skippedCount}</li>
+                  <li>Successfully Inserted: {uploadResult.importedCount} rows</li>
                 </ul>
               )}
             </div>
@@ -271,9 +309,9 @@ export default function BulkDataPanel() {
 
         {/* EXPORT ZONE */}
         <div className="operation-zone export-zone">
-          <h3>📤 Data Export ({activeTab})</h3>
+          <h3>📤 Data Export ({activeTab === 'assets' ? 'Asset_Master' : 'Company_Master'})</h3>
           <p className="export-desc">
-            Download the current verified {activeTab} registry from the database. The resulting payload is a clean CSV file utilizing proper column schemas, perfect for auditing or reporting.
+            Download the current verified {activeTab === 'assets' ? 'Asset_Master' : 'Company_Master'} registry from the database. The resulting payload is a clean CSV file utilizing proper column schemas, perfect for auditing or reporting.
           </p>
           
           <button 
