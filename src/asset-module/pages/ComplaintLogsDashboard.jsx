@@ -72,7 +72,7 @@ export default function ComplaintLogsDashboard() {
         // Update local state dynamically so Admin sees it immediately
         setComplaints(prev => prev.map(c => 
           c.Complaint_ID === selectedTicket.Complaint_ID 
-            ? { ...c, Status: 'Transferred to Intake' }
+            ? { ...c, Status: 'Transferred' }
             : c
         ));
         closeModal();
@@ -199,13 +199,13 @@ export default function ComplaintLogsDashboard() {
             <div className="modal-header">
               <h2>🎟️ Ticket: {selectedTicket.Complaint_ID}</h2>
               <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
-                {selectedTicket.Status !== 'Transferred to Intake' && selectedTicket.Status !== 'Promoted' && (
+                {selectedTicket.Status === 'Open' && (
                   <button 
                     onClick={handlePushToQueue} 
                     disabled={isPushing}
                     style={{ background: '#1a73e8', color: 'white', border: 'none', padding: '8px 16px', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold' }}
                   >
-                    {isPushing ? 'Pushing...' : '📥 Push to Intake Queue'}
+                    {isPushing ? 'Pushing...' : 'Confirm & Push to Intake Queue'}
                   </button>
                 )}
                 <button className="close-btn" onClick={closeModal}>&times;</button>

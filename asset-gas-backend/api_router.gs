@@ -12,12 +12,30 @@ function doGet(e) {
  */
 function doPost(e) {
   try {
+    if (!e || !e.postData || !e.postData.contents) {
+      throw new Error("Bad Request: Payload is missing or corrupt.");
+    }
+    const payload = JSON.parse(e.postData.contents);
+    // Resilient Action Extraction (fallback to body if query parameter was dropped)
+    const action = (e.parameter && e.parameter.action) || payload.action; 
+
+    if (!action) {
+       throw new Error("Field Violation: Missing execution action reference.");
+    }
+
+    // Explicitly handle pushToIntake route
+    if (action === "pushToIntake") {
+         const resObj = handlePushToIntake(payload);
+         return ContentService.createTextOutput(JSON.stringify(resObj))
+           .setMimeType(ContentService.MimeType.JSON);
+    }
+
     return handleRequest(e, 'POST');
-  } catch (err) {
+  } catch (error) {
     // Fail-Safe Response to prevent CORS crashes from fatal unhandled exceptions
     return ContentService.createTextOutput(JSON.stringify({ 
       status: "error", 
-      message: err.message 
+      message: error.message 
     })).setMimeType(ContentService.MimeType.JSON);
   }
 }
@@ -90,8 +108,11 @@ function handleRequest(e, method) {
         responseData = handleGetComplaints();
         break;
       case 'pushToIntake':
-        responseData = handlePushToIntake(payload);
-        break;
+        {
+          const resObj = handlePushToIntake(payload);
+          return ContentService.createTextOutput(JSON.stringify(resObj))
+            .setMimeType(ContentService.MimeType.JSON);
+        }
       case 'getDashboardKPIs':
         responseData = handleGetDashboardKPIs(payload).data;
         break;
@@ -389,69 +410,94 @@ function handleGetComplaints() {
   return results;
 }
 
-/**
- * Handle cross-sheet transfer from Asset_Complaints_2026 to Requests.
- */
 function handlePushToIntake(payload) {
-  if (!payload.Complaint_ID) {
+  if (typeof payload === 'string') {
+    try {
+      payload = JSON.parse(payload);
+    } catch (e) {
+      throw new Error("Invalid payload: " + e.message);
+    }
+  }
+
+  const complaintId = payload.Complaint_ID;
+  if (!complaintId) {
     throw new Error("Missing Complaint_ID in payload.");
   }
 
-  // Step A: Append to Requests
-  const requestsSheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName('Requests');
-  if (!requestsSheet) {
-    throw new Error("Target sheet 'Requests' not found. Please verify standard ITSM schema.");
-  }
+  // 1. Get Staging Sheet (Asset_Complaints_2026) from active spreadsheet container
+  const activeSS = SpreadsheetApp.getActiveSpreadsheet();
+  const activeSheets = activeSS.getSheets();
+  const complaintsSheet = activeSheets.find(s => s.getName().trim().toLowerCase() === 'asset_complaints_2026');
   
-  // Create an array mapping the QR data to the standard Requests schema
-  // Standard generic ITSM mapping assumption:
-  // [Timestamp, Reference/ID, Requester, Email, Department/Company, Issue, Asset, Status]
-  const newRequestRow = [
-    new Date().toISOString(),            // Timestamp
-    payload.Complaint_ID || '',          // Reference / Original ID
-    payload.Requested_By || '',          // Requester
-    payload.Client_Email || '',          // Email
-    payload.Company_Name || '',          // Company / Department
-    payload.Description || '',           // Issue Description
-    payload.Unique_Product_Id || '',     // Asset ID
-    "New Intake Queue"                   // Initial Status
-  ];
-  
-  try {
-    requestsSheet.appendRow(newRequestRow);
-  } catch(err) {
-    throw new Error("Failed to append to Requests sheet: " + err.message);
-  }
-
-  // Step B: Update Staging Status
-  const complaintsSheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName('Asset_Complaints_2026');
   if (!complaintsSheet) {
-    throw new Error("Source sheet 'Asset_Complaints_2026' not found.");
+    throw new Error("Source sheet 'Asset_Complaints_2026' not found in active spreadsheet.");
   }
 
   const data = complaintsSheet.getDataRange().getValues();
   let foundRowIndex = -1;
-  // Row 1 is header (index 0), data starts at Row 2 (index 1)
+  
+  // Find original row
   for (let i = 1; i < data.length; i++) {
-    if (String(data[i][0]).trim() === String(payload.Complaint_ID).trim()) {
-      foundRowIndex = i + 1; // Google Sheets is 1-indexed
+    if (String(data[i][0]).trim() === String(complaintId).trim()) {
+      foundRowIndex = i + 1;
       break;
     }
   }
 
   if (foundRowIndex === -1) {
-    throw new Error("Could not find the original complaint in Asset_Complaints_2026 to update status.");
+    throw new Error("Original complaint not found in Asset_Complaints_2026.");
   }
 
+  // 2. Perform Transaction to Core Ticketing System (via PROSUPPORT_API_URL)
+  const corePayload = {
+    action: "insertIntakeTicket",
+    ...payload
+  };
+
+  const options = {
+    method: 'post',
+    contentType: 'application/json',
+    payload: JSON.stringify(corePayload),
+    muteHttpExceptions: true
+  };
+
+  // Resolve external API URL
+  const apiEndpoint = (typeof PROSUPPORT_API_URL !== 'undefined') ? PROSUPPORT_API_URL : '';
+  if (!apiEndpoint || apiEndpoint.includes('YOUR_PROSUPPORT_API_URL')) {
+    throw new Error("Core Ticketing System API (PROSUPPORT_API_URL) is not configured in script properties or global constants.");
+  }
+
+  const response = UrlFetchApp.fetch(apiEndpoint, options);
+  const responseCode = response.getResponseCode();
+  
+  if (responseCode !== 200 && responseCode !== 201) {
+    throw new Error("Core Ticketing System returned status " + responseCode + ": " + response.getContentText());
+  }
+
+  let responseData;
   try {
-    // Overwrite its Status column (Index 22 => Column 23, "Status") to "Transferred to Intake"
-    complaintsSheet.getRange(foundRowIndex, 23).setValue("Transferred to Intake");
+    responseData = JSON.parse(response.getContentText());
+  } catch(e) {
+    throw new Error("Failed to parse Core Ticketing System response: " + e.message);
+  }
+
+  // Handle case where response indicates failure
+  if (responseData.status === 'error' || responseData.success === false) {
+    throw new Error("Core Ticketing System failed: " + (responseData.message || "Unknown error"));
+  }
+
+  // 3. Update Status cell (Index 22 => Column 23) to "Transferred"
+  // Update Sync_Status cell (Index 23 => Column 24) to "Success"
+  try {
+    complaintsSheet.getRange(foundRowIndex, 23).setValue("Transferred");
+    complaintsSheet.getRange(foundRowIndex, 24).setValue("Success");
   } catch(err) {
-    throw new Error("Failed to update status in Asset_Complaints_2026: " + err.message);
+    throw new Error("Failed to update staging status locally: " + err.message);
   }
 
   return {
     success: true,
-    message: "Ticket successfully transferred to Intake Queue."
+    status: "success",
+    message: "Ticket successfully transferred to Client Intake Queue"
   };
 }

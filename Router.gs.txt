@@ -27,10 +27,21 @@ function doPost(e) {
     }
     
     const payload = JSON.parse(e.postData.contents);
-    const action = payload.action;
+    const action = (e.parameter && e.parameter.action) || payload.action;
     
     if (!action) {
       throw new Error("Field Violation: Missing execution action reference.");
+    }
+
+    // Explicitly handle pushToIntake route
+    if (action === "pushToIntake") {
+      return handlePushToIntake(payload);
+    }
+
+    if (action === "insertIntakeTicket") {
+      const resObj = handleInsertIntakeTicket(payload);
+      return ContentService.createTextOutput(JSON.stringify(resObj))
+        .setMimeType(ContentService.MimeType.JSON);
     }
 
     // Enterprise Action Router Core
@@ -101,6 +112,13 @@ function doPost(e) {
       case 'pingEngineer':
         response = handlePingEngineerRequest(payload);
         break;
+        
+      case 'pushToIntake':
+        {
+          const resObj = handlePushToIntake(payload);
+          return ContentService.createTextOutput(JSON.stringify(resObj))
+            .setMimeType(ContentService.MimeType.JSON);
+        }
         
       default:
         response.message = `Routing Error: Unsupported action context -> [${action}]`;
@@ -180,4 +198,191 @@ function doGet(e) {
     message: "GET requests are restricted on this API gateway interface. Enforce POST procedures.",
     data: null
   })).setMimeType(ContentService.MimeType.JSON);
+}
+
+/**
+ * Handle cross-sheet transfer from Asset_Complaints_2026 to Requests.
+ */
+function handlePushToIntake(payload) {
+  if (typeof payload === 'string') {
+    try {
+      payload = JSON.parse(payload);
+    } catch (e) {
+      throw new Error("Invalid payload: " + e.message);
+    }
+  }
+
+  const complaintId = payload.Complaint_ID;
+  if (!complaintId) {
+    throw new Error("Missing Complaint_ID in payload.");
+  }
+
+  const ss = SpreadsheetApp.openById(MASTER_DB_ID);
+  const allSheets = ss.getSheets();
+
+  const getSheetFuzzy = (name) => {
+    const target = name.trim().toLowerCase();
+    return allSheets.find(s => s.getName().trim().toLowerCase() === target);
+  };
+  
+  // 1. Target Core Sheet (Requests)
+  const requestsSheet = getSheetFuzzy('Requests');
+  if (!requestsSheet) {
+    throw new Error("Target sheet 'Requests' not found. Please verify standard ITSM schema.");
+  }
+  
+  const email = payload.Client_Email || '';
+  const company = payload.Company_Name || '';
+  const location = payload.Location || '';
+  const requester = payload.Requested_By || '';
+  const roomName = payload.Room_Name || '';
+  const category = payload.Support_Type || 'Hardware';
+  const description = payload.Description || '';
+  const phone = payload.PhoneNumber || '';
+  
+  // Append standard Request row
+  requestsSheet.appendRow([
+    complaintId,
+    new Date(),
+    email,
+    company,
+    location,
+    requester,
+    roomName,
+    category,
+    description,
+    '', // InvoiceURL
+    phone,
+    'FALSE' // Archived (so it appears as active intake)
+  ]);
+  
+  // 1b. Map device serial to Request_Items so it connects to the ticket dashboard
+  const itemsSheet = getSheetFuzzy('Request_Items');
+  if (itemsSheet) {
+    try {
+      itemsSheet.appendRow([
+        complaintId,
+        1,
+        payload.ProductMake || '',
+        payload.ProductModel || '',
+        payload.SerialNumber || ''
+      ]);
+    } catch(err) {
+      Logger.log("Failed to append to Request_Items: " + err.message);
+    }
+  }
+
+  // 2. Target Staging Sheet (Asset_Complaints_2026)
+  const complaintsSheet = getSheetFuzzy('Asset_Complaints_2026');
+  if (!complaintsSheet) {
+    throw new Error("Source sheet 'Asset_Complaints_2026' not found.");
+  }
+
+  const data = complaintsSheet.getDataRange().getValues();
+  let foundRowIndex = -1;
+  
+  // Find original row
+  for (let i = 1; i < data.length; i++) {
+    if (String(data[i][0]).trim() === String(complaintId).trim()) {
+      foundRowIndex = i + 1;
+      break;
+    }
+  }
+
+  if (foundRowIndex === -1) {
+    throw new Error("Original complaint not found in Asset_Complaints_2026.");
+  }
+
+  // Update Status cell (Index 22 => Column 23) to "Transferred"
+  // Update Sync_Status cell (Index 23 => Column 24) to "Success"
+  try {
+    complaintsSheet.getRange(foundRowIndex, 23).setValue("Transferred");
+    complaintsSheet.getRange(foundRowIndex, 24).setValue("Success");
+  } catch(err) {
+    throw new Error("Failed to update staging status: " + err.message);
+  }
+
+  return {
+    status: "success",
+    message: "Ticket successfully transferred to Client Intake Queue"
+  };
+}
+
+/**
+ * Inserts a ticket securely into Requests and Request_Items sheets.
+ * Runs in the Core database context.
+ */
+function handleInsertIntakeTicket(payload) {
+  if (typeof payload === 'string') {
+    try {
+      payload = JSON.parse(payload);
+    } catch (e) {
+      throw new Error("Invalid payload: " + e.message);
+    }
+  }
+
+  const complaintId = payload.Complaint_ID;
+  if (!complaintId) {
+    throw new Error("Missing Complaint_ID in payload.");
+  }
+
+  const ss = SpreadsheetApp.openById(MASTER_DB_ID);
+  const allSheets = ss.getSheets();
+  const getSheetFuzzy = (name) => {
+    const target = name.trim().toLowerCase();
+    return allSheets.find(s => s.getName().trim().toLowerCase() === target);
+  };
+
+  // 1. Target Core Sheet (Requests)
+  const requestsSheet = getSheetFuzzy('Requests');
+  if (!requestsSheet) {
+    throw new Error("Target sheet 'Requests' not found. Please verify standard ITSM schema.");
+  }
+
+  const email = payload.Client_Email || '';
+  const company = payload.Company_Name || '';
+  const location = payload.Location || '';
+  const requester = payload.Requested_By || '';
+  const roomName = payload.Room_Name || '';
+  const category = payload.Support_Type || 'Hardware';
+  const description = payload.Description || '';
+  const phone = payload.PhoneNumber || '';
+
+  // Append standard Request row
+  requestsSheet.appendRow([
+    complaintId,
+    new Date(),
+    email,
+    company,
+    location,
+    requester,
+    roomName,
+    category,
+    description,
+    '', // InvoiceURL
+    phone,
+    'FALSE' // Archived (so it appears as active intake)
+  ]);
+
+  // 2. Map device serial to Request_Items so it connects to the ticket dashboard
+  const itemsSheet = getSheetFuzzy('Request_Items');
+  if (itemsSheet) {
+    try {
+      itemsSheet.appendRow([
+        complaintId,
+        1,
+        payload.ProductMake || '',
+        payload.ProductModel || '',
+        payload.SerialNumber || ''
+      ]);
+    } catch(err) {
+      Logger.log("Failed to append to Request_Items: " + err.message);
+    }
+  }
+
+  return {
+    success: true,
+    status: "success",
+    message: "Ticket successfully inserted into Client Intake Queue"
+  };
 }
