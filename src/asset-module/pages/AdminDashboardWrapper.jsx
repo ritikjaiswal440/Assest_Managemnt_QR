@@ -6,6 +6,7 @@ import AssetDashboard from './AssetDashboard';
 import CompanyDashboard from './CompanyDashboard';
 import BulkDataPanel from '../components/BulkDataPanel';
 import ReportingDashboard from './ReportingDashboard';
+import ComplaintLogsDashboard from './ComplaintLogsDashboard';
 
 function AdminDashboardWrapper() {
   const { user, logout } = useAuth();
@@ -13,30 +14,7 @@ function AdminDashboardWrapper() {
   // Tab/View Navigation state: 'assets' | 'companies' | 'complaints'
   const [activeTab, setActiveTab] = useState('assets');
 
-  const [complaints] = useState([
-    {
-      id: 'CMP-2026-000001',
-      assetId: 'AVD/PD/000001',
-      clientName: 'Sarah Connor',
-      clientEmail: 'sconnor@apex.com',
-      description: 'Projector turns off automatically after 10 minutes with a red indicator flashing.',
-      timestamp: '2026-06-16 10:30',
-      syncStatus: 'Success', // Cross-system handshake status
-      serviceRequestNo: 'SR-PRO-984210',
-      billingFlag: 'In Support'
-    },
-    {
-      id: 'CMP-2026-000002',
-      assetId: 'AVD/PD/000002',
-      clientName: 'John Doe',
-      clientEmail: 'jdoe@apex.com',
-      description: 'Microphone array not picking up audio during Teams calls.',
-      timestamp: '2026-06-16 11:15',
-      syncStatus: 'Pending', // Action required / API retry
-      serviceRequestNo: 'SR-PRO-PENDING',
-      billingFlag: 'Pending Quote' // Flagged Out of Support
-    }
-  ]);
+  // The mock complaints state has been completely removed to consume the live API
 
   // Auth Guard: If not logged in, redirect to login page
   if (!user) {
@@ -114,57 +92,7 @@ function AdminDashboardWrapper() {
         {activeTab === 'bulk' && <BulkDataPanel />}
         {activeTab === 'analytics' && <ReportingDashboard />}
 
-        {activeTab === 'complaints' && (
-          <section className="table-card">
-            <div className="table-actions-info">
-              <div className="info-bar">
-                <span>🔄 <strong>Cross-System Integration Mode:</strong> Server-to-server POST triggers automatically to dispatch tickets on verified support coverage.</span>
-              </div>
-            </div>
-            
-            <div className="table-responsive">
-              <table className="material-table">
-                <thead>
-                  <tr>
-                    <th>Complaint ID</th>
-                    <th>Asset Ref</th>
-                    <th>Raised By</th>
-                    <th>Issue Summary</th>
-                    <th>Registered At</th>
-                    <th>Triage Dispatch</th>
-                    <th>Sync Status</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {complaints.map((c) => (
-                    <tr key={c.id}>
-                      <td className="bold-cell">{c.id}</td>
-                      <td>{c.assetId}</td>
-                      <td>
-                        <div className="reporter-cell">
-                          <strong>{c.clientName}</strong>
-                          <span>{c.clientEmail}</span>
-                        </div>
-                      </td>
-                      <td className="desc-cell">{c.description}</td>
-                      <td>{c.timestamp}</td>
-                      <td>
-                        <span className={`billing-flag ${c.billingFlag.toLowerCase().replace(' ', '-')}`}>
-                          {c.billingFlag}
-                        </span>
-                      </td>
-                      <td>
-                        <span className={`sync-status ${c.syncStatus.toLowerCase()}`}>
-                          {c.syncStatus === 'Success' ? `Synced (${c.serviceRequestNo})` : 'Sync Pending'}
-                        </span>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </section>
-        )}
+        {activeTab === 'complaints' && <ComplaintLogsDashboard />}
       </main>
     </div>
   );

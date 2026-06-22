@@ -130,38 +130,132 @@ function handleSubmitComplaint(params) {
     };
   }
   
-  // 2. Prepare Complaint Record
+  // 2. Data Enrichment
+  let refCode = 'N/A';
+  let companyName = 'N/A';
+  let location = 'N/A';
+  let subLocation = 'N/A';
+  let floor = 'N/A';
+  let roomType = 'N/A';
+  let roomName = 'N/A';
+  let productMake = 'N/A';
+  let productModel = 'N/A';
+  let serialNumber = 'N/A';
+  let assetStatus = 'N/A';
+  let warrantyStartDate = 'N/A';
+  let warrantyEndDate = 'N/A';
+  let dlpPeriod = 'N/A';
+  let warrantyDaysLeft = 'Expired';
+  
+  let supportType = 'Unknown';
+
+  try {
+    const assetRepo = new BaseRepository('Assets', false);
+    const assetRecord = assetRepo.findById(assetId, 'id');
+    
+    if (assetRecord) {
+      refCode = assetRecord.refCode || 'N/A';
+      companyName = assetRecord.companyName || 'N/A';
+      location = assetRecord.location || 'N/A';
+      subLocation = assetRecord.subLocation || 'N/A';
+      floor = assetRecord.floor || 'N/A';
+      roomType = assetRecord.roomType || 'N/A';
+      roomName = assetRecord.roomName || 'N/A';
+      productMake = assetRecord.productMake || 'N/A';
+      productModel = assetRecord.productModel || 'N/A';
+      serialNumber = assetRecord.productSerial || 'N/A';
+      assetStatus = assetRecord.assetStatus || 'N/A';
+      warrantyStartDate = assetRecord.warrantyStartDate || 'N/A';
+      warrantyEndDate = assetRecord.warrantyEndDate || 'N/A';
+      dlpPeriod = assetRecord.dlpPeriod || 'N/A';
+      
+      // Calculate Warranty_Days_Left
+      if (warrantyEndDate && warrantyEndDate !== 'N/A') {
+        const endDate = new Date(warrantyEndDate);
+        if (!isNaN(endDate.getTime())) {
+          const today = new Date();
+          const diffTime = endDate - today;
+          const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+          warrantyDaysLeft = diffDays > 0 ? diffDays : 'Expired';
+        }
+      }
+      
+      const companyRepo = new BaseRepository('Companies', false);
+      const companyRecord = companyRepo.findById(refCode, 'id'); 
+      
+      if (companyRecord) {
+        supportType = companyRecord.supportTier || companyRecord.Support_Type || 'Standard';
+        if (companyRecord.amcEnd && new Date(companyRecord.amcEnd) < new Date()) {
+          supportType = 'Out of Support';
+        }
+      }
+    }
+  } catch (enrichErr) {
+    Logger.log(`Enrichment failed for ${assetId}: ${enrichErr.message}`);
+    // Non-fatal, keep defaults
+  }
+  
+  // 3. Generate System Variables
   const currentYear = new Date().getFullYear();
-  // Using Utilities.getUuid() to guarantee unique insert row, plus a friendly ID
   const shortHash = Utilities.getUuid().substring(0, 4).toUpperCase();
   const complaintId = `CMP-${currentYear}-${shortHash}`;
+  const createdAt = new Date().toISOString();
   
-  const complaintData = {
-    id: complaintId,
-    assetId: assetId,
-    clientName: requestedBy,
-    clientEmail: clientEmail,
-    phoneNumber: phoneNumber || '',
-    description: description,
-    timestamp: new Date().toISOString(),
-    syncStatus: 'Pending',
-    serviceRequestNo: 'Pending',
-    billingFlag: 'Triage Queue'
-  };
+  // 4. Construct Strict 28-Column Schema Array
+  const finalArray = [
+    complaintId,            // 1. Complaint_ID
+    assetId,                // 2. Unique_Product_Id
+    refCode,                // 3. Ref_Code
+    companyName,            // 4. Company_Name
+    location,               // 5. Location
+    subLocation,            // 6. Sub_Location
+    floor,                  // 7. Floor
+    roomType,               // 8. Room_Type
+    roomName,               // 9. Room_Name
+    productMake,            // 10. ProductMake
+    productModel,           // 11. ProductModel
+    serialNumber,           // 12. SerialNumber
+    assetStatus,            // 13. Asset_Status
+    warrantyStartDate,      // 14. Warranty_Start_Date
+    warrantyEndDate,        // 15. Warranty_End_Date
+    dlpPeriod,              // 16. DLP_Period
+    warrantyDaysLeft,       // 17. Warranty_Days_Left
+    requestedBy || '',      // 18. Requested_By
+    clientEmail || '',      // 19. Client_Email
+    phoneNumber || '',      // 20. PhoneNumber
+    description || '',      // 21. Description
+    supportType,            // 22. Support_Type
+    "Open",                 // 23. Status
+    "Pending",              // 24. Sync_Status
+    createdAt,              // 25. Created_At
+    "",                     // 26. Request_ID
+    "",                     // 27. Parent_Ticket_ID
+    ""                      // 28. Assigned_Engineer
+  ];
   
-  // 3. Save to Sharded Repository
-  const complaintRepo = new BaseRepository('Asset_Complaints', true); // True = Sharded by Year
-  complaintRepo.save(complaintData, 'id');
-  
-  // 4. Trigger Real-Time Sync (Fire-and-forget inside Try/Catch)
+  // 5. Append Exact Array
   try {
-    // In a real GAS environment, to make this truly asynchronous to not block the UI,
-    // we could use CacheService + Time-driven triggers, or execute it synchronously 
-    // within a try/catch if the payload fetch is fast enough. We'll do a synchronous try/catch.
-    pushComplaintToProSupport(complaintId);
+    const sheetName = `Asset_Complaints_${currentYear}`;
+    let sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(sheetName);
+    
+    if (!sheet) {
+      // Fallback if the sharded sheet hasn't been created yet
+      sheet = SpreadsheetApp.getActiveSpreadsheet().insertSheet(sheetName);
+      // We could add headers here if needed, but assuming it exists
+    }
+    
+    sheet.appendRow(finalArray);
+  } catch (dbErr) {
+    throw new Error("Failed to write complaint to database: " + dbErr.message);
+  }
+  
+  // 6. Trigger Real-Time Sync (Fire-and-forget inside Try/Catch)
+  try {
+    if (typeof pushComplaintToProSupport === 'function') {
+      pushComplaintToProSupport(complaintId);
+    }
   } catch (syncErr) {
     Logger.log(`Failed to trigger real-time sync for ${complaintId}: ${syncErr.message}`);
-    // Non-blocking: the Cron Job will pick it up
   }
 
   return {

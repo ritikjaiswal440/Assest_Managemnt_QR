@@ -157,3 +157,30 @@ export const submitComplaint = async (payload) => {
     throw error;
   }
 };
+
+/**
+ * Perform a GET request to fetch all complaints.
+ * Uses a timestamp param to bust cache and guarantees clean DB sync.
+ */
+export const getComplaints = async () => {
+  try {
+    const url = new URL(GAS_URL);
+    url.searchParams.append("action", "getComplaints");
+    url.searchParams.append("t", new Date().getTime());
+
+    const response = await fetch(url.toString(), {
+      method: 'GET',
+      cache: 'no-store'
+    });
+
+    if (!response.ok) {
+      throw new Error(`HTTP network error! Status: ${response.status}`);
+    }
+
+    const data = await response.json();
+    return data;
+  } catch (error) {
+    console.error(`Asset API GET failure [getComplaints]:`, error);
+    throw error;
+  }
+};

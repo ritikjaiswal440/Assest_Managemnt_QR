@@ -10,8 +10,8 @@ function setupDatabase() {
     {
       name: "Company_Master",
       headers: [
-        "Ref_Code", "Company_Name", "Support_Type", "AMC_Start_Date", 
-        "AMC_End_Date", "Primary_Contact", "Primary_Email", 
+        "Ref_Code", "Company_Name", "Location", "Branch", "Support_Type", 
+        "AMC_Start_Date", "AMC_End_Date", "Primary_Contact", "Primary_Email", 
         "Primary_Phone", "Status", "Created_At"
       ]
     },
@@ -30,9 +30,13 @@ function setupDatabase() {
       name: "Asset_Complaints_2026",
       headers: [
         "Complaint_ID", "Unique_Product_Id", "Ref_Code", "Company_Name", 
-        "Requested_By", "Client_Email", "PhoneNumber", "Description", 
-        "Support_Type", "Status", "Sync_Status", "Created_At", 
-        "Request_ID", "Parent_Ticket_ID", "Assigned_Engineer"
+        "Location", "Sub_Location", "Floor", "Room_Type", "Room_Name", 
+        "ProductMake", "ProductModel", "SerialNumber", "Asset_Status", 
+        "Warranty_Start_Date", "Warranty_End_Date", "DLP_Period", 
+        "Warranty_Days_Left", "Requested_By", "Client_Email", 
+        "PhoneNumber", "Description", "Support_Type", "Status", 
+        "Sync_Status", "Created_At", "Request_ID", "Parent_Ticket_ID", 
+        "Assigned_Engineer"
       ]
     },
     {
@@ -53,13 +57,13 @@ function setupDatabase() {
       sheet = ss.insertSheet(schema.name);
     }
     
-    // Inject headers into Row 1
+    // Inject headers into Row 1 (Idempotent: only overwrites headers, leaves data intact)
     const headerRange = sheet.getRange(1, 1, 1, schema.headers.length);
     headerRange.setValues([schema.headers]);
     
     // Apply UI Formatting (Bold, Background, Frozen Row)
     headerRange.setFontWeight("bold");
-    headerRange.setBackground("#f1f3f4"); // Material Design Light Gray
+    headerRange.setBackground("#f3f3f3"); // Light gray
     sheet.setFrozenRows(1);
     
     // Auto-resize columns for readability

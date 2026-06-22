@@ -86,6 +86,9 @@ function handleRequest(e, method) {
       case 'getCompanies':
         responseData = handleExportData({ entityType: 'Companies' }).data;
         break;
+      case 'getComplaints':
+        responseData = handleGetComplaints();
+        break;
       case 'getDashboardKPIs':
         responseData = handleGetDashboardKPIs(payload).data;
         break;
@@ -326,4 +329,59 @@ function handleUpdateCompany(payload) {
   } catch (err) {
     throw new Error("Failed to overwrite row: " + err.message);
   }
+}
+
+/**
+ * Handle fetching complaints directly from Asset_Complaints_2026 sheet.
+ * Maps exact 28-column master schema to JSON.
+ */
+function handleGetComplaints() {
+  const sheetName = 'Asset_Complaints_2026';
+  const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(sheetName);
+  
+  if (!sheet) {
+    return [];
+  }
+  
+  const data = sheet.getDataRange().getValues();
+  if (data.length < 2) {
+    return []; // Only headers or empty
+  }
+  
+  const results = [];
+  for (let i = 1; i < data.length; i++) {
+    const row = data[i];
+    results.push({
+      Complaint_ID: row[0] || '',
+      Unique_Product_Id: row[1] || '',
+      Ref_Code: row[2] || '',
+      Company_Name: row[3] || '',
+      Location: row[4] || '',
+      Sub_Location: row[5] || '',
+      Floor: row[6] || '',
+      Room_Type: row[7] || '',
+      Room_Name: row[8] || '',
+      ProductMake: row[9] || '',
+      ProductModel: row[10] || '',
+      SerialNumber: row[11] || '',
+      Asset_Status: row[12] || '',
+      Warranty_Start_Date: row[13] || '',
+      Warranty_End_Date: row[14] || '',
+      DLP_Period: row[15] || '',
+      Warranty_Days_Left: row[16] || '',
+      Requested_By: row[17] || '',
+      Client_Email: row[18] || '',
+      PhoneNumber: row[19] || '',
+      Description: row[20] || '',
+      Support_Type: row[21] || '',
+      Status: row[22] || '',
+      Sync_Status: row[23] || '',
+      Created_At: row[24] || '',
+      Request_ID: row[25] || '',
+      Parent_Ticket_ID: row[26] || '',
+      Assigned_Engineer: row[27] || ''
+    });
+  }
+  
+  return results;
 }
