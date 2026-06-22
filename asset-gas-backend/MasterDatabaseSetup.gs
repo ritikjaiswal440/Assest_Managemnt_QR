@@ -17,7 +17,7 @@ function initializeMasterDatabase() {
     },
     {
       name: "Asset_Master",
-      headers: ['Unique_Product_Id', 'Ref_Code', 'Company_Name', 'Location', 'Room_Name', 'ProductMake', 'ProductModel', 'ProductSerial', 'Sub_Location', 'Room_Type', 'Floor', 'Warranty_Start_Date', 'DLP_Period', 'Warranty_End_Date', 'Warranty_Days_Left', 'MAC_ID', 'IP_Address', 'Sales_Order', 'Invoice_No', 'Asset_Status', 'Created_At', 'Updated_At']
+      headers: ['Unique_Product_Id', 'Sales_Order', 'Invoice_No', 'Ref_Code', 'Company_Name', 'Location', 'Sub_Location', 'Room_Type', 'Floor', 'Room_Name', 'ProductMake', 'ProductModel', 'ProductSerial', 'MAC_ID', 'IP_Address', 'Warranty_Start_Date', 'DLP_Period', 'Warranty_End_Date', 'Warranty_Days_Left', 'Asset_Status', 'Created_At', 'Updated_At']
     },
     {
       name: "Intake_Queue",

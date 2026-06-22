@@ -17,10 +17,10 @@ const Login = () => {
     try {
       const response = await loginUser(identifier, password);
 
-      if (response?.success && response?.data?.user) {
-        login(response.data.user);
+      if (response?.success && response?.data) {
+        login(response.data);
       } else {
-        setStatus({ loading: false, error: response?.message || "Invalid response from server." });
+        setStatus({ loading: false, error: response?.message || response?.error || "Invalid response from server." });
       }
     } catch {
       setStatus({

@@ -111,8 +111,7 @@ function doPost(e) {
     switch (action) {
       case "loginUser":
       case "login":
-        responseData = handleLogin(payload);
-        break;
+        return handleLogin(payload);
 
       case "getDropdownData":
         responseData = handleDropdownData();
@@ -146,9 +145,7 @@ function doPost(e) {
         responseData = handleGenerateQRSig(payload);
         break;
         
-      case "getDashboard":
-        responseData = handleGetDashboard();
-        break;
+      case "getDashboard": return handleGetDashboard();
 
       case "getDashboardKPIs":
         responseData = handleGetDashboardKPIs(payload);
@@ -281,64 +278,52 @@ function mapRowsToObjects(sheet) {
  * 1. User Authentication
  */
 function handleLogin(payload) {
-  const email = payload.email || payload.identifier;
-  const password = payload.password;
-  
-  if (!email || !password) {
-    throw new Error("Missing email or password in credentials.");
-  }
-  
-  const sheet = ss.getSheetByName('System_Users');
-  if (!sheet) {
-    throw new Error("System_Users database configuration is missing.");
-  }
-  
-  const data = sheet.getDataRange().getValues();
-  const headers = getHeaders(sheet);
-  
-  const emailIdx = headers.indexOf('Email');
-  const passIdx = headers.indexOf('Password');
-  const statusIdx = headers.indexOf('Status');
-  const loginIdx = headers.indexOf('Last_Login');
-  
-  if (emailIdx === -1 || passIdx === -1) {
-    throw new Error("Invalid User schema mapping.");
-  }
-  
-  const targetEmail = email.trim().toLowerCase();
-  
-  for (let i = 1; i < data.length; i++) {
-    const row = data[i];
-    const sheetEmail = String(row[emailIdx]).trim().toLowerCase();
-    const sheetPass = String(row[passIdx]).trim();
+  try {
+    const email = payload.email || payload.identifier;
+    const password = payload.password;
     
-    if (sheetEmail === targetEmail) {
-      if (sheetPass === password) {
-        if (statusIdx !== -1 && String(row[statusIdx]).trim().toLowerCase() !== 'active') {
-          throw new Error("Access Denied: Account is currently deactivated.");
+    if (!email || !password) {
+      return jsonResponse(null, false, "Email and password are required.");
+    }
+
+    const ss = SpreadsheetApp.getActiveSpreadsheet();
+    // Resilient fuzzy search for the sheet to prevent trailing space errors
+    const userSheet = ss.getSheets().find(s => s.getName().trim().toLowerCase() === "system_users");
+
+    if (!userSheet) {
+      return jsonResponse(null, false, "System Error: System_Users database not found.");
+    }
+
+    const data = userSheet.getDataRange().getValues();
+    
+    // Skip header row
+    for (let i = 1; i < data.length; i++) {
+      const row = data[i];
+      // Schema mapping: Email is Index 1, Password is Index 3
+      if (row[1] === email && row[3] === password) {
+        
+        // Status check: Index 5
+        if (row[5] !== "Active") {
+          return jsonResponse(null, false, "Account is disabled. Please contact administration.");
         }
-        
-        const timestamp = new Date().toISOString();
-        if (loginIdx !== -1) {
-          sheet.getRange(i + 1, loginIdx + 1).setValue(timestamp);
-        }
-        
-        const userObj = {};
-        headers.forEach((header, idx) => {
-          if (header !== 'Password') {
-            userObj[header] = row[idx];
-          }
-        });
-        
-        logSystemAction(sheetEmail, "User successfully logged in.");
-        return userObj;
-      } else {
-        throw new Error("Invalid credentials.");
+
+        // Update Last_Login timestamp (Index 6 -> Column G -> i+1 row, 7th column)
+        userSheet.getRange(i + 1, 7).setValue(new Date().toISOString());
+
+        // Return standard payload
+        return jsonResponse({
+          name: row[0],
+          email: row[1],
+          role: row[2],
+          companyName: row[4]
+        }, true, "Login successful");
       }
     }
+
+    return jsonResponse(null, false, "Invalid email or password.");
+  } catch (error) {
+    return jsonResponse(null, false, "Server Error during authentication: " + error.message);
   }
-  
-  throw new Error("User does not exist.");
 }
 
 /**
@@ -369,11 +354,11 @@ function handleDropdownData() {
   if (assetSheet) {
     const data = assetSheet.getDataRange().getValues();
     const headers = getHeaders(assetSheet);
-    const refIdx = headers.indexOf('Asset_Ref');
+    const refIdx = headers.indexOf('Unique_Product_Id');
     const compRefIdx = headers.indexOf('Company_Ref');
-    const makeIdx = headers.indexOf('Make');
-    const modelIdx = headers.indexOf('Model');
-    const serialIdx = headers.indexOf('Serial_Number');
+    const makeIdx = headers.indexOf('ProductMake');
+    const modelIdx = headers.indexOf('ProductModel');
+    const serialIdx = headers.indexOf('ProductSerial');
     
     for (let i = 1; i < data.length; i++) {
       assets.push({
@@ -615,13 +600,13 @@ function handleGetPublicAssetDetails(params) {
   
   const data = assetSheet.getDataRange().getValues();
   const headers = getHeaders(assetSheet);
-  const refIdx = headers.indexOf('Asset_Ref');
-  const compRefIdx = headers.indexOf('Company_Ref');
-  const typeIdx = headers.indexOf('Asset_Type');
-  const makeIdx = headers.indexOf('Make');
-  const modelIdx = headers.indexOf('Model');
-  const serialIdx = headers.indexOf('Serial_Number');
-  const warrantyIdx = headers.indexOf('Warranty_End');
+  const refIdx = headers.indexOf('Unique_Product_Id');
+  const compRefIdx = headers.indexOf('Ref_Code');
+  const typeIdx = headers.indexOf('Room_Type');
+  const makeIdx = headers.indexOf('ProductMake');
+  const modelIdx = headers.indexOf('ProductModel');
+  const serialIdx = headers.indexOf('ProductSerial');
+  const warrantyIdx = headers.indexOf('Warranty_End_Date');
 
   let asset = null;
   for (let i = 1; i < data.length; i++) {
@@ -1019,13 +1004,28 @@ function handleCreateAsset(payload) {
   const newId = 'AVD/PD/' + String(sheet.getLastRow() + 1).padStart(6, '0');
   
   sheet.appendRow([
-    newId,
-    payload.refCode,
-    payload.assetType || 'AV System',
-    payload.productMake || '',
-    payload.productModel || '',
-    payload.productSerial || '',
-    payload.warrantyEndDate || ''
+    newId,                                
+    payload.salesOrder || '',             
+    payload.invoiceNo || '',              
+    payload.refCode || '',                
+    payload.companyName || '',            
+    payload.location || '',               
+    payload.subLocation || '',            
+    payload.roomType || '',               
+    payload.floor || '',                  
+    payload.roomName || '',               
+    payload.productMake || '',            
+    payload.productModel || '',           
+    payload.productSerial || '',          
+    payload.macId || '',                  
+    payload.ipAddress || '',              
+    payload.warrantyStartDate || '',      
+    payload.dlpPeriod || '',              
+    payload.warrantyEndDate || '',        
+    payload.warrantyDaysLeft || '',       
+    payload.assetStatus || 'Active',      
+    new Date(),                           
+    new Date()                            
   ]);
   return { id: newId, refCode: payload.refCode };
 }
@@ -1057,13 +1057,27 @@ function handleUpdateAsset(payload) {
   const sheet = ss.getSheetByName('Asset_Master');
   const data = sheet.getDataRange().getValues();
   for (let i = 1; i < data.length; i++) {
-    if (data[i][0] === payload.id) {
-      sheet.getRange(i + 1, 2).setValue(payload.refCode);
-      sheet.getRange(i + 1, 3).setValue(payload.assetType);
-      sheet.getRange(i + 1, 4).setValue(payload.productMake);
-      sheet.getRange(i + 1, 5).setValue(payload.productModel);
-      sheet.getRange(i + 1, 6).setValue(payload.productSerial);
-      sheet.getRange(i + 1, 7).setValue(payload.warrantyEndDate);
+    if (data[i][0] === payload.id || data[i][0] === payload.uniqueProductId) {
+      sheet.getRange(i + 1, 2).setValue(payload.salesOrder || '');
+      sheet.getRange(i + 1, 3).setValue(payload.invoiceNo || '');
+      sheet.getRange(i + 1, 4).setValue(payload.refCode || '');
+      sheet.getRange(i + 1, 5).setValue(payload.companyName || '');
+      sheet.getRange(i + 1, 6).setValue(payload.location || '');
+      sheet.getRange(i + 1, 7).setValue(payload.subLocation || '');
+      sheet.getRange(i + 1, 8).setValue(payload.roomType || '');
+      sheet.getRange(i + 1, 9).setValue(payload.floor || '');
+      sheet.getRange(i + 1, 10).setValue(payload.roomName || '');
+      sheet.getRange(i + 1, 11).setValue(payload.productMake || '');
+      sheet.getRange(i + 1, 12).setValue(payload.productModel || '');
+      sheet.getRange(i + 1, 13).setValue(payload.productSerial || '');
+      sheet.getRange(i + 1, 14).setValue(payload.macId || '');
+      sheet.getRange(i + 1, 15).setValue(payload.ipAddress || '');
+      sheet.getRange(i + 1, 16).setValue(payload.warrantyStartDate || '');
+      sheet.getRange(i + 1, 17).setValue(payload.dlpPeriod || '');
+      sheet.getRange(i + 1, 18).setValue(payload.warrantyEndDate || '');
+      sheet.getRange(i + 1, 19).setValue(payload.warrantyDaysLeft || '');
+      sheet.getRange(i + 1, 20).setValue(payload.assetStatus || 'Active');
+      sheet.getRange(i + 1, 22).setValue(new Date());
       return { success: true };
     }
   }
@@ -1612,39 +1626,35 @@ function handleValidateRef(payload) {
  * Fetch main dashboard analytics and lists
  */
 function handleGetDashboard() {
-  const ticketSheet = ss.getSheetByName('Master_Tickets');
-  const intakeSheet = ss.getSheetByName('Intake_Queue');
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const intakeSheet = ss.getSheetByName("Intake_Queue");
+  const masterSheet = ss.getSheetByName("Master_Tickets");
   const taskSheet = ss.getSheetByName('Engineer_Tasks');
 
-  if (!ticketSheet || !intakeSheet) {
-    throw new Error("Database sheets missing for dashboard aggregation.");
-  }
-
-  const tickets = mapRowsToObjects(ticketSheet);
-  const queue = mapRowsToObjects(intakeSheet);
-  const tasks = taskSheet ? mapRowsToObjects(taskSheet) : [];
-
   let pendingIntake = 0;
-  queue.forEach(item => {
-    if (item.Status === 'Open') {
-      pendingIntake++;
-    }
-  });
-
   let activeTickets = 0;
   let resolvedTickets = 0;
+  let totalRequests = 0;
+  let averageResolutionTime = 0;
   let totalDays = 0;
   let closedCount = 0;
 
+  const queue = intakeSheet ? mapRowsToObjects(intakeSheet) : [];
+  const tickets = masterSheet ? mapRowsToObjects(masterSheet) : [];
+  const tasks = taskSheet ? mapRowsToObjects(taskSheet) : [];
+
+  totalRequests = queue.length;
+
+  queue.forEach(item => {
+    if (item.Status === "Open") pendingIntake++;
+  });
+
   tickets.forEach(t => {
     const status = t.Status || "";
-    if (status === 'In Progress' || status === 'Pending Parts/Client') {
+    if (status === "In Progress" || status === "Pending Parts/Client") {
       activeTickets++;
-    } else if (status === 'Resolved' || status === 'Closed') {
+    } else if (status === "Resolved" || status === "Closed") {
       resolvedTickets++;
-    }
-
-    if (status === 'Closed' || status === 'Resolved') {
       const days = parseFloat(t.Resolved_Days);
       if (!isNaN(days)) {
         totalDays += days;
@@ -1653,10 +1663,10 @@ function handleGetDashboard() {
     }
   });
 
-  const averageResolutionTime = closedCount > 0 ? Number((totalDays / closedCount).toFixed(1)) : 0;
+  averageResolutionTime = closedCount > 0 ? Number((totalDays / closedCount).toFixed(1)) : 0;
 
-  return {
-    totalRequests: queue.length,
+  return jsonResponse({
+    totalRequests: totalRequests,
     pendingIntake: pendingIntake,
     activeTickets: activeTickets,
     resolvedTickets: resolvedTickets,
@@ -1664,5 +1674,5 @@ function handleGetDashboard() {
     parents: tickets,
     children: tasks,
     serviceRequests: queue
-  };
+  });
 }
