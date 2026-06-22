@@ -1,0 +1,53 @@
+<USER_REQUEST>
+Context & Directive:
+I have another batch of refinements for the AV Dynamic ProSupport Portal. These updates involve a minor frontend text change, global email branding, advanced email threading, and a new conditional business workflow for ticket creation.
+
+You must apply these changes across the React frontend and the Google Apps Script backend while strictly adhering to our established architecture and Google Material Design 3 rules.
+
+Your Task as a Lead Full-Stack Architect:
+Review the workspace and execute the following categorized updates:
+
+1. Frontend UI Update (FilterBar.jsx):
+
+Text Correction: Locate the Status dropdown. Change the option <option value="All">All Statuses</option> to strictly read <option value="All">All Status</option>.
+
+2. Global Email Branding (Google Apps Script Backend):
+
+Subject Line Standardization: Audit all functions in the backend that send emails (Ticket Creation, Status Updates, Engineer Ping, etc.). Ensure that EVERY email subject line is prefixed with the branding tag: [AVD ProSupport].
+
+Example: [AVD ProSupport] Action Required: Status Update...
+
+3. Advanced Email Threading (Engineer Ping Logic):
+
+The Goal: When an Admin clicks "Ping for Update", the email sent to the engineer must thread directly into the original assignment email trail in their inbox, rather than starting a new standalone email chain.
+
+Backend Implementation: Update the pingEngineer (and/or asyncSendPingEmail) Google Apps Script function. To force Gmail to thread the email, the Subject line of the Ping email must be a 100% exact match to the Subject line of the original Assignment email (with or without a "Re: " prefix).
+
+Directive for IDE: Ensure the Subject generated for the Assignment email (e.g., [AVD ProSupport] Ticket Assigned: {Ticket ID}) is exactly mirrored in the Ping function. If possible within GmailApp limits, utilize the inReplyTo or thread ID parameters, otherwise rely on exact Subject string matching.
+
+4. "Out of Warranty" Conditional Workflow (Backend Ticket Creation):
+
+The Business Rule: If a new Master Incident Ticket is created and the Type of Service (serviceType) is set to "Out of Warranty", the system must automatically dispatch a specific notification email to the client.
+
+Backend Implementation: In the createTicket backend function, add a conditional check for payload.ticketData.serviceType === 'Out of Warranty'.
+
+Regret Email Template: If true, send a professionally formatted HTML email to the clientEmail.
+
+Subject: [AVD ProSupport] Service Notice: Ticket {Ticket ID} - Out of Warranty
+
+Body Content: Dear {Requester Name}, thank you for logging your service request. Please note that based on our records, the hardware associated with this ticket (Make: {ProductMake}, Model: {ProductModel}, S/N: {ProductSerial}) is currently Out of Warranty. Our engineer will still attend to the issue, but standard service, repair, and replacement charges will apply.
+
+Execution Directive:
+Output the updated React code for FilterBar.jsx. Then, provide the comprehensive Google Apps Script (.gs) updates required to apply the global subject line branding, align the ping email threading, and implement the new Out of Warranty conditional email trigger.
+</USER_REQUEST>
+<ADDITIONAL_METADATA>
+The current local time is: 2026-06-06T23:19:14+05:30.
+
+The user's current state is as follows:
+Active Document: c:\Users\itcom\Desktop\av-dynamic-prosupport\.gitignore (LANGUAGE_UNSPECIFIED)
+Cursor is on line: 31
+Other open documents:
+- c:\Users\itcom\Desktop\av-dynamic-prosupport\.gitignore (LANGUAGE_UNSPECIFIED)
+Running terminal commands:
+- npm run dev (in c:\Users\itcom\Desktop\av-dynamic-prosupport, running for 23m33s)
+</ADDITIONAL_METADATA>

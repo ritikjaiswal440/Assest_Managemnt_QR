@@ -25,7 +25,7 @@ dist-ssr
 *.sw?
 
 # Text and Readme files
-*.txt
+
 
 .env
 temp_lint/

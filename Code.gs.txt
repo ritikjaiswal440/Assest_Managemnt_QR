@@ -1,0 +1,58 @@
+/**
+ * ==========================================
+ * DATABASE ARCHITECTURE INITIALIZATION (V2)
+ * Generates modular sheets using original AV Dynamic operational fields.
+ * ==========================================
+ */
+function setupModularArchitecture() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  
+  // The exact schema combining your original logic with the React modules
+  const schema = {
+    'Users': [
+      'Name', 'Email', 'Role', 'Password', 'Company_Name', 'Status', 'Last_Login'
+    ],
+    'Client_Sites': [
+      'Site_ID', 'Company_Name', 'Location', 'Room_Name', 'Primary_Contact'
+    ],
+  'Parent_Tickets': [
+    'Parent_ID', 'Service_Request_ID', 'Client_Ticket_ID', 'Sales_Order', 
+    'Company_Name', 'Room_Name', 'Requested_By', 'Location', 'Category', 
+    'Issue_Type', 'ProductMake', 'ProductModel', 'ProductSerial', 'Service_Type', 'Description', 
+    'Open_Date', 'Close_Date', 'Resolved_Days', 'Client_Email', 'Status', 'Admin_Remarks'
+  ],
+    'Child_Tickets': [
+      'Child_ID', 'Parent_ID', 'Engineer_Name', 'Engineer_Email', 'Engineer_Role', 
+      'Status', 'Admin_Eng_Remarks', 'Assigned_Date', 'Closed_Date', 'Instructions'
+    ],
+    'Audit_Logs': [
+      'Log_ID', 'Timestamp', 'Actor_Email', 'Action_Type', 'Target_ID'
+    ]
+  };
+
+  // Build the sheets safely
+  for (const [sheetName, headers] of Object.entries(schema)) {
+    let sheet = ss.getSheetByName(sheetName);
+    
+    if (!sheet) {
+      sheet = ss.insertSheet(sheetName);
+      sheet.appendRow(headers);
+      
+      // Apply clean Enterprise UI formatting to headers
+      const headerRange = sheet.getRange(1, 1, 1, headers.length);
+      headerRange.setFontWeight('bold');
+      headerRange.setBackground('#eef2f5'); 
+      sheet.setFrozenRows(1);
+      
+      Logger.log(`Created new module: ${sheetName}`);
+    } else {
+      Logger.log(`Module ${sheetName} already exists. Skipped.`);
+    }
+  }
+}
+/**
+ * MAIN API ROUTER
+ * Note: doPost(e) and doGet(e) have been migrated to Router.gs.txt
+ * to support the modular ecosystem architecture. To prevent duplicate function conflicts,
+ * the old routing handlers have been removed from this file.
+ */

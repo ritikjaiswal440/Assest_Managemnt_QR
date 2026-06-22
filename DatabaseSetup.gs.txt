@@ -1,0 +1,95 @@
+/**
+ * Run this function ONCE to automatically build the entire Google Sheets database architecture.
+ * It creates all necessary tabs and exact column headers for the React Admin Dashboard and Client Portal.
+ */
+function setupEnterpriseDatabase() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+
+  // Define the exact schema for all 6 tables in the ecosystem
+  const schema = [
+    {
+      name: 'Parent_Tickets',
+      headers: [
+        'Parent_ID', 'Service_Request_ID', 'Company_Name', 'Location', 'Room_Name', 
+        'Requested_By', 'Sales_Order', 'Category', 'Issue_Type', 'ProductMake', 
+        'ProductModel', 'ProductSerial', 'Service_Type', 'Description', 'Open_Date', 
+        'Close_Date', 'Resolved_Days', 'Client_Email', 'Admin_Remarks', 'Status', 'PhoneNumber'
+      ]
+    },
+    {
+      name: 'Child_Tickets',
+      headers: [
+        'Child_ID', 'Parent_ID', 'Engineer_Name', 'Engineer_Email', 'Engineer_Role', 
+        'Status', 'Admin_Eng_Remarks', 'Assigned_Date', 'Closed_Date', 'Instructions'
+      ]
+    },
+    {
+      name: 'Users',
+      headers: [
+        'Name', 'Email', 'Role', 'Password', 'Company_Name', 'Status', 'Last_Login'
+      ]
+    },
+    {
+      name: 'Client_Mapping',
+      headers: [
+        'Ref_Code', 'Company_Name', 'Active', 'ClientLink'
+      ]
+    },
+    {
+      name: 'Requests',
+      headers: [
+        'RequestID', 'Timestamp', 'Email', 'CompanyName', 'Location', 
+        'RequesterName', 'RoomName', 'Category', 'IssueDescription', 'InvoiceURL', 'PhoneNumber', 'Archived'
+      ]
+    },
+    {
+      name: 'Request_Items',
+      headers: [
+        'RequestID', 'ItemNo', 'ProductMake', 'ProductModel', 'ProductSerial'
+      ]
+    },
+    {
+      name: 'Client_Sites',
+      headers: [
+        'Site_ID', 'Company_Name', 'Location', 'Room_Name', 'Primary_Contact'
+      ]
+    },
+    {
+      name: 'Audit_Logs',
+      headers: [
+        'Log_ID', 'Timestamp', 'Actor_Email', 'Action_Type', 'Target_ID'
+      ]
+    }
+  ];
+
+  // Iterate through the schema and build the sheets
+  schema.forEach(table => {
+    let sheet = ss.getSheetByName(table.name);
+    
+    // If the sheet doesn't exist, create it
+    if (!sheet) {
+      sheet = ss.insertSheet(table.name);
+      Logger.log(`Created new sheet: ${table.name}`);
+    } else {
+      Logger.log(`Sheet already exists: ${table.name} (Applying headers anyway)`);
+    }
+
+    // Inject the exact headers into Row 1
+    const headerRange = sheet.getRange(1, 1, 1, table.headers.length);
+    headerRange.setValues([table.headers]);
+    
+    // Apply professional formatting (Bold headers, freeze top row, slight background color)
+    headerRange.setFontWeight('bold');
+    headerRange.setBackground('#f1f5f9'); // Light slate UI color
+    headerRange.setFontColor('#0f172a'); 
+    sheet.setFrozenRows(1);
+    
+    // Auto-resize columns for better readability
+    for (let col = 1; col <= table.headers.length; col++) {
+      sheet.autoResizeColumn(col);
+    }
+  });
+
+  Logger.log("Enterprise Database setup is complete.");
+}
+

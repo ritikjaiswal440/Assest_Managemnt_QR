@@ -1,0 +1,119 @@
+/**
+ * Fetches all necessary data for the React Dashboard.
+ * Includes Master Tickets, Child Tasks, Users (Clients/Engineers), and the new Intake Queue.
+ */
+function handleDashboardFetchRequest(payload) {
+  try {
+    const ss = SpreadsheetApp.openById(MASTER_DB_ID); 
+
+    // Auto-migrate legacy scrambled rows - disabled on GET requests to prevent timeouts
+    // migrateParentTickets(ss);
+
+    // --- HELPER: Dynamically map rows to objects using Headers ---
+    function getSheetDataAsObjects(sheetName) {
+      const sheet = ss.getSheetByName(sheetName);
+      if (!sheet) return [];
+      
+      const data = sheet.getDataRange().getValues();
+      if (data.length <= 1) return []; // Empty sheet or only headers
+      
+      const headers = data[0].map(h => h.toString().trim().replace(/[\r\n]+/g, ''));
+      const rows = [];
+      
+      for (let i = 1; i < data.length; i++) {
+        let obj = {};
+        for (let j = 0; j < headers.length; j++) {
+          obj[headers[j]] = data[i][j];
+        }
+        rows.push(obj);
+      }
+      return rows;
+    }
+
+    // 1. Fetch Master Operations Data
+    const parents = getSheetDataAsObjects('Parent_Tickets');
+    const children = getSheetDataAsObjects('Child_Tickets');
+
+    // Helper to normalize object keys to lowercase and trim them
+    function normalizeKeys(obj) {
+      if (!obj) return {};
+      const normalized = {};
+      for (const key in obj) {
+        normalized[key.trim().toLowerCase()] = obj[key];
+      }
+      return normalized;
+    }
+
+    // 2. Fetch and Sort Users (Dropdown Data)
+    const allUsers = getSheetDataAsObjects('Users');
+    
+    // Filter out only Clients for the dropdowns
+    const clients = allUsers
+      .map(normalizeKeys)
+      .filter(u => u.role && u.role.toString().trim().toLowerCase() === 'client')
+      .map(c => ({
+        Name: c.name || '', 
+        Email: c.email || '', 
+        Company_Name: c.company_name || c.companyname || ''
+      }));
+      
+    // Filter out only Engineers for the assignment dropdowns
+    const engineers = allUsers
+      .map(normalizeKeys)
+      .filter(u => u.role && u.role.toString().trim().toLowerCase().includes('engineer'))
+      .map(e => ({
+        Name: e.name || '', 
+        Email: e.email || '', 
+        Role: e.role || ''
+      }));
+
+    // 3. Fetch Client Intake Queue (Service Requests) and associate their items
+    const requestsRaw = getSheetDataAsObjects('Requests');
+    const itemsRaw = getSheetDataAsObjects('Request_Items');
+    const serviceRequests = requestsRaw.map(r => {
+      const products = itemsRaw
+        .filter(item => String(item.RequestID || '') === String(r.RequestID))
+        .map(item => ({
+          productMake: item.ProductMake || item.ProductBrand || '',
+          productModel: item.ProductModel || '',
+          productSerial: item.ProductSerial || ''
+        }));
+      
+      return {
+        requestId: r.RequestID,
+        timestamp: r.Timestamp,
+        email: r.Email,
+        companyName: r.CompanyName,
+        location: r.Location,
+        requesterName: r.RequesterName,
+        phoneNumber: r.PhoneNumber || r.phonenumber || r['Phone Number'] || '',
+        roomName: r.RoomName,
+        category: r.Category,
+        description: r.IssueDescription,
+        invoiceUrl: r.InvoiceURL,
+        products: products,
+        archived: r.Archived || r.archived || ''
+      };
+    }).reverse(); // Reverse array so the newest tickets appear at the top of the queue
+
+    // 4. Return the unified JSON payload to React
+    return {
+      success: true,
+      message: "Dashboard data fetched successfully.",
+      data: {
+        parents: parents,
+        children: children,
+        clients: clients,
+        engineers: engineers,
+        serviceRequests: serviceRequests
+      }
+    };
+
+  } catch (error) {
+    return {
+      success: false,
+      message: "Database Fetch Error: " + error.message,
+      data: null
+    };
+  }
+}

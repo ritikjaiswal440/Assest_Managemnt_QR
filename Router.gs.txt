@@ -1,0 +1,183 @@
+/**
+ * AV Dynamic Pro-Support Engine - Core Architecture Router
+ * Enforces zero UI exposure and handles purely decoupled JSON REST interactions.
+ */
+
+// Global constant pointing to your active Spreadsheet environment
+const MASTER_DB_ID = (function() {
+  try {
+    const active = SpreadsheetApp.getActiveSpreadsheet();
+    if (active) return active.getId();
+  } catch (e) {}
+  return '1iyrvEQ_El3rmnCOccXHrTaKkuAQVLgvln3RG8_eoPjs';
+})();
+
+function doPost(e) {
+  // Initialize standard JSON response payload shape
+  let response = {
+    success: false,
+    message: "An evaluation error occurred within the routing layer.",
+    data: null
+  };
+
+  try {
+    // Gracefully parse incoming JSON string payload from fetch API
+    if (!e || !e.postData || !e.postData.contents) {
+      throw new Error("Bad Request: Payload is missing or corrupt.");
+    }
+    
+    const payload = JSON.parse(e.postData.contents);
+    const action = payload.action;
+    
+    if (!action) {
+      throw new Error("Field Violation: Missing execution action reference.");
+    }
+
+    // Enterprise Action Router Core
+    switch (action) {
+      case 'login':
+        response = handleAuthenticationRequest(payload);
+        break;
+        
+      case 'getDashboard':
+        response = handleDashboardFetchRequest(payload);
+        break;
+        
+      case 'createTicket':
+        response = handleTicketCreationRequest(payload);
+        break;
+        
+      case 'assignTicket':
+        response = handleTicketAssignmentRequest(payload);
+        break;
+        
+      case 'addParentRemark':
+        response = handleParentRemarkRequest(payload);
+        break;
+        
+      case 'updateChildTicket':
+        response = handleChildUpdateRequest(payload);
+        break;
+
+      case 'trackTicket':
+        response = handleTrackingRequest(payload);
+        break;
+
+      case 'closeParentTicket':
+        // Calls the closeParentTicket function we migrated earlier
+        response = closeParentTicket(payload.parentId); 
+        break;
+
+      case 'validateRef':
+        response = handleValidateRef(payload.ref);
+        break;
+        
+      case 'inspectHeaders':
+        {
+          const ss = SpreadsheetApp.openById(MASTER_DB_ID);
+          const pSheet = ss.getSheetByName('Parent_Tickets');
+          const data = pSheet.getDataRange().getValues();
+          response = {
+            success: true,
+            data: {
+              rawGrid: data
+            }
+          };
+        }
+        break;
+
+      case 'submitRequest':
+        response = processClientRequest(payload);
+        break;
+        
+      case 'archiveRequest':
+        response = handleArchiveRequest(payload);
+        break;
+
+      case 'unarchiveRequest':
+        response = handleUnarchiveRequest(payload);
+        break;
+        
+      case 'pingEngineer':
+        response = handlePingEngineerRequest(payload);
+        break;
+        
+      default:
+        response.message = `Routing Error: Unsupported action context -> [${action}]`;
+    }
+
+  } catch (error) {
+    response.success = false;
+    response.message = "System Exception: " + error.toString();
+  }
+
+  // Always return strict application/json to prevent CORS preflight blocks
+  return ContentService.createTextOutput(JSON.stringify(response))
+    .setMimeType(ContentService.MimeType.JSON);
+}
+
+function doGet(e) {
+  if (e && e.parameter && e.parameter.action === 'acknowledge' && e.parameter.childId) {
+    const childId = e.parameter.childId;
+    
+    try {
+      const lock = LockService.getScriptLock();
+      lock.waitLock(10000);
+      
+      const ss = SpreadsheetApp.openById(MASTER_DB_ID);
+      const sheet = ss.getSheetByName('Child_Tickets');
+      if (sheet) {
+        const data = sheet.getDataRange().getValues();
+        const headers = data[0];
+        
+        let ackIdx = headers.indexOf('Acknowledged_At');
+        if (ackIdx === -1) {
+          ackIdx = headers.length;
+          sheet.getRange(1, ackIdx + 1).setValue('Acknowledged_At');
+          sheet.getRange(1, ackIdx + 1).setFontWeight('bold');
+        }
+        
+        for (let i = 1; i < data.length; i++) {
+          if (String(data[i][0]) === childId) {
+            sheet.getRange(i + 1, ackIdx + 1).setValue(new Date());
+            SpreadsheetApp.flush();
+            break;
+          }
+        }
+      }
+      lock.releaseLock();
+    } catch (err) {
+      // Catch silently
+    }
+    
+    const htmlOutput = `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <style>
+          body { font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background-color: #f8f9fa; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; }
+          .card { background: white; padding: 40px; border-radius: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); text-align: center; max-width: 400px; }
+          h2 { color: #1a73e8; margin-bottom: 16px; }
+          p { color: #5f6368; line-height: 1.5; }
+        </style>
+      </head>
+      <body>
+        <div class="card">
+          <div style="font-size: 48px; margin-bottom: 16px;">✅</div>
+          <h2>Task Acknowledged</h2>
+          <p>Thank you. Your acknowledgment has been recorded.</p>
+          <p>You may safely close this window.</p>
+        </div>
+      </body>
+      </html>
+    `;
+    return HtmlService.createHtmlOutput(htmlOutput).setTitle("Task Acknowledged");
+  }
+
+  return ContentService.createTextOutput(JSON.stringify({
+    success: false,
+    message: "GET requests are restricted on this API gateway interface. Enforce POST procedures.",
+    data: null
+  })).setMimeType(ContentService.MimeType.JSON);
+}

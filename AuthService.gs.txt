@@ -1,0 +1,79 @@
+/**
+ * Handles validation check workflows against user credentials.
+ */
+function handleAuthenticationRequest(payload) {
+  const identifier = payload.identifier || payload.email;
+  const password = payload.password;
+  
+  if (!identifier || !password) {
+    return { success: false, message: "Validation Denied: Email/Username and Password fields are mandatory.", data: null };
+  }
+
+  const ss = SpreadsheetApp.openById(MASTER_DB_ID);
+  
+  // Dynamic header standardizations and Username column self-healing
+  standardizeSpreadsheetHeaders(ss);
+
+  const userSheet = ss.getSheetByName('Users');
+  if (!userSheet) return { success: false, message: "Database Error: User authorization table missing.", data: null };
+
+  const data = userSheet.getDataRange().getValues();
+  const headers = data[0];
+  
+  const emailIdx = headers.indexOf('Email');
+  const usernameIdx = headers.indexOf('Username');
+  const passIdx = headers.indexOf('Password');
+  const statusIdx = headers.indexOf('Status');
+  const nameIdx = headers.indexOf('Name');
+  const roleIdx = headers.indexOf('Role');
+  const companyIdx = headers.indexOf('Company_Name');
+  const loginIdx = headers.indexOf('Last_Login');
+
+  const safeIdentifier = identifier.toLowerCase().trim();
+
+  for (let i = 1; i < data.length; i++) {
+    let row = data[i];
+    let sheetEmail = emailIdx !== -1 ? row[emailIdx].toString().toLowerCase().trim() : '';
+    let sheetUsername = usernameIdx !== -1 ? row[usernameIdx].toString().toLowerCase().trim() : '';
+    let sheetPass = row[passIdx].toString().trim();
+
+    if ((sheetEmail && sheetEmail === safeIdentifier) || (sheetUsername && sheetUsername === safeIdentifier)) {
+      if (sheetPass === password) {
+        // Enforce account operational verification
+        if (row[statusIdx].toString().trim() !== 'Active') {
+          return { success: false, message: "Access Denied: This profile is currently deactivated.", data: null };
+        }
+
+        const timestamp = new Date().toISOString();
+        
+        // Form secure, isolated profile payload (never expose password string fields to client layer)
+        const userProfile = {
+          name: row[nameIdx],
+          email: sheetEmail || sheetUsername,
+          username: sheetUsername || '',
+          role: row[roleIdx],
+          company: row[companyIdx]
+        };
+
+        // Update the database records tracking login history logs
+        if (loginIdx !== -1) {
+          userSheet.getRange(i + 1, loginIdx + 1).setValue(timestamp);
+        }
+        
+        // Commit event write to system audits tracker
+        logSystemAction(sheetEmail || safeIdentifier, "USER_LOGIN_SUCCESS", `User successfully verified session entry.`);
+
+        return {
+          success: true,
+          message: "Authorization verified.",
+          data: { user: userProfile }
+        };
+      } else {
+        logSystemAction(sheetEmail || safeIdentifier, "USER_LOGIN_FAILED", "Failed attempt: Incorrect password credentials match.");
+        return { success: false, message: "Authorization Denied: Invalid credentials pattern matching.", data: null };
+      }
+    }
+  }
+
+  return { success: false, message: "Authorization Denied: Target profile does not exist.", data: null };
+}

@@ -1,0 +1,63 @@
+<USER_REQUEST>
+Context & Directive:
+I have a batch of UI refinements, form expansions, and data mapping updates for the AV Dynamic ProSupport Portal.
+
+You must apply these changes across the React frontend and the Google Apps Script backend while strictly adhering to the established Google Material Design 3 rules (solid white surfaces, light-gray #f1f3f4 inputs with 8px radius, no glassmorphism).
+
+Your Task as a Lead Full-Stack Architect:
+Review the workspace and execute the following categorized updates:
+
+1. Form UI & Data Expansion (TicketRequest.jsx & CreateTicketModal.jsx):
+
+Label Update: Change <label>Location (Site/Branch) <span class="req">*</span></label> to strictly read <label>Location (Site) <span class="req">*</span></label> in all forms.
+
+Category Sequence: Reorder the Category dropdown options in BOTH components to match this exact sequence: Hardware, Connectivity, Programming, Software, Network.
+
+Phone Number Field: Add a new input field for "Phone Number" in the Client Intake Form (TicketRequest.jsx) and the CreateTicketModal.jsx. Ensure it is added to the React state, mapped in the payload, and styled according to our Material 3 input guidelines.
+
+Type of Service Field: In CreateTicketModal.jsx, add a new <select> dropdown for "Type of Service". The options must be: DLP, OEM- Warranty, Out of Warranty, C-AMC, NC- AMC. Ensure this maps to the serviceType state property.
+
+2. Financial Quarter Logic (FilterBar.jsx):
+
+Update the Quarter quick-select logic to align with the Financial Year instead of the Calendar Year.
+
+New Logic: * Q1 = April 1 to June 30
+
+Q2 = July 1 to September 30
+
+Q3 = October 1 to December 31
+
+Q4 = January 1 to March 31
+
+Update the <option> labels to reflect this (e.g., Q1 (Apr-Jun)).
+
+3. Data Display & Export (TicketTable.jsx & Dashboard.jsx):
+
+0-Day Resolution: In TicketTable.jsx, adjust the conditional rendering for the Closed ticket badge. If a ticket is resolved on the same day, it currently might evaluate to falsy. Ensure it explicitly displays the grey badge reading: "Reso
+<truncated 70 bytes>
+ In Dashboard.jsx (handleDownloadReport), add two new columns to the CSV output: "Requester Name" and "Closed Date". Map these accurately from the filteredParents dataset and ensure they are escaped properly.
+
+4. Backend Email Templates & DB Mapping (Google Apps Script .gs):
+
+Database Mapping: Ensure the new PhoneNumber and Type_of_Service data points are caught by the doPost endpoint and written to the corresponding columns in the Google Sheets database (Requests and Parent_Tickets sheets).
+
+Email Template Updates: Audit all HTML email generation functions (MailApp/GmailApp). Add "Requester Name" and "Phone Number" to the core details table in every email sent to clients and admins. Apply our established fallback logic: if the phone number is missing, render it as "NA".
+
+Execution Directive:
+Systematically output the updated code for TicketRequest.jsx, CreateTicketModal.jsx, FilterBar.jsx, Dashboard.jsx, and TicketTable.jsx. Then, provide the precise Google Apps Script .gs modifications required to handle the new fields and update the email templates. Ensure all React hooks follow strict rules.
+</USER_REQUEST>
+<ADDITIONAL_METADATA>
+The current local time is: 2026-06-06T22:37:03+05:30.
+
+The user's current state is as follows:
+Active Document: c:\Users\itcom\Desktop\av-dynamic-prosupport\TicketController.gs.txt (LANGUAGE_PLAINTEXT)
+Cursor is on line: 1
+Other open documents:
+- c:\Users\itcom\Desktop\av-dynamic-prosupport\TicketController.gs.txt (LANGUAGE_PLAINTEXT)
+- c:\Users\itcom\Desktop\av-dynamic-prosupport\package.json (LANGUAGE_JSON)
+- c:\Users\itcom\Desktop\av-dynamic-prosupport\.gitignore (LANGUAGE_UNSPECIFIED)
+- c:\Users\itcom\Desktop\av-dynamic-prosupport\PortalController.gs.txt (LANGUAGE_PLAINTEXT)
+</ADDITIONAL_METADATA>
+<USER_SETTINGS_CHANGE>
+The user changed setting `Model Selection` from None to Gemini 3.1 Pro (High). No need to comment on this change if the user doesn't ask about it. If reporting what model you are, please use a human readable name instead of the exact string.
+</USER_SETTINGS_CHANGE>
