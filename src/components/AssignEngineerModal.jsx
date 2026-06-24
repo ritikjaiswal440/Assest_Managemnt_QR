@@ -1,11 +1,26 @@
 /* eslint-disable react-hooks/set-state-in-effect */
 import { useState, useEffect } from 'react';
-import { gasApi } from '../services/apiClient';
+import { assignTicket, promoteTicket, fetchEngineers } from '../services/apiClient';
 
 const AssignEngineerModal = ({ isOpen, onClose, assignConfig, bundle, currentUser, onSuccess }) => {
   const [engineerData, setEngineerData] = useState('');
   const [instructions, setInstructions] = useState('');
   const [status, setStatus] = useState({ loading: false, error: null });
+  const [engineersList, setEngineersList] = useState([]);
+
+  useEffect(() => {
+    const loadEngineers = async () => {
+      try {
+        const response = await fetchEngineers();
+        if (response?.success && Array.isArray(response.data)) {
+          setEngineersList(response.data);
+        }
+      } catch (err) {
+        console.error("Failed to fetch engineers list:", err);
+      }
+    };
+    loadEngineers();
+  }, []);
 
   // Reset form fields whenever the modal is opened
   useEffect(() => {
@@ -33,7 +48,7 @@ const AssignEngineerModal = ({ isOpen, onClose, assignConfig, bundle, currentUse
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    
+
     if (!engineerData) {
       setStatus({ loading: false, error: "Please select an engineer to assign." });
       return;
@@ -47,30 +62,50 @@ const AssignEngineerModal = ({ isOpen, onClose, assignConfig, bundle, currentUse
     const engName = parts[1] || '';
     const engRole = parts[2] || '';
 
-    const payload = {
-      parentId: assignConfig?.parentId || '',
-      engEmail,
-      engName,
-      engRole,
-      actorEmail: currentUser?.email || '',
-      instructions
-    };
+    // Support both promoteTicket payload and standard assignTicket depending on context
+    if (assignConfig?.isPromotion) {
+      try {
+        const response = await promoteTicket({
+          Intake_ID: assignConfig.Intake_ID || assignConfig.parentId,
+          Assigned_Engineer: engName,
+          Service_Type: assignConfig.Service_Type || "Standard"
+        });
 
-    try {
-      const response = await gasApi('assignTicket', payload);
-      
-      if (response?.success) {
-        onSuccess(); // Pull fresh dashboard data
-        onClose();   // Close the modal
-      } else {
-        setStatus({ loading: false, error: response?.message || 'Error occurred.' });
+        if (response?.success) {
+          onSuccess();
+          onClose();
+        } else {
+          setStatus({ loading: false, error: response?.message || 'Error occurred.' });
+        }
+      } catch {
+        setStatus({ loading: false, error: "Network communication failure during promotion." });
       }
-    } catch {
-      setStatus({ loading: false, error: "Network communication failure." });
+    } else {
+      const payload = {
+        parentId: assignConfig?.parentId || '',
+        engEmail,
+        engName,
+        engRole,
+        actorEmail: currentUser?.email || '',
+        instructions
+      };
+
+      try {
+        const response = await assignTicket(payload);
+
+        if (response?.success) {
+          onSuccess(); // Pull fresh dashboard data
+          onClose();   // Close the modal
+        } else {
+          setStatus({ loading: false, error: response?.message || 'Error occurred.' });
+        }
+      } catch {
+        setStatus({ loading: false, error: "Network communication failure." });
+      }
     }
   };
 
-  const engineersArray = Array.isArray(bundle?.engineers) ? bundle.engineers : [];
+  const engineersArray = Array.isArray(engineersList) ? engineersList : [];
 
   return (
     <div className="modal-overlay" role="dialog" aria-modal="true">
@@ -85,19 +120,19 @@ const AssignEngineerModal = ({ isOpen, onClose, assignConfig, bundle, currentUse
         <form onSubmit={handleSubmit} className="modal-form">
           <div className="form-group">
             <label>Target Ticket Reference</label>
-            <input 
-              type="text" 
-              value={assignConfig?.parentId || ''} 
-              disabled 
+            <input
+              type="text"
+              value={assignConfig?.parentId || ''}
+              disabled
               style={{ background: 'rgba(255, 255, 255, 0.4)', color: 'var(--slate-gray)', cursor: 'not-allowed' }}
             />
           </div>
 
           <div className="form-group" style={{ marginTop: '15px' }}>
             <label>Select Technical Resource *</label>
-            <select 
-              value={engineerData} 
-              onChange={(e) => setEngineerData(e.target.value)} 
+            <select
+              value={engineerData}
+              onChange={(e) => setEngineerData(e.target.value)}
               required
               disabled={status.loading}
             >
@@ -116,16 +151,18 @@ const AssignEngineerModal = ({ isOpen, onClose, assignConfig, bundle, currentUse
             </select>
           </div>
 
-          <div className="form-group" style={{ marginTop: '15px' }}>
-            <label>Deployment Instructions</label>
-            <textarea 
-              rows="3" 
-              value={instructions} 
-              onChange={(e) => setInstructions(e.target.value)} 
-              placeholder="Provide specific notes or tasks for this dispatch..."
-              disabled={status.loading}
-            ></textarea>
-          </div>
+          {!assignConfig?.isPromotion && (
+            <div className="form-group" style={{ marginTop: '15px' }}>
+              <label>Deployment Instructions</label>
+              <textarea
+                rows="3"
+                value={instructions}
+                onChange={(e) => setInstructions(e.target.value)}
+                placeholder="Provide specific notes or tasks for this dispatch..."
+                disabled={status.loading}
+              ></textarea>
+            </div>
+          )}
 
           <div className="modal-actions">
             <button type="button" className="btn btn-secondary" onClick={onClose} disabled={status.loading}>Cancel</button>

@@ -1,7 +1,7 @@
 /* eslint-disable react-hooks/set-state-in-effect */
 import { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '../context/AuthContext';
-import { gasApi } from '../services/apiClient';
+import { gasApi, fetchIntakeQueue, fetchMasterTickets, getDashboard } from '../services/apiClient';
 import KpiCards from '../components/KpiCards';
 import FilterBar from '../components/FilterBar';
 import TicketTable from '../components/TicketTable';
@@ -59,7 +59,9 @@ const Dashboard = () => {
   const [kpiParents, setKpiParents] = useState([]);
   const [assignConfig, setAssignConfig] = useState({ isOpen: false, parentId: null });
   
-  const [bundle, setBundle] = useState(null);
+  const [intakeData, setIntakeData] = useState([]);
+  const [masterData, setMasterData] = useState([]);
+  const [kpiMetrics, setKpiMetrics] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
 
@@ -69,7 +71,7 @@ const Dashboard = () => {
   const [remarkModalConfig, setRemarkModalConfig] = useState({ isOpen: false, parentId: null });
   const [viewArchived, setViewArchived] = useState(false);
 
-  // Update your modal state to support pre-filling data
+  // Update modal state to support pre-filling data
   const [createModalConfig, setCreateModalConfig] = useState({ isOpen: false, prefillData: null });
   const [activeFilters, setActiveFilters] = useState({
     searchTerm: '',
@@ -87,33 +89,46 @@ const Dashboard = () => {
     setError(null);
     
     try {
-      const response = await gasApi('getDashboard', {
-        userEmail: user?.email,
-        userRole: user?.role,
-        companyName: user?.company
-      });
+      const [kpiRes, intakeRes, masterRes] = await Promise.all([
+        getDashboard(),
+        fetchIntakeQueue(),
+        fetchMasterTickets()
+      ]);
 
-      if (response?.success) {
-        console.log("DEBUG - Refetched bundle data:", response.data);
-        setBundle(response.data);
+      if (kpiRes?.success && kpiRes.data) {
+        setKpiMetrics(kpiRes.data);
       } else {
-        setError(response?.message || "Failed to retrieve data.");
+        setError(kpiRes?.message || "Failed to retrieve operational metrics.");
       }
-    } catch {
+
+      if (intakeRes?.success && Array.isArray(intakeRes.data)) {
+        setIntakeData(intakeRes.data);
+      } else if (kpiRes?.success && kpiRes.data?.serviceRequests) {
+        setIntakeData(kpiRes.data.serviceRequests);
+      }
+
+      if (masterRes?.success && Array.isArray(masterRes.data)) {
+        setMasterData(masterRes.data);
+      } else if (kpiRes?.success && kpiRes.data?.parents) {
+        setMasterData(kpiRes.data.parents);
+      }
+      
+    } catch (err) {
+      console.error(err);
       setError("Failed to connect to the operational database.");
     } finally {
       setIsLoading(false);
     }
-  }, [user]);
+  }, []);
 
   // Fetch dashboard data on component mount
   useEffect(() => {
     fetchDashboardData();
   }, [fetchDashboardData]);
 
-  // Re-apply filters automatically whenever the bundle (data) or active filters change
+  // Re-apply filters automatically whenever the states or active filters change
   useEffect(() => {
-    if (!bundle?.parents) {
+    if (!masterData || masterData.length === 0) {
       setFilteredParents([]);
       setKpiParents([]);
       return;
@@ -123,7 +138,7 @@ const Dashboard = () => {
     const searchLower = searchTerm.toLowerCase();
 
     // Filter by role-based logic for Engineers and Clients
-    const parentsSource = (bundle?.parents || []).filter(p => {
+    const parentsSource = (masterData || []).filter(p => {
       if (!p) return false;
       if (user?.role && user.role.toLowerCase().includes('engineer')) {
         const assignedEng = String(p.Assigned_Engineer || p['Assigned Engineer'] || p.assigned_engineer || '').trim().toLowerCase();
@@ -133,7 +148,7 @@ const Dashboard = () => {
           assignedEng === String(user.email || '').trim().toLowerCase()
         );
         const pId = p.Parent_ID || p['Parent ID'] || p.parentId;
-        const associatedChildren = (bundle?.children || []).filter(c => c && String(c.Parent_ID || c['Parent ID'] || c.parentId) === String(pId));
+        const associatedChildren = (kpiMetrics?.children || []).filter(c => c && String(c.Parent_ID || c['Parent ID'] || c.parentId) === String(pId));
         const hasAssignedChild = associatedChildren.some(c => {
           const engName = String(c.Engineer_Name || '').trim().toLowerCase();
           const engEmail = String(c.Engineer_Email || c.engineerEmail || '').trim().toLowerCase();
@@ -231,7 +246,7 @@ const Dashboard = () => {
 
     setKpiParents(forKpi);
     setFilteredParents(sortedTable);
-  }, [bundle, activeFilters, user]);
+  }, [masterData, kpiMetrics, activeFilters, user]);
 
   const handleFilterChange = (filters) => {
     setActiveFilters(filters);
@@ -314,7 +329,6 @@ const Dashboard = () => {
     document.body.removeChild(link);
   };
 
-  // 1. Add this function near your other handlers
   const handleCloseParent = async (parentId) => {
     if (window.confirm("Are you sure you want to officially close this Parent Ticket? This cannot be undone.")) {
       try {
@@ -423,7 +437,7 @@ const Dashboard = () => {
         {error && <div className="error-banner">{error}</div>}
 
         {/* Loading State Overlay */}
-        {isLoading && !bundle ? (
+        {isLoading && !kpiMetrics ? (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
             {/* KPI Cards Skeleton */}
             <div className="kpi-row">
@@ -452,7 +466,9 @@ const Dashboard = () => {
           <>
             {/* KPI Metrics */}
             <KpiCards tickets={kpiParents} />
-            {user?.role === 'Admin' && (
+            
+            {/* Dual-Tab UI Toggles */}
+            {(user?.role === 'Admin' || user?.role === 'Operations' || user?.role?.toLowerCase().includes('engineer')) && (
               <div style={{ display: 'flex', gap: '20px', marginBottom: '25px', borderBottom: '2px solid rgba(0, 0, 0, 0.05)', paddingBottom: '16px' }}>
                 <button 
                   onClick={() => setActiveTab('tickets')}
@@ -484,8 +500,8 @@ const Dashboard = () => {
                     transition: 'all var(--transition-fast)'
                   }}
                 >
-                  Client Intake Queue 
-                  {bundle?.serviceRequests && (
+                  Client Intake Queue SR
+                  {intakeData && (
                     <span style={{
                       background: activeTab === 'requests' ? '#ffffff' : 'var(--danger)', 
                       color: activeTab === 'requests' ? 'var(--primary-action)' : 'white', 
@@ -495,12 +511,12 @@ const Dashboard = () => {
                       marginLeft: '8px',
                       fontWeight: 'bold'
                     }}>
-                      {(bundle.serviceRequests || []).filter(r => {
+                      {(intakeData || []).filter(r => {
                         const isArchived = r.archived === true || r.archived === 'TRUE' || r.archived === 'true';
                         if (isArchived) return false;
 
                         const totalCount = r.products && r.products.length > 0 ? r.products.length : 1;
-                        const createdCount = (bundle.parents || []).filter(p => 
+                        const createdCount = (masterData || []).filter(p => 
                           String(p.Service_Request_ID || p.serviceRequestId || '').trim() === String(r.requestId).trim()
                         ).length;
 
@@ -513,17 +529,18 @@ const Dashboard = () => {
             )}
             
             <div className="table-placeholder-content">
-              {activeTab === 'tickets' ? (
+              {activeTab === 'tickets' || user?.role === 'Client' ? (
                 <>
                   <FilterBar 
-                    bundle={bundle} 
+                    bundle={{ clients: kpiMetrics?.clients || [], parents: masterData }} 
                     onFilterChange={handleFilterChange} 
                     userRole={user?.role} 
                     onDownloadReport={handleDownloadReport} 
                   />
                   <TicketTable 
                     parents={filteredParents || []} 
-                    children={bundle?.children || []} 
+                    children={kpiMetrics?.children || []} 
+                    logs={kpiMetrics?.logs || []}
                     userRole={user?.role}
                     isAdmin={user?.role === 'Admin'}
                     currentUserEmail={user?.email}
@@ -556,11 +573,11 @@ const Dashboard = () => {
                     </button>
                   </div>
                   <ServiceRequestTable 
-                    requests={(bundle?.serviceRequests || []).filter(r => {
+                    requests={(intakeData || []).filter(r => {
                       const isArch = r.archived === true || r.archived === 'TRUE' || r.archived === 'true';
                       return viewArchived ? isArch : !isArch;
                     })}
-                    masterTickets={bundle?.parents || []}
+                    masterTickets={masterData || []}
                     onConvertToMaster={(reqData) => setCreateModalConfig({ isOpen: true, prefillData: reqData })}
                     onArchiveRequest={handleArchiveRequest}
                     onUnarchiveRequest={handleUnarchiveRequest}
@@ -571,10 +588,12 @@ const Dashboard = () => {
           </>
         )}
       </main>
+      
       <CreateTicketModal 
         isOpen={createModalConfig.isOpen}
         onClose={() => setCreateModalConfig({ isOpen: false, prefillData: null })}
-        bundle={bundle}
+        clients={kpiMetrics?.clients || []}
+        engineers={kpiMetrics?.engineers || []}
         currentUser={user}
         onSuccess={fetchDashboardData} 
         initialData={createModalConfig.prefillData}
@@ -590,7 +609,7 @@ const Dashboard = () => {
         isOpen={assignConfig.isOpen}
         onClose={() => setAssignConfig({ isOpen: false, parentId: null })}
         assignConfig={assignConfig}
-        bundle={bundle}
+        bundle={{ engineers: kpiMetrics?.engineers || [] }}
         currentUser={user}
         onSuccess={fetchDashboardData}
       />

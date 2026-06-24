@@ -1,20 +1,39 @@
 import { useState, useEffect } from 'react';
-import { getPublicAssetDetails } from '../../services/apiClient';
-import PublicComplaintForm from '../components/PublicComplaintForm';
+import { getPublicAssetDetails, submitToIntakeQueue } from '../../services/apiClient';
 import './PublicComplaintPortal.css';
 
 export default function PublicComplaintPortal() {
-  const hashString = window.location.hash; // e.g., #/asset/AVD%2FPD%2F000001.abc123xyz
-  const decodedPath = decodeURIComponent(hashString.replace('#/asset/', ''));
-  const parts = decodedPath.split('.');
-  const assetId = parts.length > 0 ? parts[0] : decodedPath;
-  const signature = parts.length > 1 ? parts[1] : '';
+  const hashString = window.location.hash || ''; // e.g., #/asset/AVD%2FPD%2F000001.abc123xyz
   
-  console.log("🔍 TRACE - Extracted Signature on Mount:", signature);
+  // Try to parse query parameters first
+  const urlParams = new URLSearchParams(window.location.search);
+  const queryAssetId = urlParams.get('assetId') || '';
+  const querySignature = urlParams.get('signature') || '';
+
+  // If not found in query params, fall back to hash-based routing
+  const assetId = queryAssetId || (hashString ? decodeURIComponent(hashString.replace('#/asset/', '')).split('.')[0] : '');
+  const signature = querySignature || (hashString && hashString.replace('#/asset/', '').split('.').length > 1 ? hashString.replace('#/asset/', '').split('.')[1] : '');
+  
+  console.log("🔍 TRACE - Resolved assetId:", assetId, "signature:", signature);
 
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
   const [asset, setAsset] = useState(null);
+
+  // Form State
+  const [formData, setFormData] = useState({
+    requestedBy: '',
+    clientEmail: '',
+    phoneNumber: '',
+    description: ''
+  });
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [successReference, setSuccessReference] = useState(null);
+  const [formError, setFormError] = useState(null);
+
+  // File Upload State
+  const [attachment, setAttachment] = useState(null);
+  const [fileName, setFileName] = useState('Attach Invoice, Image, or Document');
 
   useEffect(() => {
     let active = true;
@@ -58,6 +77,114 @@ export default function PublicComplaintPortal() {
       abortController.abort();
     };
   }, [assetId, signature]);
+
+  const handleFormChange = (e) => {
+    const { name, value } = e.target;
+    setFormData(prev => ({ ...prev, [name]: value }));
+  };
+
+  const handleFileChange = (e) => {
+    const file = e.target.files?.[0];
+    if (!file) {
+      setFileName('Attach Invoice, Image, or Document');
+      setAttachment(null);
+      return;
+    }
+
+    // Validate File Size (5MB limit)
+    if (file.size > 5242880) {
+      alert('File size exceeds the 5MB limit. Please select a smaller file.');
+      e.target.value = '';
+      setFileName('Attach Invoice, Image, or Document');
+      setAttachment(null);
+      return;
+    }
+
+    // Validate MIME Type
+    const validMimeTypes = ['application/pdf', 'image/jpeg', 'image/jpg', 'image/png'];
+    if (!validMimeTypes.includes(file.type)) {
+      alert('Invalid file format. Please upload a PDF, JPG, or PNG.');
+      e.target.value = '';
+      setFileName('Attach Invoice, Image, or Document');
+      setAttachment(null);
+      return;
+    }
+
+    setFileName(`Attached: ${file.name}`);
+    setAttachment(file);
+  };
+
+  // Base64 Helper
+  const toBase64 = file => new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.readAsDataURL(file);
+      reader.onload = () => resolve(reader.result.split(',')[1]);
+      reader.onerror = error => reject(error);
+  });
+
+  const handleFormSubmit = async (e) => {
+    e.preventDefault();
+    if (!formData.requestedBy || !formData.clientEmail || !formData.description) {
+      setFormError('Please fill in all required fields.');
+      return;
+    }
+
+    setIsSubmitting(true);
+    setFormError(null);
+
+    try {
+      let base64String = "";
+      if (attachment) {
+        base64String = await toBase64(attachment);
+      }
+
+      // Map form state to the exact Intake_Queue schema before sending
+      const payload = {
+        Source: "QR",
+        Unique_Product_Id: asset?.assetId || assetId,
+        Sales_Order: asset?.salesOrder || "",
+        Invoice_No: asset?.invoiceNo || "",
+        Ref_Code: signature,
+        Company_Name: asset?.companyName || 'Unknown',
+        Location: asset?.location || 'N/A',
+        Sub_Location: asset?.subLocation || 'N/A',
+        Room_Type: asset?.roomType || 'N/A',
+        Floor: asset?.floor || 'N/A',
+        Room_Name: asset?.roomName || 'N/A',
+        ProductMake: asset?.productMake || '',
+        ProductModel: asset?.productModel || '',
+        ProductSerial: asset?.productSerial || '',
+        MAC_ID: asset?.macId || "",
+        IP_Address: asset?.ipAddress || "",
+        Warranty_Start_Date: asset?.warrantyStartDate || "",
+        DLP_Period: asset?.dlpPeriod || "",
+        Warranty_End_Date: asset?.warrantyEndDate || "",
+        Warranty_Days_Left: asset?.warrantyDaysLeft || "",
+        Asset_Status: asset?.assetStatus || "Active",
+        Requester_Name: formData.requestedBy,
+        Client_Email: formData.clientEmail,
+        PhoneNumber: formData.phoneNumber,
+        Category: 'Hardware', // Default category for QR complaint
+        Issue_Description: formData.description,
+        Attachment_Base64: base64String,
+        Attachment_Name: attachment ? attachment.name : "",
+        Attachment_MimeType: attachment ? attachment.type : ""
+      };
+
+      const response = await submitToIntakeQueue(payload);
+
+      if (response && response.success) {
+        setSuccessReference(response.data?.Intake_ID || response.data?.complaintId || response.message || 'CMP-SUCCESS');
+      } else {
+        setFormError(response?.message || 'Failed to log complaint. Please try again.');
+      }
+    } catch (err) {
+      console.error(err);
+      setFormError('A network error occurred. Please try again.');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
 
   if (isLoading) {
     return (
@@ -161,7 +288,7 @@ export default function PublicComplaintPortal() {
                     <span className="detail-label">Asset Status</span>
                     <span className="detail-value">
                       <span className={`badge-support-tier ${asset.assetStatus?.toLowerCase() === 'active' ? 'tier-active' : 'tier-expired'}`} style={{display: 'inline-block', marginTop: '4px'}}>
-                        {asset.assetStatus || 'N/A'}
+                        {asset.assetStatus || 'Active'}
                       </span>
                     </span>
                   </div>
@@ -196,7 +323,105 @@ export default function PublicComplaintPortal() {
             )}
           </section>
 
-          <PublicComplaintForm asset={asset} signature={signature} />
+          {/* Form UI */}
+          {successReference ? (
+            <div className="success-state md3-surface">
+              <div className="success-icon">✓</div>
+              <h2>Complaint Logged Successfully.</h2>
+              <p>Your support request has been registered.</p>
+              <div className="reference-box">
+                Reference: <strong>{successReference}</strong>
+              </div>
+            </div>
+          ) : (
+            <div className="complaint-form-container md3-surface">
+              <h2>Report a Hardware Issue</h2>
+              <p className="form-subtitle">Scan-verified routing. Your request will be directly dispatched to the support team.</p>
+
+              {formError && <div className="error-banner">{formError}</div>}
+
+              <form onSubmit={handleFormSubmit} className="md3-form">
+                <div className="form-group">
+                  <label>Requested By *</label>
+                  <input
+                    type="text"
+                    name="requestedBy"
+                    value={formData.requestedBy}
+                    onChange={handleFormChange}
+                    className="md3-input"
+                    placeholder="Your Full Name"
+                    required
+                    disabled={isSubmitting}
+                  />
+                </div>
+
+                <div className="form-group">
+                  <label>Email Address *</label>
+                  <input
+                    type="email"
+                    name="clientEmail"
+                    value={formData.clientEmail}
+                    onChange={handleFormChange}
+                    className="md3-input"
+                    placeholder="name@company.com"
+                    required
+                    disabled={isSubmitting}
+                  />
+                </div>
+
+                <div className="form-group">
+                  <label>Phone Number</label>
+                  <input
+                    type="tel"
+                    name="phoneNumber"
+                    value={formData.phoneNumber}
+                    onChange={handleFormChange}
+                    className="md3-input"
+                    placeholder="+1 234 567 8900"
+                    disabled={isSubmitting}
+                  />
+                </div>
+
+                <div className="form-group">
+                  <label>Description of Issue *</label>
+                  <textarea
+                    name="description"
+                    value={formData.description}
+                    onChange={handleFormChange}
+                    className="md3-input"
+                    rows="4"
+                    placeholder="Please detail the hardware issue..."
+                    required
+                    disabled={isSubmitting}
+                  />
+                </div>
+
+                <div className="form-group">
+                  <label>Attachment (Image or PDF)</label>
+                  <div className="upload-box">
+                    <label htmlFor="reqInvoice" className="upload-label" style={{ cursor: 'pointer', display: 'block', padding: '15px', border: '1px dashed var(--border-color, #ccc)', borderRadius: '8px', textAlign: 'center' }}>
+                      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '4px' }}>
+                        <span style={{ color: attachment ? 'var(--brand-accent, #1a73e8)' : 'var(--text-muted, #5f6368)', fontWeight: attachment ? 'bold' : 'normal' }}>{fileName}</span>
+                        <span style={{ fontSize: '13px', color: 'var(--text-muted, #5f6368)' }}>(PDF, JPG, PNG - Max limit: 5MB)</span>
+                      </div>
+                    </label>
+                    <input 
+                      type="file" 
+                      id="reqInvoice" 
+                      style={{ display: 'none' }} 
+                      accept="image/*,.pdf" 
+                      onChange={handleFileChange} 
+                      disabled={isSubmitting} 
+                    />
+                  </div>
+                </div>
+
+                <button type="submit" className="btn-filled submit-btn" disabled={isSubmitting}>
+                  {isSubmitting ? 'Submitting...' : 'Submit Support Request'}
+                </button>
+              </form>
+            </div>
+          )}
         </main>
       ) : (
         !isLoading && !error && (

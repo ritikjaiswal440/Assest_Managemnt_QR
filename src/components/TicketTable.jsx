@@ -1,28 +1,48 @@
 import React, { useState } from 'react';
+import { generateServiceReport } from '../services/apiClient';
 
-const TicketTable = ({ parents, children, userRole, isAdmin, currentUserEmail, onOpenUpdate, onOpenAssign, onCloseParent, onAddRemark, onPingEngineer }) => {
+const TicketTable = ({ parents, children, logs = [], userRole, isAdmin, currentUserEmail, onOpenUpdate, onOpenAssign, onCloseParent, onAddRemark, onPingEngineer }) => {
   const [expandedRows, setExpandedRows] = useState({});
   const [pingingTasks, setPingingTasks] = useState({});
+  const [generatingPDFs, setGeneratingPDFs] = useState({});
 
   const handlePing = async (childTicket, parentTicket) => {
-    const childId = childTicket.Child_ID;
+    const childId = childTicket.Task_ID;
     setPingingTasks(prev => ({ ...prev, [childId]: true }));
     try {
       await onPingEngineer({
-        childId: childTicket.Child_ID,
-        parentId: parentTicket.Parent_ID || parentTicket['Parent ID'] || parentTicket.parentId,
+        childId: childTicket.Task_ID,
+        parentId: parentTicket.Ticket_ID,
         engineerName: childTicket.Engineer_Name,
-        engineerEmail: childTicket.Engineer_Email || childTicket.engineerEmail || '',
-        clientCompany: parentTicket.Company_Name || parentTicket['Company Name'] || parentTicket.companyName || '',
-        location: parentTicket.Location || parentTicket.location || '',
-        roomName: parentTicket.Room_Name || parentTicket['Room Name'] || parentTicket.roomName || '',
-        issue: parentTicket.Issue_Type || parentTicket['Issue Type'] || parentTicket.issueType || parentTicket.Category || 'AV Support Issue',
-        phoneNumber: parentTicket.PhoneNumber || parentTicket.phoneNumber || parentTicket['Phone Number'] || 'N/A'
+        engineerEmail: childTicket.Engineer_Email || '',
+        clientCompany: parentTicket.Company_Name || '',
+        location: parentTicket.Location || '',
+        roomName: parentTicket.Room_Name || '',
+        issue: parentTicket.Service_Type || parentTicket.Category || 'AV Support Issue',
+        phoneNumber: parentTicket.PhoneNumber || 'N/A'
       });
     } catch (error) {
       console.error("Failed to ping engineer:", error);
     } finally {
       setPingingTasks(prev => ({ ...prev, [childId]: false }));
+    }
+  };
+
+  const handleDownloadPDF = async (ticketId) => {
+    if (!ticketId) return;
+    setGeneratingPDFs(prev => ({ ...prev, [ticketId]: true }));
+    try {
+      const response = await generateServiceReport(ticketId);
+      if (response && response.success && response.data && response.data.pdfUrl) {
+        window.open(response.data.pdfUrl, '_blank');
+      } else {
+        alert(response?.message || "Failed to generate Service Report PDF.");
+      }
+    } catch (error) {
+      console.error("Failed to generate Service Report:", error);
+      alert("An error occurred while generating the Service Report.");
+    } finally {
+      setGeneratingPDFs(prev => ({ ...prev, [ticketId]: false }));
     }
   };
 
@@ -41,30 +61,7 @@ const TicketTable = ({ parents, children, userRole, isAdmin, currentUserEmail, o
     return 'status-opened';
   };
 
-  const renderTimelineLogs = (remarksStr, roleViewing) => {
-    if (!remarksStr) return null;
-    const lines = String(remarksStr).split('\n').filter(l => l.trim() !== '');
-    return lines.map((line, i) => {
-      const match = line.match(/^\[(.*?) - (.*?)\]\s*(.*)$/);
-      if (match) {
-        const [, timestamp, role, text] = match;
-        if (role.toLowerCase() === 'admin' && roleViewing !== 'Admin') return null;
-        const color = role.toLowerCase() === 'admin' ? 'var(--purple)' : 'var(--primary-action)';
-        return (
-          <div key={i} className="timeline-item" style={{ display: 'flex', gap: '10px', fontSize: '0.8rem', padding: '8px 12px', background: 'rgba(255, 255, 255, 0.45)', backdropFilter: 'blur(8px)', borderRadius: '8px', borderLeft: `4px solid ${color}`, border: '1px solid rgba(255, 255, 255, 0.6)' }}>
-            <span style={{ fontWeight: '600', color }}>[{role}]</span>
-            <span style={{ color: 'var(--slate-gray)' }}><small style={{ marginRight: '8px' }}>{timestamp}</small> {text}</span>
-          </div>
-        );
-      }
-      if (roleViewing !== 'Admin') return null;
-      return (
-        <div key={i} className="timeline-item" style={{ display: 'flex', gap: '10px', fontSize: '0.8rem', padding: '8px 12px', background: 'rgba(255, 255, 255, 0.45)', backdropFilter: 'blur(8px)', borderRadius: '8px', borderLeft: '4px solid var(--slate-gray)', border: '1px solid rgba(255, 255, 255, 0.6)' }}>
-          <span style={{ color: 'var(--slate-gray)' }}>{line}</span>
-        </div>
-      );
-    });
-  };
+
 
   const parentsArray = Array.isArray(parents) ? parents : [];
   const childrenArray = Array.isArray(children) ? children : [];
@@ -100,29 +97,37 @@ const TicketTable = ({ parents, children, userRole, isAdmin, currentUserEmail, o
           <tbody>
             {parentsArray.map((p) => {
               if (!p) return null;
-              console.log("DEBUG - Ticket row object:", p);
-              const pId = p.Parent_ID || p['Parent ID'] || p.parentId;
+              const pId = p.Ticket_ID;
               const isExpanded = !!expandedRows[pId];
-              const associatedChildren = childrenArray.filter(c => c && String(c.Parent_ID || c['Parent ID'] || c.parentId) === String(pId));
+              const associatedChildren = childrenArray.filter(c => c && String(c.Ticket_ID_Ref) === String(pId));
 
-              const pStatus = p.Status || p.status || 'Opened';
-              const pResolvedDays = p.Resolved_Days || p['Resolved Days'] || p.resolvedDays;
+              const pStatus = p.Status || 'Opened';
+              const pResolvedDays = p.Resolved_Days;
+
+              const allTasksClosed = associatedChildren.length > 0 && associatedChildren.every(task => 
+                task.Status === 'Closed' || task.Status === 'Resolved'
+              );
+              const canCloseMaster = isAdmin && allTasksClosed && pStatus !== 'Closed';
+
+              const ticketLogs = (Array.isArray(logs) ? logs : []).filter(l => 
+                String(l.Target_ID || l.targetId) === String(pId)
+              );
 
               return (
                 <React.Fragment key={pId}>
                   {/* --- PARENT ROW --- */}
                   <tr className="parent-row" onClick={() => toggleRow(pId)}>
                     <td style={{ fontFamily: 'SFMono-Regular, Consolas, "Liberation Mono", Menlo, monospace', fontSize: '0.9rem' }}>
-                      <span style={{ fontWeight: '700', color: 'var(--primary-action)' }}>{pId}</span><br />
-                      <span style={{ fontSize: '0.75rem', color: 'var(--slate-gray)', fontWeight: '600' }}>SR Ref: {p.Service_Request_ID || p['Service Request ID'] || p.serviceRequestId || 'N/A'}</span>
+                      <span style={{ fontWeight: '700', color: 'var(--primary-action)' }}>{p.Ticket_ID}</span><br />
+                      <span style={{ fontSize: '0.75rem', color: 'var(--slate-gray)', fontWeight: '600' }}>Sub-ref: {p.Intake_ID_Ref || 'N/A'}</span>
                     </td>
                     <td>
-                      <b>{p.Company_Name || p['Company Name'] || p.companyName || 'N/A'}</b><br />
-                      <small><b>Loc:</b> {p.Location || p.location || 'N/A'} | <b>Room:</b> {p.Room_Name || p['Room Name'] || p.roomName || 'N/A'}</small>
+                      <b>{p.Company_Name || 'N/A'}</b><br />
+                      <small><b>Loc:</b> {p.Location || 'N/A'} | <b>Room:</b> {p.Room_Name || 'N/A'}</small>
                     </td>
                     <td>
-                      <b>{p.Category || p.category || 'N/A'}</b><br />
-                      <small>{p.Issue_Type || p['Issue Type'] || p.issueType || 'N/A'}</small>
+                      <b>{p.Service_Type || 'N/A'}</b><br />
+                      <small>{p.Category || 'N/A'}</small>
                     </td>
                     <td>
                       <span className={`badge ${getBadgeClass(pStatus)}`}>{pStatus}</span>
@@ -147,12 +152,12 @@ const TicketTable = ({ parents, children, userRole, isAdmin, currentUserEmail, o
                             >
                               Assign Eng
                             </button>
-                            {pStatus === 'Ready to Close' && (
+                            {isAdmin && pStatus === 'Ready to Close' && (
                               <button
-                                className="btn-close-ticket"
-                                onClick={() => onCloseParent(pId)}
+                                onClick={() => onCloseParent(p.Ticket_ID)}
+                                className="btn-close-ticket btn btn-success"
                               >
-                                Close Ticket
+                                Verify & Close Ticket
                               </button>
                             )}
                           </div>
@@ -168,22 +173,69 @@ const TicketTable = ({ parents, children, userRole, isAdmin, currentUserEmail, o
                         <div className="child-container">
                           <div className="child-header-grid">
                             <div>
-                              <p className="detail-text" style={{ marginBottom: '5px' }}><b>Requested By:</b> {p.Requested_By || p['Requested By'] || p.requestedBy || 'N/A'}</p>
+                              <p className="detail-text" style={{ marginBottom: '5px' }}><b>Requested By:</b> {p.Requester_Name || 'N/A'}</p>
                               {userRole !== 'Client' && (
                                 <>
-                                  <p className="detail-text" style={{ marginBottom: '5px' }}><b>Email:</b> {p.Client_Email || p.clientEmail || p['Client Email'] || 'N/A'}</p>
-                                  <p className="detail-text" style={{ marginBottom: '5px' }}><b>Phone:</b> {p.PhoneNumber || p.phoneNumber || p['Phone Number'] || 'N/A'}</p>
+                                  <p className="detail-text" style={{ marginBottom: '5px' }}><b>Email:</b> {p.Client_Email || 'N/A'}</p>
+                                  <p className="detail-text" style={{ marginBottom: '5px' }}><b>Phone:</b> {p.PhoneNumber || 'N/A'}</p>
                                 </>
                               )}
-                              <p className="detail-text" style={{ marginBottom: '5px' }}><b>Sales Order:</b> {p.Sales_Order || p['Sales Order'] || p.salesOrder || 'N/A'}</p>
-                              <p className="detail-text" style={{ marginBottom: '10px' }}>
-                                <b>Hardware:</b> {p.ProductMake || p.Brand || 'N/A'} - {p.ProductModel || p.Model || 'N/A'} (S/N: {p.ProductSerial || p.Serial || 'N/A'})
-                              </p>
-                              <p className="detail-text"><b>Client Description:</b><br />{p.Description || p.description || ''}</p>
+                              <p className="detail-text" style={{ marginBottom: '5px' }}><b>Sales Order:</b> {p.Sales_Order || 'N/A'}</p>
+                              
+                              <div style={{
+                                marginTop: '12px',
+                                marginBottom: '12px',
+                                padding: '12px',
+                                backgroundColor: '#f8fafc',
+                                borderRadius: '8px',
+                                border: '1px solid #e2e8f0'
+                              }}>
+                                <h4 style={{ margin: '0 0 8px 0', fontSize: '0.8rem', color: 'var(--primary-deep)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                                  🛡️ Hardware & Network Details
+                                </h4>
+                                <p className="detail-text" style={{ marginBottom: '4px' }}>
+                                  <b>Hardware Product:</b> {p.ProductMake || 'Unknown'} {p.ProductModel || ''} (S/N: {p.ProductSerial || 'N/A'} | Unique ID: {p.Unique_Product_Id || 'N/A'})
+                                </p>
+                                <p className="detail-text" style={{ marginBottom: '4px' }}>
+                                  <b>Network:</b> IP: {p.IP_Address || 'N/A'} | MAC: {p.MAC_ID || 'N/A'}
+                                </p>
+                                <p className="detail-text" style={{ marginBottom: '4px' }}>
+                                  <b>Warranty:</b> {p.Asset_Status || 'N/A'} | Start: {p.Warranty_Start_Date || 'N/A'} | DLP: {p.DLP_Period || 'N/A'} | Days Left: {p.Warranty_Days_Left || 'N/A'}
+                                </p>
+                                <p className="detail-text" style={{ marginBottom: '4px' }}>
+                                  <b>Location:</b> {p.Location} &gt; {p.Sub_Location} &gt; Floor: {p.Floor || 'N/A'} &gt; {p.Room_Type || 'Room'}: {p.Room_Name}
+                                </p>
+                                {p.Attachment_URL && (
+                                  <div style={{ marginTop: '8px' }}>
+                                    <a
+                                      href={p.Attachment_URL}
+                                      target="_blank"
+                                      rel="noreferrer"
+                                      className="btn btn-sm btn-outline"
+                                      style={{ display: 'inline-flex', alignItems: 'center', gap: '5px', textDecoration: 'none', padding: '4px 10px', fontSize: '0.8rem', fontWeight: 'bold' }}
+                                    >
+                                      📎 View Client Attachment
+                                    </a>
+                                  </div>
+                                )}
+                                {(pStatus === "Resolved" || pStatus === "Closed") && (
+                                  <div style={{ marginTop: '8px' }}>
+                                    <button
+                                      onClick={() => handleDownloadPDF(pId)}
+                                      disabled={generatingPDFs[pId]}
+                                      className="btn btn-sm btn-primary"
+                                      style={{ display: 'inline-flex', alignItems: 'center', gap: '5px', padding: '4px 10px', fontSize: '0.8rem', fontWeight: 'bold' }}
+                                    >
+                                      {generatingPDFs[pId] ? "⏳ Generating Service Report..." : "📄 Download Service Report"}
+                                    </button>
+                                  </div>
+                                )}
+                              </div>
+                              <p className="detail-text"><b>Client Description:</b><br />{p.Admin_Remarks || 'No remarks provided.'}</p>
                             </div>
                             <div className="detail-border-left">
                               <p className="detail-text"><b>Admin Remarks:</b><br />
-                                {p.Admin_Remarks || p.admin_remarks ? String(p.Admin_Remarks || p.admin_remarks).split('\n').map((line, i) => <React.Fragment key={i}>{line}<br /></React.Fragment>) : 'No admin remarks yet.'}
+                                {p.Admin_Remarks ? String(p.Admin_Remarks).split('\n').map((line, i) => <React.Fragment key={i}>{line}<br /></React.Fragment>) : 'No remarks provided.'}
                               </p>
                             </div>
                           </div>
@@ -215,7 +267,20 @@ const TicketTable = ({ parents, children, userRole, isAdmin, currentUserEmail, o
                                 <span style={{ color: 'var(--slate-gray)' }}>Ticket initialized. Operational triage dispatcher allocated.</span>
                               </div>
 
-                              {renderTimelineLogs(p.Admin_Remarks || p.admin_remarks, userRole)}
+                              {ticketLogs.map((log, i) => (
+                                <div key={i} className="timeline-item" style={{ display: 'flex', gap: '10px', fontSize: '0.8rem', padding: '8px 12px', background: 'rgba(255, 255, 255, 0.45)', backdropFilter: 'blur(8px)', borderRadius: '8px', borderLeft: '4px solid var(--purple)', border: '1px solid rgba(255, 255, 255, 0.6)' }}>
+                                  <span style={{ fontWeight: '600', color: 'var(--purple)' }}>[{log.Actor_Email || log.Actor || 'System'}]</span>
+                                  <span style={{ color: 'var(--slate-gray)' }}>
+                                    <small style={{ marginRight: '8px', color: '#94a3b8' }}>
+                                      {new Date(log.Timestamp).toLocaleString()}
+                                    </small> 
+                                    <strong>{log.Action_Type || log.Action}:</strong> {log.Remarks}
+                                  </span>
+                                </div>
+                              ))}
+                              {ticketLogs.length === 0 && (
+                                <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', fontStyle: 'italic' }}>No system logs recorded yet.</div>
+                              )}
 
                               {userRole !== 'Admin' && (
                                 <div className="timeline-item" style={{ display: 'flex', gap: '10px', fontSize: '0.8rem', padding: '8px 12px', background: 'rgba(255, 255, 255, 0.45)', backdropFilter: 'blur(8px)', borderRadius: '8px', borderLeft: '4px solid var(--slate-gray)', border: '1px solid rgba(255, 255, 255, 0.6)', opacity: 0.7 }}>
@@ -243,15 +308,18 @@ const TicketTable = ({ parents, children, userRole, isAdmin, currentUserEmail, o
                                 ) : (
                                   associatedChildren.map(c => {
                                     if (!c) return null;
+                                    const taskId = c.Task_ID;
+                                    const instructions = c.Admin_Instructions || c.adminInstructions || c.Instructions || c.instructions || 'None';
+                                    const engLogs = c.Engineer_Remarks || c.engineerRemarks || c.engineer_remarks || c.Admin_Eng_Remarks || c.admin_eng_remarks || c.Remarks || c.remarks || 'No logs yet.';
                                     return (
-                                      <tr key={c.Child_ID}>
-                                        <td style={{ fontFamily: 'SFMono-Regular, Consolas, "Liberation Mono", Menlo, monospace', fontSize: '0.85rem' }}><b style={{ fontWeight: '700' }}>{c.Child_ID}</b></td>
+                                      <tr key={taskId}>
+                                        <td style={{ fontFamily: 'SFMono-Regular, Consolas, "Liberation Mono", Menlo, monospace', fontSize: '0.85rem' }}><b style={{ fontWeight: '700' }}>{taskId}</b></td>
                                         <td>
                                           {c.Engineer_Name}
                                           <br />
                                           <small>{c.Engineer_Role}</small>
                                           <div style={{ marginTop: '8px' }}>
-                                            {c.Acknowledged_At ? (
+                                            {c.Acknowledged_At || c.Assigned_Date ? (
                                               <span style={{ backgroundColor: '#e6f4ea', color: '#137333', fontSize: '11px', borderRadius: '12px', padding: '4px 8px', display: 'inline-block', fontWeight: '500' }}>
                                                 ✅ Acknowledged
                                               </span>
@@ -265,7 +333,7 @@ const TicketTable = ({ parents, children, userRole, isAdmin, currentUserEmail, o
                                             <div style={{ marginTop: '6px' }} onClick={(e) => e.stopPropagation()}>
                                               <button
                                                 onClick={() => handlePing(c, p)}
-                                                disabled={pingingTasks[c.Child_ID]}
+                                                disabled={pingingTasks[taskId]}
                                                 className="btn-ping-engineer"
                                                 style={{
                                                   height: '32px',
@@ -275,7 +343,7 @@ const TicketTable = ({ parents, children, userRole, isAdmin, currentUserEmail, o
                                                   backgroundColor: '#e8f0fe',
                                                   color: '#1a73e8',
                                                   border: 'none',
-                                                  cursor: pingingTasks[c.Child_ID] ? 'wait' : 'pointer',
+                                                  cursor: pingingTasks[taskId] ? 'wait' : 'pointer',
                                                   display: 'inline-flex',
                                                   alignItems: 'center',
                                                   justifyContent: 'center',
@@ -283,16 +351,21 @@ const TicketTable = ({ parents, children, userRole, isAdmin, currentUserEmail, o
                                                   transition: 'all 0.2s'
                                                 }}
                                               >
-                                                {pingingTasks[c.Child_ID] ? 'Sending...' : '📧Email for Update'}
+                                                {pingingTasks[taskId] ? 'Sending...' : '📧Email for Update'}
                                               </button>
                                             </div>
                                           )}
                                         </td>
                                         <td><span className={`badge ${getBadgeClass(c.Status)}`}>{c.Status}</span></td>
                                         <td className="detail-text">
-                                          <div style={{ marginBottom: '8px' }}><b>Instructions:</b> {c.Instructions || 'None'}</div>
-                                          <div className="mt-1 pt-1 border-top-dashed"><b>Logs:</b><br />
-                                            {c.Admin_Eng_Remarks || c.admin_eng_remarks ? String(c.Admin_Eng_Remarks || c.admin_eng_remarks).split('\n').map((line, i) => <React.Fragment key={i}>{line}<br /></React.Fragment>) : 'No logs yet.'}
+                                          <div style={{ fontSize: '0.85rem' }}>
+                                            <span style={{ fontWeight: '600', color: 'var(--slate-gray)' }}>Instructions:</span> {instructions}
+                                          </div>
+                                          <div style={{ fontSize: '0.85rem', marginTop: '4px' }} className="pt-1 border-top-dashed">
+                                            <span style={{ fontWeight: '600', color: 'var(--slate-gray)' }}>Logs:</span><br />
+                                            <span style={{ color: 'var(--text-muted)' }}>
+                                              {engLogs !== 'No logs yet.' ? String(engLogs).split('\n').map((line, i) => <React.Fragment key={i}>{line}<br /></React.Fragment>) : 'No logs yet.'}
+                                            </span>
                                           </div>
                                         </td>
                                         {userRole !== 'Client' && (
@@ -301,8 +374,8 @@ const TicketTable = ({ parents, children, userRole, isAdmin, currentUserEmail, o
                                               <button
                                                 className="btn btn-sm btn-primary"
                                                 onClick={() => onOpenUpdate({
-                                                  childId: c.Child_ID,
-                                                  parentId: c.Parent_ID,
+                                                  childId: taskId,
+                                                  parentId: c.Ticket_ID_Ref,
                                                   currentStatus: c.Status
                                                 })}
                                               >

@@ -4,7 +4,7 @@ import { createContext, useState, useContext, useEffect } from 'react';
 const AuthContext = createContext();
 
 export const AuthProvider = ({ children }) => {
-  // 1. Initialize state directly from sessionStorage so it survives reloads
+  // Initialize state directly from sessionStorage so it survives reloads
   const [user, setUser] = useState(() => {
     try {
       const savedUser = sessionStorage.getItem('av_user_session');
@@ -16,7 +16,7 @@ export const AuthProvider = ({ children }) => {
 
   const [isAuthLoading, setIsAuthLoading] = useState(true);
 
-  // 2. Sync state changes to sessionStorage automatically
+  // Sync state changes to sessionStorage automatically
   useEffect(() => {
     if (user) {
       sessionStorage.setItem('av_user_session', JSON.stringify(user));
@@ -27,7 +27,13 @@ export const AuthProvider = ({ children }) => {
   }, [user]);
 
   const login = (userData) => {
-    setUser(userData);
+    setUser({
+      name: userData?.name || '',
+      email: userData?.email || '',
+      role: userData?.role || '',
+      companyName: userData?.companyName || userData?.company || '',
+      company: userData?.companyName || userData?.company || ''
+    });
   };
 
   const logout = () => {

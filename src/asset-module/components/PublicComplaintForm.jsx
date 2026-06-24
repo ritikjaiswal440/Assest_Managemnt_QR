@@ -40,16 +40,16 @@ export default function PublicComplaintForm({ asset, signature }) {
         Unique_Product_Id: assetId, // Guaranteed resolution
         security_signature: signature
       };
-      
+
       if (!finalPayload.Unique_Product_Id) {
-          console.error("CRITICAL: Asset ID is missing before submission!");
-          alert("System Error: Physical Asset ID could not be mapped. Please re-scan the QR code.");
-          setIsSubmitting(false);
-          return; // Prevent submitting a broken payload
+        console.error("CRITICAL: Asset ID is missing before submission!");
+        alert("System Error: Physical Asset ID could not be mapped. Please re-scan the QR code.");
+        setIsSubmitting(false);
+        return; // Prevent submitting a broken payload
       }
 
       console.log("🔍 TRACE - Final Payload Leaving Browser:", finalPayload);
-      
+
       const response = await submitComplaint(finalPayload);
 
       if (response && response.success) {
@@ -82,43 +82,43 @@ export default function PublicComplaintForm({ asset, signature }) {
     <div className="complaint-form-container md3-surface">
       <h2>Report a Hardware Issue</h2>
       <p className="form-subtitle">Scan-verified routing. Your request will be directly dispatched to the support team.</p>
-      
+
       {error && <div className="error-banner">{error}</div>}
 
       <form onSubmit={handleSubmit} className="md3-form">
         <div className="form-group">
           <label>Requested By *</label>
-          <input 
-            type="text" 
-            name="requestedBy" 
-            value={formData.requestedBy} 
-            onChange={handleChange} 
+          <input
+            type="text"
+            name="requestedBy"
+            value={formData.requestedBy}
+            onChange={handleChange}
             className="md3-input"
             placeholder="Your Full Name"
-            required 
+            required
           />
         </div>
 
         <div className="form-group">
           <label>Email Address *</label>
-          <input 
-            type="email" 
-            name="clientEmail" 
-            value={formData.clientEmail} 
-            onChange={handleChange} 
+          <input
+            type="email"
+            name="clientEmail"
+            value={formData.clientEmail}
+            onChange={handleChange}
             className="md3-input"
             placeholder="name@company.com"
-            required 
+            required
           />
         </div>
 
         <div className="form-group">
           <label>Phone Number</label>
-          <input 
-            type="tel" 
-            name="phoneNumber" 
-            value={formData.phoneNumber} 
-            onChange={handleChange} 
+          <input
+            type="tel"
+            name="phoneNumber"
+            value={formData.phoneNumber}
+            onChange={handleChange}
             className="md3-input"
             placeholder="+1 234 567 8900"
           />
@@ -126,14 +126,14 @@ export default function PublicComplaintForm({ asset, signature }) {
 
         <div className="form-group">
           <label>Description of Issue *</label>
-          <textarea 
-            name="description" 
-            value={formData.description} 
-            onChange={handleChange} 
+          <textarea
+            name="description"
+            value={formData.description}
+            onChange={handleChange}
             className="md3-input"
             rows="4"
             placeholder="Please detail the hardware issue..."
-            required 
+            required
           />
         </div>
 

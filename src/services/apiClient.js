@@ -88,8 +88,9 @@ const genericGet = async (action) => {
 export const loginUser = (email, password) => genericPost('login', { email, password });
 
 // --- DATA FETCHING (DROPDOWNS / LISTS) ---
-export const fetchDropdownData = () => genericPost('getInitialData');
+export const fetchDropdownData = () => genericPost('getDropdownData');
 export const getCompanies = () => genericGet('getCompanies');
+export const fetchCompanies = () => genericPost('getCompanies');
 export const getComplaints = () => genericGet('getComplaints');
 
 // --- INTAKE & COMPLAINTS ---
@@ -97,8 +98,12 @@ export const submitComplaint = (payload) => genericPost('submitComplaint', paylo
 export const pushToIntakeQueue = (payload) => genericPost('pushToIntake', payload);
 export const fetchIntakeQueue = () => genericPost('fetchIntakeQueue');
 export const submitIntake = (payload) => genericPost('submitRequest', payload);
+export const submitToIntakeQueue = (payload) => genericPost('submitIntake', payload);
+export const fetchEngineers = () => genericPost('getEngineers');
+export const fetchAssets = () => genericPost('getAssets');
 
 // --- TICKET MANAGEMENT ---
+export const createMasterTicket = (payload) => genericPost('createMasterTicket', payload);
 export const fetchMasterTickets = () => genericPost('fetchMasterTickets');
 export const promoteTicket = (payload) => genericPost('promoteTicket', payload);
 export const resolveTicket = (payload) => genericPost('resolveTicket', payload);
@@ -108,8 +113,10 @@ export const assignTicket = (payload) => genericPost('assignTicket', payload);
 export const updateTaskStatus = (payload) => genericPost('updateChildTicket', payload);
 export const addParentRemark = (payload) => genericPost('addParentRemark', payload);
 export const trackTicket = (payload) => genericPost('trackTicket', payload);
+export const searchTicket = (term) => genericPost('searchTicket', { searchTerm: term });
 export const closeParentTicket = (payload) => genericPost('closeParentTicket', payload);
 export const validateRef = (payload) => genericPost('validateRef', payload);
+export const generateServiceReport = (ticketId) => genericPost('generateServiceReport', { Ticket_ID: ticketId });
 
 // --- ASSET/COMPANY MANAGEMENT ---
 export const getPublicAssetDetails = (payload) => genericPost('getPublicAssetDetails', payload);

@@ -1,7 +1,7 @@
 /* eslint-disable react-hooks/set-state-in-effect */
 import { useState, useEffect, useCallback } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { validateRef, submitIntake } from '../services/apiClient';
+import { validateRef, submitToIntakeQueue, fetchDropdownData } from '../services/apiClient';
 import './TicketRequest.css';
 
 const TicketRequest = () => {
@@ -10,36 +10,89 @@ const TicketRequest = () => {
 
   // View States
   const [view, setView] = useState('auth'); // 'auth', 'form', 'success'
-  const [clientCode, setClientCode] = useState(urlRef);
-  const [companyName, setCompanyName] = useState('');
+  const [serviceRequestId, setServiceRequestId] = useState(urlRef);
+  const [company, setCompany] = useState('');
   const [status, setStatus] = useState({ loading: false, error: null });
   const [reqId, setReqId] = useState('');
 
-  // Form Data State
-  const [formData, setFormData] = useState({
-    reqName: '', reqPhone: '', reqEmail: '', reqLocation: '', reqRoom: '', reqCategory: '', reqDescription: ''
-  });
+  // Dropdown Master Data
+  const [dropdownData, setDropdownData] = useState({ companies: [], assets: [] });
+  const [companyAssets, setCompanyAssets] = useState([]);
 
-  // Dynamic Hardware Array (Max 5)
-  const [products, setProducts] = useState([{ productMake: '', productModel: '', productSerial: '' }]);
+  // Form State variables
+  const [reqBy, setReqBy] = useState('');
+  const [phoneNumber, setPhoneNumber] = useState('');
+  const [clientEmail, setClientEmail] = useState('');
+  const [location, setLocation] = useState('');
+  const [room, setRoom] = useState('');
+  const [category, setCategory] = useState('');
+  const [description, setDescription] = useState('');
   
+  // Hardware Products State array
+  const [products, setProducts] = useState([
+    {
+      uniqueId: '',
+      productMake: '',
+      productModel: '',
+      productSerial: '',
+      salesOrder: '',
+      invoiceNo: '',
+      subLocation: '',
+      roomType: '',
+      floor: '',
+      roomName: '',
+      macId: '',
+      ipAddress: '',
+      warrantyStart: '',
+      dlpPeriod: '',
+      warrantyEnd: '',
+      warrantyDays: '',
+      assetStatus: 'Active',
+      selectedAsset: null
+    }
+  ]);
+
   // File Upload State
-  const [fileData, setFileData] = useState(null);
+  const [attachment, setAttachment] = useState(null);
   const [fileName, setFileName] = useState('Attach Invoice, Image, or Document');
 
+  // Load dropdown data on mount
+  useEffect(() => {
+    const loadDropdowns = async () => {
+      try {
+        const response = await fetchDropdownData();
+        if (response?.success && response?.data) {
+          setDropdownData(response.data);
+        }
+      } catch (err) {
+        console.error("Failed to fetch dropdown datasets:", err);
+      }
+    };
+    loadDropdowns();
+  }, []);
+
   const handleAuth = useCallback(async (codeOverride = null) => {
-    const codeToUse = codeOverride || clientCode;
+    const codeToUse = codeOverride || serviceRequestId;
     if (!codeToUse.trim()) {
       setStatus({ loading: false, error: "Please enter a reference code." });
       return;
     }
-    
+
     setStatus({ loading: true, error: null });
-    
+
     try {
       const response = await validateRef({ ref: codeToUse });
       if (response?.success) {
-        setCompanyName(response?.data?.companyName || "Verified Client");
+        setCompany(response?.data?.companyName || "Verified Client");
+        
+        // Filter assets by verified client code
+        if (dropdownData.assets) {
+          const filtered = dropdownData.assets.filter(asset => 
+            String(asset.Company_Ref || '').trim().toLowerCase() === String(codeToUse).trim().toLowerCase()
+          );
+          setCompanyAssets(filtered);
+        }
+
         setView('form');
         setStatus({ loading: false, error: null });
       } else {
@@ -48,48 +101,126 @@ const TicketRequest = () => {
     } catch {
       setStatus({ loading: false, error: "Network error. Please try again." });
     }
-  }, [clientCode]);
+  }, [serviceRequestId, dropdownData.assets]);
 
-  // Auto-authenticate if URL has ?ref=
+  // Auto-authenticate if URL has ?ref= and dropdown data is loaded
   useEffect(() => {
-    if (urlRef) handleAuth(urlRef);
-  }, [urlRef, handleAuth]);
+    if (urlRef && dropdownData.assets.length > 0) {
+      handleAuth(urlRef);
+    }
+  }, [urlRef, dropdownData.assets, handleAuth]);
+
+  const addProduct = () => {
+    if (products.length >= 5) return;
+    setProducts(prev => [
+      ...prev,
+      {
+        uniqueId: '',
+        productMake: '',
+        productModel: '',
+        productSerial: '',
+        salesOrder: '',
+        invoiceNo: '',
+        subLocation: '',
+        roomType: '',
+        floor: '',
+        roomName: '',
+        macId: '',
+        ipAddress: '',
+        warrantyStart: '',
+        dlpPeriod: '',
+        warrantyEnd: '',
+        warrantyDays: '',
+        assetStatus: 'Active',
+        selectedAsset: null
+      }
+    ]);
+  };
+
+  const removeProduct = (index) => {
+    if (products.length <= 1) return;
+    setProducts(prev => prev.filter((_, i) => i !== index));
+  };
 
   const handleProductChange = (index, field, value) => {
-    const newProducts = [...products];
-    if (newProducts[index]) {
-      newProducts[index][field] = value;
-      setProducts(newProducts);
-    }
+    setProducts(prev => {
+      const updated = [...prev];
+      updated[index] = { ...updated[index], [field]: value };
+      return updated;
+    });
   };
 
-  const addProductUI = () => {
-    if (products.length < 5) {
-      setProducts([...products, { productMake: '', productModel: '', productSerial: '' }]);
+  const handleProductAssetSelect = (index, assetRef) => {
+    const selected = companyAssets.find(a => a.Asset_Ref === assetRef);
+    const updated = [...products];
+    if (selected) {
+      updated[index] = {
+        ...updated[index],
+        uniqueId: selected.Asset_Ref,
+        productMake: selected.Make || '',
+        productModel: selected.Model || '',
+        productSerial: selected.Serial_Number || '',
+        salesOrder: selected.Sales_Order || '',
+        invoiceNo: selected.Invoice_No || '',
+        subLocation: selected.Sub_Location || '',
+        roomType: selected.Room_Type || '',
+        floor: selected.Floor || '',
+        roomName: selected.Room_Name || '',
+        macId: selected.MAC_ID || '',
+        ipAddress: selected.IP_Address || '',
+        warrantyStart: selected.Warranty_Start_Date || '',
+        dlpPeriod: selected.DLP_Period || '',
+        warrantyEnd: selected.Warranty_End_Date || '',
+        warrantyDays: selected.Warranty_Days_Left || '',
+        assetStatus: selected.Asset_Status || 'Active',
+        selectedAsset: selected
+      };
+      
+      if (selected.Location) {
+        setLocation(selected.Location);
+      }
+      if (selected.Room_Name) {
+        setRoom(selected.Room_Name);
+      }
+    } else {
+      updated[index] = {
+        uniqueId: '',
+        productMake: '',
+        productModel: '',
+        productSerial: '',
+        salesOrder: '',
+        invoiceNo: '',
+        subLocation: '',
+        roomType: '',
+        floor: '',
+        roomName: '',
+        macId: '',
+        ipAddress: '',
+        warrantyStart: '',
+        dlpPeriod: '',
+        warrantyEnd: '',
+        warrantyDays: '',
+        assetStatus: 'Active',
+        selectedAsset: null
+      };
     }
-  };
-
-  const removeProductUI = (index) => {
-    if (products.length > 1) {
-      const newProducts = products.filter((_, i) => i !== index);
-      setProducts(newProducts);
-    }
+    setProducts(updated);
   };
 
   const handleFileChange = (e) => {
     const file = e.target.files?.[0];
     if (!file) {
       setFileName('Attach Invoice, Image, or Document');
-      setFileData(null);
+      setAttachment(null);
       return;
     }
-    
+
     // Validate File Size (5MB limit)
     if (file.size > 5242880) {
       alert('File size exceeds the 5MB limit. Please select a smaller file.');
       e.target.value = '';
       setFileName('Attach Invoice, Image, or Document');
-      setFileData(null);
+      setAttachment(null);
       return;
     }
 
@@ -99,50 +230,110 @@ const TicketRequest = () => {
       alert('Invalid file format. Please upload a PDF, JPG, or PNG.');
       e.target.value = '';
       setFileName('Attach Invoice, Image, or Document');
-      setFileData(null);
+      setAttachment(null);
       return;
     }
 
     setFileName(`Attached: ${file.name}`);
-    
-    const reader = new FileReader();
-    reader.readAsDataURL(file);
-    reader.onload = () => {
-      setFileData({
-        filename: file.name,
-        mimeType: file.type,
-        base64: reader.result?.split(',')[1] || ''
-      });
-    };
+    setAttachment(file);
   };
+
+  // Base64 Helper
+  const toBase64 = file => new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.readAsDataURL(file);
+      reader.onload = () => resolve(reader.result.split(',')[1]);
+      reader.onerror = error => reject(error);
+  });
 
   const submitForm = async (e) => {
     e.preventDefault();
     setStatus({ loading: true, error: null });
 
-    const payload = {
-      ref: clientCode,
-      requesterName: formData.reqName,
-      phoneNumber: formData.reqPhone,
-      email: formData.reqEmail,
-      location: formData.reqLocation,
-      roomName: formData.reqRoom,
-      category: formData.reqCategory,
-      issueDescription: formData.reqDescription,
-      products: products.filter(p => p && (p.productMake || p.productModel || p.productSerial)), // Only send filled items
-      fileData: fileData
-    };
-
     try {
-      const response = await submitIntake(payload);
+      let base64String = "";
+      if (attachment) {
+        base64String = await toBase64(attachment);
+      }
+
+      const payload = {
+        Source: "Manual",
+        ref: serviceRequestId,
+        refCode: serviceRequestId,
+        Ref_Code: serviceRequestId,
+        companyName: company,
+        Company_Name: company,
+        location: location,
+        Location: location,
+        roomName: room,
+        Room_Name: room,
+        requesterName: reqBy,
+        Requester_Name: reqBy,
+        email: clientEmail,
+        Client_Email: clientEmail,
+        phoneNumber: phoneNumber,
+        PhoneNumber: phoneNumber,
+        category: category,
+        Category: category,
+        issueDescription: description,
+        Issue_Description: description,
+        
+        Attachment_Base64: base64String,
+        Attachment_Name: attachment ? attachment.name : "",
+        Attachment_MimeType: attachment ? attachment.type : "",
+        
+        products: products.map(p => ({
+          uniqueId: p.uniqueId || "Manual",
+          uniqueProductId: p.uniqueId || "Manual",
+          Unique_Product_Id: p.uniqueId || "Manual",
+          salesOrder: p.salesOrder,
+          Sales_Order: p.salesOrder,
+          invoiceNo: p.invoiceNo,
+          Invoice_No: p.invoiceNo,
+          subLocation: p.subLocation,
+          Sub_Location: p.subLocation,
+          roomType: p.roomType,
+          Room_Type: p.roomType,
+          floor: p.floor,
+          Floor: p.floor,
+          roomName: p.roomName,
+          Room_Name: p.roomName,
+          productMake: p.productMake,
+          ProductMake: p.productMake,
+          brand: p.productMake,
+          productModel: p.productModel,
+          ProductModel: p.productModel,
+          model: p.productModel,
+          productSerial: p.productSerial,
+          ProductSerial: p.productSerial,
+          serial: p.productSerial,
+          macId: p.macId,
+          MAC_ID: p.macId,
+          ipAddress: p.ipAddress,
+          IP_Address: p.ipAddress,
+          warrantyStart: p.warrantyStart,
+          Warranty_Start_Date: p.warrantyStart,
+          dlpPeriod: p.dlpPeriod,
+          DLP_Period: p.dlpPeriod,
+          warrantyEnd: p.warrantyEnd,
+          Warranty_End_Date: p.warrantyEnd,
+          warrantyDays: p.warrantyDays,
+          Warranty_Days_Left: p.warrantyDays,
+          assetStatus: p.assetStatus,
+          Asset_Status: p.assetStatus
+        }))
+      };
+
+      const response = await submitToIntakeQueue(payload);
       if (response?.success) {
-        setReqId(response?.data?.requestId || 'Generated Successfully');
+        setReqId(response?.data?.Intake_ID || response?.data?.requestId || 'Generated Successfully');
         setView('success');
       } else {
         alert("Error: " + (response?.message || "Unknown error during form submission"));
         setStatus({ loading: false, error: null });
       }
-    } catch {
+    } catch (err) {
+      console.error(err);
       alert("Submission failed. Network layer blocked.");
       setStatus({ loading: false, error: null });
     }
@@ -150,14 +341,14 @@ const TicketRequest = () => {
 
   if (view === 'success') {
     return (
-      <div className="page-wrapper" style={{display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '20px'}}>
-        <div className="card" style={{textAlign: 'center', padding: '60px 40px', display: 'flex', flexDirection: 'column', alignItems: 'center'}}>
+      <div className="page-wrapper" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '20px' }}>
+        <div className="card" style={{ textAlign: 'center', padding: '60px 40px', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
           <img src={`${import.meta.env.BASE_URL}logo-1.png`} alt="AV Dynamic" className="success-logo-img" />
           <div className="success-icon">✓</div>
-          <h2 style={{fontSize: '28px', color: 'var(--slate-dark)', marginBottom: '10px'}}>Ticket Generated</h2>
-          <p style={{color: 'var(--slate-gray)', marginBottom: '30px'}}>Your service request has been logged successfully.</p>
+          <h2 style={{ fontSize: '28px', color: 'var(--slate-dark)', marginBottom: '10px' }}>Ticket Generated</h2>
+          <p style={{ color: 'var(--slate-gray)', marginBottom: '30px' }}>Your service request has been logged successfully.</p>
           <div className="request-id-display">{reqId}</div>
-          <button className="btn btn-outline mt-4" onClick={() => window.location.href = '/'} style={{marginTop: '20px'}}>Return to Home</button>
+          <button className="btn btn-outline mt-4" onClick={() => window.location.href = '/'} style={{ marginTop: '20px' }}>Return to Home</button>
         </div>
       </div>
     );
@@ -166,27 +357,27 @@ const TicketRequest = () => {
   return (
     <div className="page-wrapper">
       <main className="app-main">
-        
+
         {/* Auth View */}
         {view === 'auth' && (
           <div className="card" id="authView">
-             <img src={`${import.meta.env.BASE_URL}logo-1.png`} alt="AV Dynamic" className="auth-logo-img" />
-             <h1>Welcome to ProSupport</h1>
-             <p className="subtitle">Secure enterprise service request system.</p>
-             <div className="input-group" style={{marginBottom: '30px', width: '100%'}}>
-                <label>Client Reference Code</label>
-                <input 
-                  type="text" 
-                  value={clientCode} 
-                  onChange={(e) => setClientCode(e.target.value)}
-                  placeholder="e.g., A7K2L1" 
-                  disabled={status.loading}
-                />
-             </div>
-             <button className="btn btn-primary" onClick={() => handleAuth()} disabled={status.loading}>
-               {status.loading ? 'Authenticating...' : 'Authenticate & Continue'}
-             </button>
-             {status.error && <div className="error-text">{status.error}</div>}
+            <img src={`${import.meta.env.BASE_URL}logo-1.png`} alt="AV Dynamic" className="auth-logo-img" />
+            <h1>Welcome to ProSupport</h1>
+            <p className="subtitle">Secure enterprise service request system.</p>
+            <div className="input-group" style={{ marginBottom: '30px', width: '100%' }}>
+              <label>Client Reference Code</label>
+              <input
+                type="text"
+                value={serviceRequestId}
+                onChange={(e) => setServiceRequestId(e.target.value)}
+                placeholder="e.g., A7K2L1"
+                disabled={status.loading}
+              />
+            </div>
+            <button className="btn btn-primary" onClick={() => handleAuth()} disabled={status.loading}>
+              {status.loading ? 'Authenticating...' : 'Authenticate & Continue'}
+            </button>
+            {status.error && <div className="error-text">{status.error}</div>}
           </div>
         )}
 
@@ -195,7 +386,7 @@ const TicketRequest = () => {
           <div className="card" id="formView">
             <div className="form-header">
               <h2>Register Service Request</h2>
-              <div className="company-display">Company: {companyName}</div>
+              <div className="company-display">Company: {company}</div>
             </div>
 
             <form onSubmit={submitForm}>
@@ -203,30 +394,30 @@ const TicketRequest = () => {
               <div className="grid-2">
                 <div className="input-group">
                   <label>Requester Name <span className="req">*</span></label>
-                  <input type="text" required value={formData.reqName} onChange={e => setFormData({...formData, reqName: e.target.value})} disabled={status.loading} />
+                  <input type="text" required value={reqBy} onChange={e => setReqBy(e.target.value)} disabled={status.loading} />
                 </div>
                 <div className="input-group">
                   <label>Phone Number <span className="req">*</span></label>
-                  <input type="tel" required value={formData.reqPhone} onChange={e => setFormData({...formData, reqPhone: e.target.value})} disabled={status.loading} />
+                  <input type="tel" required value={phoneNumber} onChange={e => setPhoneNumber(e.target.value)} disabled={status.loading} />
                 </div>
                 <div className="input-group">
                   <label>Client Email(s) - Comma separated <span className="req">*</span></label>
-                  <input type="text" required value={formData.reqEmail} onChange={e => setFormData({...formData, reqEmail: e.target.value})} placeholder="e.g., client1@example.com, client2@example.com" disabled={status.loading} />
+                  <input type="text" required value={clientEmail} onChange={e => setClientEmail(e.target.value)} placeholder="e.g., client1@example.com, client2@example.com" disabled={status.loading} />
                 </div>
                 <div className="input-group">
                   <label>Location (Site) <span className="req">*</span></label>
-                  <input type="text" required value={formData.reqLocation} onChange={e => setFormData({...formData, reqLocation: e.target.value})} disabled={status.loading} />
+                  <input type="text" required value={location} onChange={e => setLocation(e.target.value)} disabled={status.loading} />
                 </div>
                 <div className="input-group">
                   <label>Room Name <span className="req">*</span></label>
-                  <input type="text" required value={formData.reqRoom} onChange={e => setFormData({...formData, reqRoom: e.target.value})} disabled={status.loading} />
+                  <input type="text" required value={room} onChange={e => setRoom(e.target.value)} disabled={status.loading} />
                 </div>
               </div>
 
               <div className="grid-2">
                 <div className="input-group">
                   <label>Category <span className="req">*</span></label>
-                  <select required value={formData.reqCategory} onChange={e => setFormData({...formData, reqCategory: e.target.value})} disabled={status.loading}>
+                  <select required value={category} onChange={e => setCategory(e.target.value)} disabled={status.loading}>
                     <option value="">Select Category...</option>
                     <option>Hardware</option>
                     <option>Connectivity</option>
@@ -239,59 +430,99 @@ const TicketRequest = () => {
 
               <div className="input-group full-width mt-3">
                 <label>Issue Description <span className="req">*</span></label>
-                <textarea rows="4" required value={formData.reqDescription} onChange={e => setFormData({...formData, reqDescription: e.target.value})} disabled={status.loading}></textarea>
+                <textarea rows="4" required value={description} onChange={e => setDescription(e.target.value)} disabled={status.loading}></textarea>
               </div>
 
               <div className="section-title"><span>02.</span> Infrastructure Details</div>
-              <span className="form-note">Note: If you do not have the Make, Model or Serial Number write NA</span>
-              {products.map((prod, idx) => {
-                if (!prod) return null;
-                return (
-                  <div className="product-box" key={idx}>
-                    <div className="product-header">
-                      <h4>Item {idx + 1}</h4>
-                      {products.length > 1 && (
-                        <button 
-                          type="button" 
-                          className="btn btn-sm btn-danger remove-btn" 
-                          onClick={() => removeProductUI(idx)}
-                          disabled={status.loading}
-                        >
-                          &times; Remove
-                        </button>
-                      )}
+              <span className="form-note">Note: Select pre-registered hardware from the registry or type details manually.</span>
+              
+              {products.map((prod, index) => (
+                <div className="product-box" key={index}>
+                  <div className="product-header">
+                    <h4>Item Details #{index + 1}</h4>
+                    {products.length > 1 && (
+                      <button
+                        type="button"
+                        className="remove-btn"
+                        onClick={() => removeProduct(index)}
+                      >
+                        ✕ Remove
+                      </button>
+                    )}
+                  </div>
+
+                  <div className="input-group" style={{ marginBottom: '15px' }}>
+                    <label>Link Registered Hardware Asset</label>
+                    <select 
+                      value={prod.uniqueId} 
+                      onChange={e => handleProductAssetSelect(index, e.target.value)}
+                      disabled={status.loading}
+                    >
+                      <option value="">-- Custom / Manual Entry --</option>
+                      {companyAssets.map((asset, aidx) => (
+                        <option key={aidx} value={asset.Asset_Ref}>
+                          {asset.Asset_Ref} ({asset.Make} {asset.Model} - S/N: {asset.Serial_Number})
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div className="grid-2">
+                    <div className="input-group">
+                      <label>Make *</label>
+                      <input 
+                        type="text" 
+                        required 
+                        value={prod.productMake} 
+                        onChange={e => handleProductChange(index, 'productMake', e.target.value)} 
+                        disabled={status.loading || !!prod.uniqueId} 
+                      />
                     </div>
-                    <div className="grid-2">
-                      <div className="input-group">
-                        <label>Make *</label>
-                        <input type="text" required value={prod.productMake} onChange={e => handleProductChange(idx, 'productMake', e.target.value)} disabled={status.loading} />
-                      </div>
-                      <div className="input-group">
-                        <label>Model *</label>
-                        <input type="text" required value={prod.productModel} onChange={e => handleProductChange(idx, 'productModel', e.target.value)} disabled={status.loading} />
-                      </div>
-                    </div>
-                    <div className="input-group" style={{marginBottom: 0}}>
-                      <label>Serial Number *</label>
-                      <input type="text" required value={prod.productSerial} onChange={e => handleProductChange(idx, 'productSerial', e.target.value)} placeholder="Write NA if unknown" disabled={status.loading} />
+                    <div className="input-group">
+                      <label>Model *</label>
+                      <input 
+                        type="text" 
+                        required 
+                        value={prod.productModel} 
+                        onChange={e => handleProductChange(index, 'productModel', e.target.value)} 
+                        disabled={status.loading || !!prod.uniqueId} 
+                      />
                     </div>
                   </div>
-                );
-              })}
-              
+                  <div className="input-group" style={{ marginBottom: 0 }}>
+                    <label>Serial Number *</label>
+                    <input 
+                      type="text" 
+                      required 
+                      value={prod.productSerial} 
+                      onChange={e => handleProductChange(index, 'productSerial', e.target.value)} 
+                      placeholder="Write NA if unknown" 
+                      disabled={status.loading || !!prod.uniqueId} 
+                    />
+                  </div>
+                </div>
+              ))}
+
               {products.length < 5 && (
-                <button type="button" className="btn btn-outline mt-3" onClick={addProductUI} disabled={status.loading}>+ Add Hardware Item</button>
+                <button
+                  type="button"
+                  className="btn btn-outline"
+                  onClick={addProduct}
+                  style={{ marginBottom: '20px', borderStyle: 'dashed' }}
+                >
+                  ➕ Add Another Hardware Item
+                </button>
               )}
 
               <div className="section-title"><span>03.</span> Attachments</div>
               <div className="upload-box">
                 <label htmlFor="reqInvoice" className="upload-label">
-                  <div style={{display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '4px'}}>
-                    <span style={{color: fileData ? 'var(--brand-accent)' : 'var(--text-muted)', fontWeight: fileData ? 'bold' : 'normal'}}>{fileName}</span>
-                    <span style={{fontSize: '13px', color: 'var(--text-muted)'}}>(PDF, JPG, PNG - Max limit: 5MB)</span>
+                  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '4px' }}>
+                    <span style={{ color: attachment ? 'var(--brand-accent)' : 'var(--text-muted)', fontWeight: attachment ? 'bold' : 'normal' }}>{fileName}</span>
+                    <span style={{ fontSize: '13px', color: 'var(--text-muted)' }}>(PDF, JPG, PNG - Max limit: 5MB)</span>
                   </div>
                 </label>
-                <input type="file" id="reqInvoice" style={{display: 'none'}} accept=".pdf,.jpg,.jpeg,.png" onChange={handleFileChange} disabled={status.loading} />
+                <input type="file" id="reqInvoice" style={{ display: 'none' }} accept=".pdf,.jpg,.jpeg,.png" onChange={handleFileChange} disabled={status.loading} />
               </div>
 
               <div className="form-footer">

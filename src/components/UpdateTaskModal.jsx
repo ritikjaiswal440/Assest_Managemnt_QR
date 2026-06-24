@@ -1,6 +1,6 @@
 /* eslint-disable react-hooks/set-state-in-effect */
 import { useState, useEffect } from 'react';
-import { gasApi, resolveTicket, resolveTask } from '../services/apiClient';
+import { resolveTicket, resolveTask } from '../services/apiClient';
 
 const UpdateTaskModal = ({ isOpen, onClose, taskConfig, currentUser, onSuccess }) => {
   const [statusVal, setStatusVal] = useState('');
@@ -61,7 +61,7 @@ const UpdateTaskModal = ({ isOpen, onClose, taskConfig, currentUser, onSuccess }
       } else {
         throw new Error("Invalid Task Configuration: Missing ID reference.");
       }
-      
+
       if (response?.success) {
         onSuccess(statusVal, remark); // Pass updated status/remark back
         onClose();   // Hides the modal
@@ -86,9 +86,9 @@ const UpdateTaskModal = ({ isOpen, onClose, taskConfig, currentUser, onSuccess }
         <form onSubmit={handleSubmit} className="modal-form">
           <div className="form-group">
             <label>Task Status</label>
-            <select 
-              value={statusVal} 
-              onChange={(e) => setStatusVal(e.target.value)} 
+            <select
+              value={statusVal}
+              onChange={(e) => setStatusVal(e.target.value)}
               required
               disabled={status.loading}
             >
@@ -102,10 +102,10 @@ const UpdateTaskModal = ({ isOpen, onClose, taskConfig, currentUser, onSuccess }
 
           <div className="form-group" style={{ marginTop: '15px' }}>
             <label>Work Log / Remarks</label>
-            <textarea 
-              rows="4" 
-              value={remark} 
-              onChange={(e) => setRemark(e.target.value)} 
+            <textarea
+              rows="4"
+              value={remark}
+              onChange={(e) => setRemark(e.target.value)}
               placeholder="Log your updates, repairs, or part requests here..."
               disabled={status.loading}
             ></textarea>

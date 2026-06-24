@@ -431,8 +431,22 @@ th {
 }
 
 .status-ready {
-    background: var(--purple-light);
-    color: var(--purple-hover);
+    background: var(--warning-light);
+    color: var(--warning-hover);
+    border: 1px solid var(--warning);
+    animation: status-pulse 2s infinite ease-in-out;
+}
+
+@keyframes status-pulse {
+    0% {
+        box-shadow: 0 0 0 0 rgba(249, 171, 0, 0.4);
+    }
+    70% {
+        box-shadow: 0 0 0 6px rgba(249, 171, 0, 0);
+    }
+    100% {
+        box-shadow: 0 0 0 0 rgba(249, 171, 0, 0);
+    }
 }
 
 .status-closed {
