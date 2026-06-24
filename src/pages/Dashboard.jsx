@@ -345,6 +345,81 @@ const Dashboard = () => {
     }
   };
 
+  const handleTaskUpdateSuccess = useCallback((updatedStatus, newRemark, taskId, ticketId) => {
+    // 1. Refresh background data
+    fetchDashboardData();
+
+    // 2. Perform optimistic local UI state update
+    const timestamp = new Date().toLocaleString('en-GB', { 
+      timeZone: 'Asia/Kolkata', 
+      day: '2-digit', month: 'short', year: 'numeric', 
+      hour: '2-digit', minute: '2-digit' 
+    });
+    
+    if (taskId) {
+      if (newRemark && newRemark.trim() !== '') {
+        const newLogEntry = `[${timestamp}] ${newRemark.trim()}`;
+        setKpiMetrics(prev => {
+          if (!prev) return prev;
+          const updatedChildren = (prev.children || []).map(child => {
+            if (String(child.Task_ID) === String(taskId)) {
+              const existingRemarks = child.Engineer_Remarks || child.engineerRemarks || child.Remarks || "";
+              const combinedRemarks = existingRemarks ? `${existingRemarks}\n${newLogEntry}` : newLogEntry;
+              return {
+                ...child,
+                Status: updatedStatus || child.Status,
+                Engineer_Remarks: combinedRemarks,
+                engineerRemarks: combinedRemarks,
+                Remarks: combinedRemarks,
+                Admin_Eng_Remarks: combinedRemarks,
+                admin_eng_remarks: combinedRemarks
+              };
+            }
+            return child;
+          });
+          return { ...prev, children: updatedChildren };
+        });
+      } else if (updatedStatus) {
+        setKpiMetrics(prev => {
+          if (!prev) return prev;
+          const updatedChildren = (prev.children || []).map(child => {
+            if (String(child.Task_ID) === String(taskId)) {
+              return { ...child, Status: updatedStatus };
+            }
+            return child;
+          });
+          return { ...prev, children: updatedChildren };
+        });
+      }
+    } else if (ticketId) {
+      if (newRemark && newRemark.trim() !== '') {
+        const dateStr = new Date().toISOString().split('T')[0];
+        const newRemarkEntry = `[${dateStr}] ${updatedStatus}: ${newRemark.trim()}`;
+        setMasterData(prev => prev.map(t => {
+          if (String(t.Ticket_ID || t.parentId || t.Parent_ID) === String(ticketId)) {
+            const existingRemarks = t.Admin_Remarks || "";
+            const combinedRemarks = existingRemarks ? `${existingRemarks}\n${newRemarkEntry}` : newRemarkEntry;
+            return {
+              ...t,
+              Status: updatedStatus || t.Status,
+              Admin_Remarks: combinedRemarks,
+              admin_remarks: combinedRemarks,
+              adminRemarks: combinedRemarks
+            };
+          }
+          return t;
+        }));
+      } else if (updatedStatus) {
+        setMasterData(prev => prev.map(t => {
+          if (String(t.Ticket_ID || t.parentId || t.Parent_ID) === String(ticketId)) {
+            return { ...t, Status: updatedStatus };
+          }
+          return t;
+        }));
+      }
+    }
+  }, [fetchDashboardData]);
+
   const handleArchiveRequest = async (requestId) => {
     if (window.confirm(`Are you sure you want to archive Service Request ${requestId}? This will remove it from the active queue.`)) {
       setIsLoading(true);
@@ -603,7 +678,7 @@ const Dashboard = () => {
         onClose={() => setUpdateTaskConfig({ isOpen: false, childId: null, parentId: null, currentStatus: '' })}
         taskConfig={updateTaskConfig}
         currentUser={user}
-        onSuccess={fetchDashboardData}
+        onSuccess={handleTaskUpdateSuccess}
       />
       <AssignEngineerModal 
         isOpen={assignConfig.isOpen}

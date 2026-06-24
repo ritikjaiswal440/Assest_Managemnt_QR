@@ -112,7 +112,7 @@ export const fetchSystemLogs = (ticketId) => genericPost('fetchLogs', { Ticket_I
 export const assignTicket = (payload) => genericPost('assignTicket', payload);
 export const updateTaskStatus = (payload) => genericPost('updateChildTicket', payload);
 export const addParentRemark = (payload) => genericPost('addParentRemark', payload);
-export const trackTicket = (payload) => genericPost('trackTicket', payload);
+export const trackTicket = (query) => genericPost('trackTicket', { trackingQuery: query });
 export const searchTicket = (term) => genericPost('searchTicket', { searchTerm: term });
 export const closeParentTicket = (payload) => genericPost('closeParentTicket', payload);
 export const validateRef = (payload) => genericPost('validateRef', payload);

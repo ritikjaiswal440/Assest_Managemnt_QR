@@ -1,22 +1,52 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 
 const ServiceRequestTable = ({ requests, masterTickets, onConvertToMaster, onArchiveRequest, onUnarchiveRequest }) => {
   const [expandedRows, setExpandedRows] = useState({});
   const requestsArray = Array.isArray(requests) ? requests : [];
-  
-  const groupedRequests = React.useMemo(() => {
+
+  // 1. Group Flat/Nested Rows by Intake_ID & Sort by Timestamp descending
+  const groupedRequests = useMemo(() => {
     const map = {};
     requestsArray.forEach(r => {
       const id = r.Intake_ID || r.requestId;
       if (!id) return;
+      
       if (!map[id]) {
         // Initialize the group with the general data from the first row
-        map[id] = { ...r, items: [] }; 
+        map[id] = { ...r, items: [] };
       }
-      // Push the specific product row into the items array
-      map[id].items.push(r);
+      
+      // If the backend already grouped the items inside 'products'
+      if (Array.isArray(r.products) && r.products.length > 0) {
+        r.products.forEach(p => {
+          map[id].items.push({
+            ...p,
+            Intake_ID: id,
+            requestId: id,
+            Company_Name: r.Company_Name || r.companyName || '',
+            companyName: r.Company_Name || r.companyName || '',
+            Requester_Name: r.Requester_Name || r.requesterName || '',
+            requesterName: r.Requester_Name || r.requesterName || '',
+            Client_Email: r.Client_Email || r.email || '',
+            email: r.Client_Email || r.email || '',
+            PhoneNumber: r.PhoneNumber || r.phoneNumber || r.phone || '',
+            phoneNumber: r.PhoneNumber || r.phoneNumber || r.phone || '',
+            Ref_Code: r.Ref_Code || r.refCode || '',
+            refCode: r.Ref_Code || r.refCode || ''
+          });
+        });
+      } else {
+        // Otherwise, treat it as a flat row
+        map[id].items.push(r);
+      }
     });
-    return Object.values(map);
+    
+    // Sort so the newest batches appear at the top
+    return Object.values(map).sort((a, b) => {
+      const dateA = new Date(a.Timestamp || a.timestamp || 0);
+      const dateB = new Date(b.Timestamp || b.timestamp || 0);
+      return dateB - dateA;
+    });
   }, [requestsArray]);
 
   const toggleRow = (id) => {
@@ -39,15 +69,27 @@ const ServiceRequestTable = ({ requests, masterTickets, onConvertToMaster, onArc
     );
   }
 
-  // Helper to calculate stats for a request
+  // 2. Calculate Batch-Level Status
   const getRequestStats = (req) => {
     const reqId = req?.Intake_ID || req?.requestId;
     if (!reqId) return { createdCount: 0, totalCount: 1, isFullyProcessed: false };
 
     const totalCount = req.items && req.items.length > 0 ? req.items.length : 1;
-    const createdCount = (masterTickets || []).filter(ticket => 
-      String(ticket.Intake_ID_Ref || ticket.Service_Request_ID || ticket.serviceRequestId || '').trim() === String(reqId).trim()
-    ).length;
+    
+    // Count how many specific items/devices in the batch already have a Master Ticket
+    const createdCount = req.items && req.items.length > 0
+      ? req.items.filter(item => {
+          const itemUniqueId = item.Unique_Product_Id || item.uniqueProductId || item.uniqueId;
+          const itemSerial = item.ProductSerial || item.productSerial || item.serial;
+          return (masterTickets || []).some(ticket => {
+            const ticketIntakeRef = ticket.Intake_ID_Ref || ticket.Service_Request_ID || ticket.serviceRequestId;
+            const isMatchIntake = String(ticketIntakeRef || '').trim() === String(reqId).trim();
+            const isMatchUnique = itemUniqueId && ticket.Unique_Product_Id && String(ticket.Unique_Product_Id).trim() === String(itemUniqueId).trim();
+            const isMatchSerial = itemSerial && ticket.ProductSerial && String(ticket.ProductSerial).trim() === String(itemSerial).trim();
+            return isMatchIntake && (isMatchUnique || isMatchSerial);
+          });
+        }).length
+      : 0;
 
     const statusStr = String(req.Status || req.status || '').toLowerCase();
     const isFullyProcessed = statusStr === 'promoted' || req.archived === true || req.archived === 'TRUE' || req.archived === 'true' || (createdCount >= totalCount);
@@ -118,7 +160,7 @@ const ServiceRequestTable = ({ requests, masterTickets, onConvertToMaster, onArc
 
               const intakeId = req.Intake_ID || req.requestId || 'N/A';
               const isExpanded = !!expandedRows[intakeId];
-              
+
               const companyName = req.Company_Name || req.companyName || 'N/A';
               const requesterName = req.Requester_Name || req.requesterName || 'Unknown';
               const clientEmail = req.Client_Email || req.email || 'N/A';
@@ -128,7 +170,7 @@ const ServiceRequestTable = ({ requests, masterTickets, onConvertToMaster, onArc
               const category = req.Category || req.category || 'N/A';
               const description = req.Issue_Description || req.description || '';
               const timestamp = req.Timestamp || req.timestamp || '';
-              
+
               const fileUrl = req.Attachment_URL || req.Attachment_Url || req.attachmentUrl || req.Attachment || req.invoiceUrl || '';
 
               return (
@@ -143,18 +185,18 @@ const ServiceRequestTable = ({ requests, masterTickets, onConvertToMaster, onArc
                       {renderBadge(createdCount, totalCount)}
                     </td>
                     <td>
-                      <b>{companyName}</b><br/>
+                      <b>{companyName}</b><br />
                       <small>{requesterName} | {clientEmail} | {phoneNumber}</small>
                     </td>
                     <td>
-                      <b>{category}</b><br/>
+                      <b>{category}</b><br />
                       <small><b>Loc:</b> {location} - {roomName}</small>
                       {req.items && req.items.length > 0 && (
                         <div style={{ marginTop: '4px', fontSize: '0.85rem', color: 'var(--slate-gray)' }}>
                           <b>Hardware:</b> {req.items.map((p) => `${p.ProductMake || p.productMake || p.brand || 'N/A'} ${p.ProductModel || p.productModel || p.model || 'N/A'}`).join(', ')}
                         </div>
                       )}
-                      <p className="detail-text mt-1" style={{maxWidth: '300px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis'}}>
+                      <p className="detail-text mt-1" style={{ maxWidth: '300px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                         {description}
                       </p>
                     </td>
@@ -168,14 +210,14 @@ const ServiceRequestTable = ({ requests, masterTickets, onConvertToMaster, onArc
                         )}
 
                         {isArchived ? (
-                          <button 
+                          <button
                             className="btn btn-sm btn-success"
-                            style={{ 
-                              borderRadius: '8px', 
-                              padding: '6px 12px', 
-                              fontSize: '0.85rem', 
-                              border: '1px solid #bbf7d0', 
-                              background: '#e6f4ea', 
+                            style={{
+                              borderRadius: '8px',
+                              padding: '6px 12px',
+                              fontSize: '0.85rem',
+                              border: '1px solid #bbf7d0',
+                              background: '#e6f4ea',
                               color: '#137333',
                               cursor: 'pointer',
                               transition: 'all 0.2s',
@@ -186,14 +228,14 @@ const ServiceRequestTable = ({ requests, masterTickets, onConvertToMaster, onArc
                             Unarchive
                           </button>
                         ) : (
-                          <button 
+                          <button
                             className="btn btn-sm btn-secondary"
-                            style={{ 
-                              borderRadius: '8px', 
-                              padding: '6px 12px', 
-                              fontSize: '0.85rem', 
-                              border: '1px solid #cbd5e1', 
-                              background: '#ffffff', 
+                            style={{
+                              borderRadius: '8px',
+                              padding: '6px 12px',
+                              fontSize: '0.85rem',
+                              border: '1px solid #cbd5e1',
+                              background: '#ffffff',
                               color: '#334155',
                               cursor: 'pointer',
                               transition: 'all 0.2s',
@@ -207,11 +249,11 @@ const ServiceRequestTable = ({ requests, masterTickets, onConvertToMaster, onArc
                         )}
 
                         {fileUrl && (
-                          <a 
-                            href={fileUrl} 
-                            target="_blank" 
-                            rel="noreferrer" 
-                            className="btn btn-sm btn-outline" 
+                          <a
+                            href={fileUrl}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="btn btn-sm btn-outline"
                             style={{ display: 'block', textAlign: 'center', borderRadius: '8px', padding: '6px 12px', fontSize: '0.85rem', textDecoration: 'none' }}
                           >
                             View Attachment
@@ -220,9 +262,12 @@ const ServiceRequestTable = ({ requests, masterTickets, onConvertToMaster, onArc
                       </div>
                     </td>
                   </tr>
+
+                  {/* 2. Update the Expanded Details View (Batch Render) */}
                   {isExpanded && (
                     <tr style={{ background: '#f8fafc' }}>
                       <td colSpan="5" style={{ padding: '15px 20px' }}>
+                        {/* Shared General/Contact info rendered once at the top */}
                         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '20px', marginBottom: '20px', borderBottom: '1px solid #e2e8f0', paddingBottom: '15px' }}>
                           <div>
                             <span style={{ fontSize: '0.75rem', textTransform: 'uppercase', color: '#64748b', fontWeight: 'bold', display: 'block', marginBottom: '4px' }}>Site Location Details</span>
@@ -245,10 +290,10 @@ const ServiceRequestTable = ({ requests, masterTickets, onConvertToMaster, onArc
                               <b>Description:</b> {description}
                             </p>
                             {fileUrl && (
-                              <a 
-                                href={fileUrl} 
-                                target="_blank" 
-                                rel="noreferrer" 
+                              <a
+                                href={fileUrl}
+                                target="_blank"
+                                rel="noreferrer"
                                 className="btn btn-sm btn-outline"
                                 style={{ display: 'inline-flex', alignItems: 'center', gap: '5px', textDecoration: 'none', fontWeight: 'bold', borderRadius: '8px', padding: '6px 12px', fontSize: '0.85rem' }}
                                 onClick={(e) => e.stopPropagation()}
@@ -259,14 +304,43 @@ const ServiceRequestTable = ({ requests, masterTickets, onConvertToMaster, onArc
                           </div>
                         </div>
 
+                        {/* Iterate over the items array for the specific product rows */}
                         <div style={{ marginTop: '15px' }}>
                           <span style={{ fontSize: '0.8rem', textTransform: 'uppercase', color: '#475569', fontWeight: 'bold', display: 'block', marginBottom: '10px' }}>Items in this Request ({req.items.length})</span>
                           <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
                             {req.items.map((item, itemIdx) => {
-                              const isItemPromoted = (masterTickets || []).some(ticket => 
-                                String(ticket.Unique_Product_Id || '').trim() === String(item.Unique_Product_Id || item.uniqueId || '').trim() &&
-                                String(ticket.Intake_ID_Ref || ticket.serviceRequestId || '').trim() === String(intakeId).trim()
-                              );
+                              // 3. Apply Strict V2 Fallback Mappings
+                              const uniqueId = item.Unique_Product_Id || item.uniqueProductId || item.uniqueId || 'N/A';
+                              const make = item.ProductMake || item.productMake || item.brand || 'N/A';
+                              const model = item.ProductModel || item.productModel || item.model || 'N/A';
+                              const serial = item.ProductSerial || item.productSerial || item.serial || 'N/A';
+                              const floor = item.Floor || item.floor || 'N/A';
+                              const roomType = item.Room_Type || item.roomType || 'N/A';
+                              const ipAddress = item.IP_Address || item.ipAddress || 'N/A';
+                              const macId = item.MAC_ID || item.macId || 'N/A';
+                              const salesOrder = item.Sales_Order || item.salesOrder || 'N/A';
+                              const invoiceNo = item.Invoice_No || item.invoiceNo || 'N/A';
+                              const warrantyStart = item.Warranty_Start_Date || item.warrantyStart || 'N/A';
+                              const warrantyEnd = item.Warranty_End_Date || item.warrantyEnd || 'N/A';
+                              const dlpPeriod = item.DLP_Period || item.dlpPeriod || 'N/A';
+                              const warrantyDays = item.Warranty_Days_Left || item.warrantyDays || 'N/A';
+                              const assetStatus = item.Asset_Status || item.assetStatus || 'N/A';
+
+                              // 4. Implement Item-Specific "Create Ticket" Action
+                              const isItemPromoted = (masterTickets || []).some(ticket => {
+                                const ticketIntakeRef = ticket.Intake_ID_Ref || ticket.Service_Request_ID || ticket.serviceRequestId;
+                                const isMatchIntake = String(ticketIntakeRef || '').trim() === String(intakeId).trim();
+                                
+                                const ticketUnique = String(ticket.Unique_Product_Id || '').trim();
+                                const itemUnique = String(uniqueId).trim();
+                                const ticketSerial = String(ticket.ProductSerial || '').trim();
+                                const itemSerial = String(serial).trim();
+
+                                const isMatchUnique = itemUnique !== 'N/A' && ticketUnique !== '' && ticketUnique === itemUnique;
+                                const isMatchSerial = itemSerial !== 'N/A' && ticketSerial !== '' && ticketSerial === itemSerial;
+
+                                return isMatchIntake && (isMatchUnique || isMatchSerial);
+                              });
 
                               const handlePromoteItem = () => {
                                 const enriched = {
@@ -285,15 +359,32 @@ const ServiceRequestTable = ({ requests, masterTickets, onConvertToMaster, onArc
                                   phoneNumber: item.PhoneNumber || item.phoneNumber || req.PhoneNumber || req.phoneNumber || '',
                                   Issue_Description: item.Issue_Description || item.description || req.Issue_Description || req.description || '',
                                   description: item.Issue_Description || item.description || req.Issue_Description || req.description || '',
-                                  Unique_Product_Id: item.Unique_Product_Id || item.uniqueId || '',
                                   Timestamp: item.Timestamp || item.timestamp || req.Timestamp || req.timestamp || '',
                                   timestamp: item.Timestamp || item.timestamp || req.Timestamp || req.timestamp || '',
                                   Status: item.Status || item.status || req.Status || req.status || 'Open',
                                   status: item.Status || item.status || req.Status || req.status || 'Open',
                                   location: item.Location || item.location || req.Location || req.location || 'N/A',
-                                  room: item.Room_Name || item.roomName || item.room || req.Room_Name || req.roomName || req.room || 'N/A'
+                                  room: item.Room_Name || item.roomName || item.room || req.Room_Name || req.roomName || req.room || 'N/A',
+                                  Unique_Product_Id: uniqueId !== 'N/A' ? uniqueId : '',
+                                  ProductMake: make !== 'N/A' ? make : '',
+                                  ProductModel: model !== 'N/A' ? model : '',
+                                  ProductSerial: serial !== 'N/A' ? serial : '',
+                                  Floor: floor !== 'N/A' ? floor : '',
+                                  Room_Type: roomType !== 'N/A' ? roomType : '',
+                                  IP_Address: ipAddress !== 'N/A' ? ipAddress : '',
+                                  MAC_ID: macId !== 'N/A' ? macId : '',
+                                  Sales_Order: salesOrder !== 'N/A' ? salesOrder : '',
+                                  Invoice_No: invoiceNo !== 'N/A' ? invoiceNo : '',
+                                  Warranty_Start_Date: warrantyStart !== 'N/A' ? warrantyStart : '',
+                                  Warranty_End_Date: warrantyEnd !== 'N/A' ? warrantyEnd : '',
+                                  DLP_Period: dlpPeriod !== 'N/A' ? dlpPeriod : '',
+                                  Warranty_Days_Left: warrantyDays !== 'N/A' ? warrantyDays : '',
+                                  Asset_Status: assetStatus !== 'N/A' ? assetStatus : '',
+                                  Attachment_URL: item.Attachment_URL || item.attachmentUrl || req.Attachment_URL || req.attachmentUrl || '',
+                                  attachmentUrl: item.Attachment_URL || item.attachmentUrl || req.Attachment_URL || req.attachmentUrl || '',
+                                  invoiceUrl: item.invoiceUrl || req.invoiceUrl || ''
                                 };
-                                onConvertToMaster(enriched);
+                                onConvertToMaster(enriched); // Passing specific item payload
                               };
 
                               return (
@@ -302,41 +393,41 @@ const ServiceRequestTable = ({ requests, masterTickets, onConvertToMaster, onArc
                                     <div>
                                       <span style={{ fontSize: '0.75rem', textTransform: 'uppercase', color: '#64748b', fontWeight: 'bold', display: 'block', marginBottom: '4px' }}>Hardware Info</span>
                                       <p style={{ margin: 0, fontSize: '0.9rem', color: '#334155', lineHeight: '1.5' }}>
-                                        <b>Make & Model:</b> {item.ProductMake || item.productMake || ''} {item.ProductModel || item.productModel || ''}<br />
-                                        <b>Serial:</b> {item.ProductSerial || item.productSerial || 'N/A'}<br />
-                                        <b>Unique ID:</b> {item.Unique_Product_Id || item.uniqueId || 'N/A'}<br />
-                                        <b>Sales Order:</b> {item.Sales_Order || item.salesOrder || 'N/A'}<br />
-                                        <b>Invoice No:</b> {item.Invoice_No || item.invoiceNo || 'N/A'}
+                                        <b>Make & Model:</b> {make} {model}<br />
+                                        <b>Serial:</b> {serial}<br />
+                                        <b>Unique ID:</b> {uniqueId}<br />
+                                        <b>Sales Order:</b> {salesOrder}<br />
+                                        <b>Invoice No:</b> {invoiceNo}
                                       </p>
                                     </div>
                                     <div>
                                       <span style={{ fontSize: '0.75rem', textTransform: 'uppercase', color: '#64748b', fontWeight: 'bold', display: 'block', marginBottom: '4px' }}>Location & Network</span>
                                       <p style={{ margin: 0, fontSize: '0.9rem', color: '#334155', lineHeight: '1.5' }}>
-                                        <b>Floor:</b> {item.Floor || item.floor || 'N/A'}<br />
-                                        <b>Room Type:</b> {item.Room_Type || item.roomType || 'N/A'}<br />
-                                        <b>IP:</b> {item.IP_Address || item.ipAddress || 'N/A'}<br />
-                                        <b>MAC:</b> {item.MAC_ID || item.macId || 'N/A'}
+                                        <b>Floor:</b> {floor}<br />
+                                        <b>Room Type:</b> {roomType}<br />
+                                        <b>IP:</b> {ipAddress}<br />
+                                        <b>MAC:</b> {macId}
                                       </p>
                                     </div>
                                     <div>
                                       <span style={{ fontSize: '0.75rem', textTransform: 'uppercase', color: '#64748b', fontWeight: 'bold', display: 'block', marginBottom: '4px' }}>Warranty & Status</span>
                                       <p style={{ margin: 0, fontSize: '0.9rem', color: '#334155', lineHeight: '1.5' }}>
-                                        <b>Warranty Start:</b> {item.Warranty_Start_Date || item.warrantyStart || 'N/A'}<br />
-                                        <b>Warranty End:</b> {item.Warranty_End_Date || item.warrantyEnd || 'N/A'}<br />
-                                        <b>DLP Period:</b> {item.DLP_Period || item.dlpPeriod || 'N/A'}<br />
-                                        <b>Warranty Days:</b> {item.Warranty_Days_Left || item.warrantyDays || 'N/A'}<br />
-                                        <b>Status:</b> {item.Asset_Status || item.assetStatus || 'N/A'}
+                                        <b>Warranty Start:</b> {warrantyStart}<br />
+                                        <b>Warranty End:</b> {warrantyEnd}<br />
+                                        <b>DLP Period:</b> {dlpPeriod}<br />
+                                        <b>Warranty Days:</b> {warrantyDays}<br />
+                                        <b>Status:</b> {assetStatus}
                                       </p>
                                     </div>
                                   </div>
 
                                   <div style={{ marginTop: '12px', borderTop: '1px solid #f1f5f9', paddingTop: '10px', display: 'flex', justifyContent: 'flex-start' }}>
                                     {!isItemPromoted && !isArchived ? (
-                                      <button 
-                                        onClick={handlePromoteItem} 
+                                      <button
+                                        onClick={handlePromoteItem}
                                         className="btn btn-primary btn-sm mt-2"
                                       >
-                                        Create Ticket for {item.ProductMake || 'this'} Device
+                                        Create Ticket for {make !== 'N/A' ? make : 'this'} Device
                                       </button>
                                     ) : (
                                       <span style={{ fontSize: '0.85rem', color: '#15803d', fontWeight: '600', display: 'inline-flex', alignItems: 'center', gap: '4px', marginTop: '8px' }}>

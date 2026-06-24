@@ -4,6 +4,8 @@ import { createMasterTicket, fetchEngineers, fetchCompanies, fetchAssets } from 
 
 const initialState = {
   serviceRequestId: '',
+  manualIntakeRef: '',
+  refCode: '',
   company: '',
   clientEmail: '',
   phoneNumber: '',
@@ -41,7 +43,6 @@ const CreateTicketModal = ({ isOpen, onClose, clients = [], engineers = [], curr
   // 1. ALL HOOKS MUST BE AT THE VERY TOP
   const [formData, setFormData] = useState(initialState);
   const [status, setStatus] = useState({ loading: false, error: null });
-  const [selectedProductIndex, setSelectedProductIndex] = useState(0);
   const [engineersList, setEngineersList] = useState([]);
   const [companiesList, setCompaniesList] = useState([]);
   const [assetsList, setAssetsList] = useState([]);
@@ -49,29 +50,21 @@ const CreateTicketModal = ({ isOpen, onClose, clients = [], engineers = [], curr
   // 2. Add this useEffect to pre-fill the form if initialData exists
   useEffect(() => {
     if (isOpen) {
-      setSelectedProductIndex(0);
       if (initialData) {
-        let defaultMake = '';
-        let defaultModel = '';
-        let defaultSerial = '';
-
-        if (Array.isArray(initialData.products) && initialData.products.length > 0) {
-          defaultMake = initialData.products[0].productMake || initialData.products[0].brand || '';
-          defaultModel = initialData.products[0].productModel || initialData.products[0].model || '';
-          defaultSerial = initialData.products[0].productSerial || initialData.products[0].serial || '';
-        } else {
-          defaultMake = initialData.productMake || initialData.brand || '';
-          defaultModel = initialData.productModel || initialData.model || '';
-          defaultSerial = initialData.productSerial || initialData.serial || '';
-        }
+        const defaultMake = initialData.ProductMake || initialData.productMake || initialData.brand || '';
+        const defaultModel = initialData.ProductModel || initialData.productModel || initialData.model || '';
+        const defaultSerial = initialData.ProductSerial || initialData.productSerial || initialData.serial || '';
+        const defaultUniqueId = initialData.Unique_Product_Id || initialData.uniqueId || '';
 
         const invoicePart = initialData?.invoiceUrl ? `\n\nSee Attached Client File: ${initialData.invoiceUrl}` : '';
 
         // Pre-fill the form with the client's raw request data
         setFormData(prev => ({
           ...prev,
-          serviceRequestId: initialData?.Intake_ID || initialData?.requestId || '',
-          company: initialData?.Company_Name || initialData?.companyName || '',
+          serviceRequestId: initialData?.requestId || initialData?.Intake_ID || '',
+          manualIntakeRef: initialData?.requestId || initialData?.Intake_ID || '',
+          refCode: initialData?.Ref_Code || initialData?.Company_Ref || initialData?.refCode || '',
+          company: initialData?.companyName || initialData?.Company_Name || '',
           clientEmail: initialData?.Client_Email || initialData?.email || '',
           reqBy: initialData?.Requester_Name || initialData?.requesterName || '',
           phoneNumber: initialData?.PhoneNumber || initialData?.phoneNumber || '',
@@ -86,7 +79,7 @@ const CreateTicketModal = ({ isOpen, onClose, clients = [], engineers = [], curr
           productModel: defaultModel,
           productSerial: defaultSerial,
           instructions: '',
-          uniqueId: initialData?.Unique_Product_Id || initialData?.uniqueId || '',
+          uniqueId: defaultUniqueId,
           floor: initialData?.Floor || initialData?.floor || '',
           roomType: initialData?.Room_Type || initialData?.roomType || '',
           warrantyStart: initialData?.Warranty_Start_Date || initialData?.warrantyStart || '',
@@ -96,7 +89,7 @@ const CreateTicketModal = ({ isOpen, onClose, clients = [], engineers = [], curr
           macId: initialData?.MAC_ID || initialData?.macId || '',
           ipAddress: initialData?.IP_Address || initialData?.ipAddress || '',
           warrantyEnd: initialData?.Warranty_End_Date || initialData?.warrantyEnd || '',
-          attachmentUrl: initialData?.Attachment_URL || initialData?.attachmentUrl || initialData?.invoiceUrl || ''
+          attachmentUrl: initialData?.Attachment_URL || initialData?.attachmentUrl || "",
         }));
       } else {
         setFormData(initialState); // Clean slate for manual creation
@@ -167,19 +160,6 @@ const CreateTicketModal = ({ isOpen, onClose, clients = [], engineers = [], curr
   const handleChange = (e) => {
     const { name, value } = e.target;
     setFormData(prev => ({ ...prev, [name]: value }));
-  };
-
-  const handleProductSelect = (index) => {
-    setSelectedProductIndex(index);
-    if (initialData?.products && initialData.products[index]) {
-      const prod = initialData.products[index];
-      setFormData(prev => ({
-        ...prev,
-        productMake: prod.productMake || prod.brand || '',
-        productModel: prod.productModel || prod.model || '',
-        productSerial: prod.productSerial || prod.serial || ''
-      }));
-    }
   };
 
   const normalizeCompanyName = (name) => {
@@ -274,33 +254,34 @@ const CreateTicketModal = ({ isOpen, onClose, clients = [], engineers = [], curr
     const payload = {
       actorEmail: currentUser?.email || '',
       ticketData: {
-        Intake_ID: initialData?.Intake_ID || initialData?.Intake_ID_Ref || "MANUAL_ENTRY",
-        Ref_Code: formData.serviceRequestId || "",
+        Intake_ID_Ref: initialData?.Intake_ID || initialData?.Intake_ID_Ref || formData.serviceRequestId || "MANUAL_ENTRY",
+        Ref_Code: formData.serviceRequestId || formData.refCode || "",
         Company_Name: formData.company || "",
-        Requester_Name: formData.reqBy || initialData?.Requester_Name || "",
-        Client_Email: formData.clientEmail || initialData?.Client_Email || "",
-        PhoneNumber: formData.phoneNumber || initialData?.PhoneNumber || "",
-        Location: formData.location || initialData?.Location || "",
-        Sub_Location: formData.subLocation || initialData?.Sub_Location || "",
-        Room_Name: formData.roomName || initialData?.Room_Name || "",
-        ProductMake: formData.productMake || initialData?.ProductMake || "",
-        ProductModel: formData.productModel || initialData?.ProductModel || "",
-        ProductSerial: formData.productSerial || initialData?.ProductSerial || "",
-        MAC_ID: formData.macId || initialData?.MAC_ID || "",
-        IP_Address: formData.ipAddress || initialData?.IP_Address || "",
-        Sales_Order: formData.salesOrder || initialData?.Sales_Order || "",
-        Warranty_End_Date: formData.warrantyEnd || initialData?.Warranty_End_Date || "",
-        Category: formData.category || initialData?.Category || "",
-        Attachment_URL: formData.attachmentUrl || initialData?.Attachment_URL || "",
+        Requester_Name: formData.reqBy || "",
+        Client_Email: formData.clientEmail || "",
+        PhoneNumber: formData.phoneNumber || "",
+        Location: formData.location || "",
+        Sub_Location: formData.subLocation || "",
+        Room_Name: formData.roomName || "",
+        ProductMake: formData.productMake || "",
+        ProductModel: formData.productModel || "",
+        ProductSerial: formData.productSerial || "",
+        MAC_ID: formData.macId || "",
+        IP_Address: formData.ipAddress || "",
+        Sales_Order: formData.salesOrder || "",
+        Warranty_End_Date: formData.warrantyEnd || "",
+        Category: formData.category || "",
+        Attachment_URL: formData.attachmentUrl || "",
         Service_Type: formData.serviceType || "General",
         Admin_Remarks: `[${formData.category || 'General'} - ${formData.issueType || 'Issue'}] ${formData.description || ''}`,
-        Unique_Product_Id: formData.uniqueId || initialData?.Unique_Product_Id || "",
-        Floor: formData.floor || initialData?.Floor || "",
-        Room_Type: formData.roomType || initialData?.Room_Type || "",
-        Warranty_Start_Date: formData.warrantyStart || initialData?.Warranty_Start_Date || "",
-        DLP_Period: formData.dlpPeriod || initialData?.DLP_Period || "",
-        Warranty_Days_Left: formData.warrantyDays || initialData?.Warranty_Days_Left || "",
-        Asset_Status: formData.assetStatus || initialData?.Asset_Status || initialData?.Active || "Active"
+        Unique_Product_Id: formData.uniqueId || "",
+        Floor: formData.floor || "",
+        Room_Type: formData.roomType || "",
+        Warranty_Start_Date: formData.warrantyStart || "",
+        DLP_Period: formData.dlpPeriod || "",
+        Warranty_Days_Left: formData.warrantyDays || "",
+        Asset_Status: formData.assetStatus || "Active",
+        Issue_Type: formData.issueType === 'Other' ? (formData.otherIssue || 'Other') : (formData.issueType || "")
       },
       engineer: {
         email: engEmail || null,
@@ -342,29 +323,16 @@ const CreateTicketModal = ({ isOpen, onClose, clients = [], engineers = [], curr
           <div className="form-grid">
             {/* --- Core Details --- */}
             <div className="form-group span-2">
-              <label>SR Reference ID (Optional)</label>
-              <input type="text" name="serviceRequestId" value={formData.serviceRequestId} onChange={handleChange} placeholder="Manual entry reference..." disabled={status.loading || !!initialData} />
+              <label>SR Reference / Intake ID (Optional)</label>
+              <input 
+                type="text" 
+                name="manualIntakeRef" 
+                value={formData.manualIntakeRef || ''} 
+                onChange={(e) => setFormData({...formData, manualIntakeRef: e.target.value})} 
+                placeholder="e.g., INQ-001 (Leave blank for MANUAL_ENTRY)" 
+                disabled={status.loading || !!initialData} 
+              />
             </div>
-
-            {initialData?.products && initialData.products.length > 1 && (
-              <div className="form-group span-2" style={{ backgroundColor: '#f1f3f4', padding: '16px', borderRadius: '12px', borderLeft: '4px solid var(--primary-action)', marginBottom: '10px' }}>
-                <label style={{ fontWeight: '600', color: 'var(--primary-action)', marginBottom: '8px', display: 'block' }}>
-                  Select Hardware for this Ticket
-                </label>
-                <select 
-                  value={selectedProductIndex} 
-                  onChange={(e) => handleProductSelect(parseInt(e.target.value, 10))}
-                  disabled={status.loading}
-                  style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid #ccc', background: '#ffffff', fontSize: '0.95rem' }}
-                >
-                  {initialData.products.map((prod, idx) => (
-                    <option key={idx} value={idx}>
-                      Item {idx + 1}: {prod.productMake || prod.brand || 'N/A'} - {prod.productModel || prod.model || 'N/A'} (S/N: {prod.productSerial || prod.serial || 'N/A'})
-                    </option>
-                  ))}
-                </select>
-              </div>
-            )}
 
             <div className="form-group">
               <label>Client / Company Name *</label>
@@ -588,7 +556,14 @@ const CreateTicketModal = ({ isOpen, onClose, clients = [], engineers = [], curr
 
             <div className="form-group">
               <label>Attachment URL</label>
-              <input type="text" name="attachmentUrl" value={formData.attachmentUrl} onChange={handleChange} placeholder="https://..." disabled={status.loading} />
+              <input 
+                type="text" 
+                name="attachmentUrl" 
+                value={formData.attachmentUrl || ''} 
+                onChange={handleChange} 
+                placeholder="https://..." 
+                disabled={status.loading} 
+              />
             </div>
 
             {/* --- Warranty Details --- */}

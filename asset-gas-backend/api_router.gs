@@ -600,6 +600,12 @@ function groupIntakeQueue(rawIntakeObjects) {
   rawIntakeObjects.forEach(row => {
     const intakeId = row.Intake_ID;
     if (!intakeId) return;
+
+    // Place this safely above the grouped[intakeId] assignment
+    let pObj = {};
+    try { pObj = JSON.parse(row.Payload || '{}'); } catch(e){}
+    const extractedUrl = row.Attachment_URL || pObj.Attachment_URL || pObj.attachmentUrl || pObj.invoiceUrl || "";
+
     if (!grouped[intakeId]) {
       grouped[intakeId] = {
         Intake_ID: intakeId,
@@ -635,12 +641,18 @@ function groupIntakeQueue(rawIntakeObjects) {
         issueDescription: row.Issue_Description,
         description: row.Issue_Description,
         Description: row.Issue_Description,
-        Attachment_URL: row.Attachment_URL,
-        attachmentUrl: row.Attachment_URL,
-        invoiceUrl: row.Attachment_URL,
+        Attachment_URL: extractedUrl,
+        attachmentUrl: extractedUrl,
+        invoiceUrl: extractedUrl,
         products: [],
         archived: row.Status === "Archived" || row.Status === "Promoted"
       };
+    } else {
+      if (!grouped[intakeId].Attachment_URL && extractedUrl) {
+        grouped[intakeId].Attachment_URL = extractedUrl;
+        grouped[intakeId].attachmentUrl = extractedUrl;
+        grouped[intakeId].invoiceUrl = extractedUrl;
+      }
     }
     
     if (row.Unique_Product_Id || row.ProductSerial || row.ProductMake || row.ProductModel) {
@@ -773,11 +785,28 @@ function handlePromoteTicket(payload) {
     throw new Error("Queue columns are missing required schemas.");
   }
   
+  const uniqueProductIdIdx = queueHeaders.indexOf('Unique_Product_Id');
+  const productSerialIdx = queueHeaders.indexOf('ProductSerial');
+  const targetUniqueId = payload.Unique_Product_Id || payload.uniqueId || "";
+  const targetSerial = payload.ProductSerial || payload.productSerial || "";
+
   let foundRowIndex = -1;
   let intakeRow = null;
   
   for (let i = 1; i < queueData.length; i++) {
-    if (String(queueData[i][idIdx]).trim() === String(intakeId).trim()) {
+    const rowIntakeId = String(queueData[i][idIdx]).trim();
+    if (rowIntakeId === String(intakeId).trim()) {
+      if (targetUniqueId || targetSerial) {
+        const rowUniqueId = uniqueProductIdIdx !== -1 ? String(queueData[i][uniqueProductIdIdx]).trim() : "";
+        const rowSerial = productSerialIdx !== -1 ? String(queueData[i][productSerialIdx]).trim() : "";
+        
+        const isMatchUnique = targetUniqueId && rowUniqueId && rowUniqueId === String(targetUniqueId).trim();
+        const isMatchSerial = targetSerial && rowSerial && rowSerial === String(targetSerial).trim();
+        
+        if (!isMatchUnique && !isMatchSerial) {
+          continue;
+        }
+      }
       foundRowIndex = i + 1;
       intakeRow = queueData[i];
       break;
@@ -825,8 +854,11 @@ function handlePromoteTicket(payload) {
   let warrantyDaysLeft = "";
   let assetStatus = "";
 
+  const attachColIdx = queueHeaders.indexOf('Attachment_URL');
+  const directAttachment = attachColIdx !== -1 ? intakeRow[attachColIdx] : "";
+
+  let pData = {};
   if (payloadIdx !== -1) {
-    let pData = {};
     try {
       pData = JSON.parse(intakeRow[payloadIdx] || '{}');
     } catch (e) {
@@ -849,7 +881,7 @@ function handlePromoteTicket(payload) {
     ipAddress = pData.ipAddress || pData.IP_Address || "";
     warrantyEndDate = pData.warrantyEndDate || pData.Warranty_End_Date || "";
     category = pData.category || pData.Category || "";
-    attachmentUrl = pData.attachmentUrl || pData.Attachment_URL || pData.invoiceUrl || "";
+    attachmentUrl = directAttachment || pData.Attachment_URL || pData.attachmentUrl || pData.invoiceUrl || "";
 
     uniqueProductId = pData.Unique_Product_Id || pData.uniqueId || "";
     floor = pData.Floor || pData.floor || "";
@@ -931,66 +963,48 @@ function handlePromoteTicket(payload) {
     }
   }
 
-  const promoPayload = {
-    Intake_ID: intakeId,
-    Ref_Code: refCode,
-    Company_Name: companyName,
-    Requester_Name: requesterName,
-    Client_Email: clientEmail,
-    PhoneNumber: phoneNumber,
-    Location: location,
-    Sub_Location: subLocation,
-    Floor: floor || (payload.ticketData && payload.ticketData.Floor) || "",
-    Room_Type: roomType || (payload.ticketData && payload.ticketData.Room_Type) || "",
-    Room_Name: roomName,
-    Unique_Product_Id: uniqueProductId || (payload.ticketData && payload.ticketData.Unique_Product_Id) || "",
-    ProductMake: productMake,
-    ProductModel: productModel,
-    ProductSerial: productSerial,
-    MAC_ID: macId,
-    IP_Address: ipAddress,
-    Sales_Order: salesOrder,
-    Warranty_Start_Date: warrantyStartDate || (payload.ticketData && payload.ticketData.Warranty_Start_Date) || "",
-    DLP_Period: dlpPeriod || (payload.ticketData && payload.ticketData.DLP_Period) || "",
-    Warranty_End_Date: warrantyEndDate,
-    Warranty_Days_Left: warrantyDaysLeft || (payload.ticketData && payload.ticketData.Warranty_Days_Left) || "",
-    Asset_Status: assetStatus || (payload.ticketData && payload.ticketData.Asset_Status) || "Active",
-    Category: category,
-    Attachment_URL: attachmentUrl,
-    Service_Type: payload.Service_Type || payload.serviceType || "General",
-    Admin_Remarks: payload.Admin_Remarks || payload.remarks || description || ""
+  const openDate = new Date().toISOString();
+  const tData = {
+    Category: pData.Category || category || "",
+    Attachment_URL: attachmentUrl || "",
+    Service_Type: pData.Support_Type || pData.serviceType || payload.Service_Type || payload.serviceType || "General"
   };
 
-  const newTicketId = ticketId;
-  const tData = promoPayload;
-
   const newMasterRow = [
-    newTicketId,                           // 1. Ticket_ID
-    tData.Intake_ID || "MANUAL_ENTRY",     // 2. Intake_ID_Ref
-    tData.Ref_Code || "",                  // 3. Ref_Code
-    tData.Company_Name || "",              // 4. Company_Name
-    tData.Requester_Name || "",            // 5. Requester_Name
-    tData.Client_Email || "",              // 6. Client_Email
-    tData.PhoneNumber || "",               // 7. PhoneNumber
-    tData.Location || "",                  // 8. Location
-    tData.Sub_Location || "",              // 9. Sub_Location
-    tData.Room_Name || "",                 // 10. Room_Name
-    tData.ProductMake || "",               // 11. ProductMake
-    tData.ProductModel || "",              // 12. ProductModel
-    tData.ProductSerial || "",             // 13. ProductSerial
-    tData.MAC_ID || "",                    // 14. MAC_ID
-    tData.IP_Address || "",                // 15. IP_Address
-    tData.Sales_Order || "",               // 16. Sales_Order
-    tData.Warranty_End_Date || "",         // 17. Warranty_End_Date
+    ticketId,                                                           // 1. Ticket_ID
+    intakeId,                                                           // 2. Intake_ID_Ref (The Batch ID)
+    pData.Ref_Code || refCode || "",                                    // 3. Ref_Code (The Company Code)
+    pData.Company_Name || companyName || "",                            // 4. Company_Name
+    pData.Requester_Name || requesterName || "",                        // 5. Requester_Name
+    pData.Client_Email || clientEmail || "",                            // 6. Client_Email
+    pData.PhoneNumber || phoneNumber || "",                             // 7. PhoneNumber
+    pData.Location || location || "",                                   // 8. Location
+    pData.Sub_Location || subLocation || "",                            // 9. Sub_Location
+    pData.Room_Name || roomName || "",                                  // 10. Room_Name
+    pData.ProductMake || productMake || "",                            // 11. ProductMake
+    pData.ProductModel || productModel || "",                          // 12. ProductModel
+    pData.ProductSerial || productSerial || "",                        // 13. ProductSerial
+    pData.MAC_ID || macId || "",                                        // 14. MAC_ID
+    pData.IP_Address || ipAddress || "",                                // 15. IP_Address
+    pData.Sales_Order || salesOrder || "",                              // 16. Sales_Order
+    pData.Warranty_End_Date || warrantyEndDate || "",                    // 17. Warranty_End_Date
     tData.Category || "",                  // 18. Category
     tData.Attachment_URL || "",            // 19. Attachment_URL
     tData.Service_Type || "General",       // 20. Service_Type
-    assignedEngineer ? "In Progress" : "Open", // 21. Status
-    assignedEngineer || "",                // 22. Assigned_Engineer
-    new Date().toISOString(),              // 23. Open_Date
-    "",                                    // 24. Close_Date
-    "",                                    // 25. Resolved_Days
-    tData.Admin_Remarks || ""              // 26. Admin_Remarks
+    "In Progress",                                                      // 21. Status
+    assignedEngineer || "",                                             // 22. Assigned_Engineer
+    openDate,                                                           // 23. Open_Date
+    "",                                                                 // 24. Close_Date
+    "",                                                                 // 25. Resolved_Days
+    pData.Admin_Remarks || pData.Description || pData.description || description || "", // 26. Admin_Remarks
+    pData.Unique_Product_Id || uniqueProductId || "",                  // 27. Unique_Product_Id (NEW)
+    pData.Floor || floor || "",                                         // 28. Floor (NEW)
+    pData.Room_Type || roomType || "",                                  // 29. Room_Type (NEW)
+    pData.Warranty_Start_Date || warrantyStartDate || "",               // 30. Warranty_Start_Date (NEW)
+    pData.DLP_Period || dlpPeriod || "",                                // 31. DLP_Period (NEW)
+    pData.Warranty_Days_Left || warrantyDaysLeft || "",                 // 32. Warranty_Days_Left (NEW)
+    pData.Asset_Status || assetStatus || "Active",                       // 33. Asset_Status (NEW)
+    pData.Issue_Type || pData.issueType || ""                            // 34. Issue_Type (NEW)
   ];
 
   ticketSheet.appendRow(newMasterRow);
@@ -1569,6 +1583,8 @@ function handleTicketAssignmentRequest(payload) {
     }
   }
   
+  logSystemActivity(payload.actorEmail || 'SYSTEM', "TASK_ASSIGNED", taskId, `Task assigned to ${payload.engName} (${payload.engEmail})`);
+  
   return { success: true };
 }
 
@@ -1620,32 +1636,66 @@ function handleParentRemarkRequest(payload) {
  * Update child engineer subtasks
  */
 function handleChildUpdateRequest(payload) {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
   const taskSheet = ss.getSheetByName('Engineer_Tasks');
+  if (!taskSheet) throw new Error("Engineer_Tasks sheet missing.");
+
   const data = taskSheet.getDataRange().getValues();
-  const headers = getHeaders(taskSheet);
+  if (data.length < 2) throw new Error("No tasks found in database.");
+
+  const headers = data[0].map(h => String(h).trim());
+  const taskIdColIdx = headers.indexOf('Task_ID');
   
-  const idIdx = headers.indexOf('Task_ID');
-  const statusIdx = headers.indexOf('Status');
-  const remarksIdx = headers.indexOf('Engineer_Remarks');
-  
-  if (idIdx === -1 || statusIdx === -1) {
-     throw new Error("Invalid Engineer_Tasks schema.");
-  }
+  // AGGRESSIVE COLUMN MATCHING: Check every known variation of the header names
+  const remarksColIdx = headers.findIndex(h => ['Engineer_Remarks', 'Remarks', 'engineerRemarks', 'Admin_Eng_Remarks', 'Admin_Remarks'].includes(h));
+  const statusColIdx = headers.findIndex(h => ['Status', 'status', 'Task_Status'].includes(h));
+
+  if (taskIdColIdx === -1) throw new Error("Task_ID column missing in Engineer_Tasks.");
+
+  // Target extraction
+  const targetTaskId = String(payload.childId || payload.taskId || payload.Task_ID).trim();
+  let rowFound = -1;
 
   for (let i = 1; i < data.length; i++) {
-    if (String(data[i][idIdx]).trim() === String(payload.childId).trim()) {
-      const rowNum = i + 1;
-      taskSheet.getRange(rowNum, statusIdx + 1).setValue(payload.status);
-      if (remarksIdx !== -1) {
-        taskSheet.getRange(rowNum, remarksIdx + 1).setValue(payload.remark || '');
-      }
-      
-      logSystemAction(payload.actorEmail, payload.remark, payload.status);
-      evaluateAndEnforceParentStatus(payload.parentId);
-      return { success: true };
+    if (String(data[i][taskIdColIdx]).trim() === targetTaskId) {
+      rowFound = i + 1; // +1 for 1-based indexing in Apps Script
+      break;
     }
   }
-  throw new Error("Task not found.");
+
+  if (rowFound === -1) throw new Error("Task ID " + targetTaskId + " not found in database.");
+
+  // 1. UPDATE STATUS
+  const statusValue = payload.status || payload.Status;
+  if (statusColIdx !== -1 && statusValue) {
+    taskSheet.getRange(rowFound, statusColIdx + 1).setValue(statusValue);
+  }
+
+  // 2. CUMULATIVE REMARKS UPDATE
+  const remarksValue = payload.remarks || payload.remark || payload.Remarks;
+  if (remarksColIdx !== -1 && remarksValue && remarksValue.trim() !== "") {
+    const cell = taskSheet.getRange(rowFound, remarksColIdx + 1);
+    const existingRemarks = cell.getValue() || "";
+    
+    // Generate clean timestamp
+    const timestamp = new Date().toLocaleString('en-GB', { 
+      timeZone: 'Asia/Kolkata', 
+      day: '2-digit', month: 'short', year: 'numeric', 
+      hour: '2-digit', minute: '2-digit' 
+    });
+    
+    const newEntry = `[${timestamp}] ${remarksValue.trim()}`;
+    const updatedRemarks = existingRemarks ? `${existingRemarks}\n${newEntry}` : newEntry;
+    
+    cell.setValue(updatedRemarks);
+  } else if (remarksColIdx === -1) {
+    // If it STILL can't find the column, log a critical warning so we can see it
+    Logger.log("CRITICAL: Could not find any Remarks column in Engineer_Tasks. Headers found: " + headers.join(", "));
+  }
+
+  logSystemActivity(payload.actorEmail || payload.Engineer_Email || 'SYSTEM', "TASK_UPDATE_" + statusValue, targetTaskId, remarksValue || '');
+  evaluateAndEnforceParentStatus(payload.parentId || payload.Ticket_ID_Ref);
+  return { success: true };
 }
 
 /**
@@ -1655,9 +1705,9 @@ function evaluateAndEnforceParentStatus(parentId) {
   const taskSheet = ss.getSheetByName('Engineer_Tasks');
   if (!taskSheet) return;
   const data = taskSheet.getDataRange().getValues();
-  const headers = getHeaders(taskSheet);
-  const ticketRefIdx = headers.indexOf('Ticket_ID_Ref');
-  const statusIdx = headers.indexOf('Status');
+  const headers = data[0].map(h => String(h).trim());
+  const ticketRefIdx = headers.findIndex(h => ['Ticket_ID_Ref', 'TicketIDRef', 'ticket_id_ref', 'Parent_Ticket_ID'].includes(h));
+  const statusIdx = headers.findIndex(h => ['Status', 'status', 'Task_Status'].includes(h));
 
   if (ticketRefIdx === -1 || statusIdx === -1) return;
 
@@ -1771,31 +1821,78 @@ function handlePingEngineerRequest(payload) {
  * Tracks tickets matching search keys
  */
 function handleTrackingRequest(payload) {
-  const searchId = (payload.trackingId || '').trim();
+  // 1. Aggressive extraction and normalization
+  const rawSearch = payload.trackingQuery || payload.trackingId || payload.searchQuery || payload.id || '';
+  const searchId = String(rawSearch).trim().toLowerCase();
+  
+  if (!searchId) {
+    throw new Error("Search query cannot be empty.");
+  }
+
   const ticketSheet = ss.getSheetByName('Master_Tickets');
   const tickets = mapRowsToObjects(ticketSheet);
-  
-  const matched = tickets.filter(t => t.Ticket_ID === searchId || t.Intake_ID_Ref === searchId);
-  if (matched.length > 0) {
-    return { tickets: matched };
+
+  // 2. Case-insensitive search across Master_Tickets
+  const matchedTickets = tickets.filter(t => {
+    const tId = String(t.Ticket_ID || '').trim().toLowerCase();
+    const intakeId = String(t.Intake_ID_Ref || t.Intake_ID || '').trim().toLowerCase();
+    const refCode = String(t.Ref_Code || '').trim().toLowerCase();
+    
+    return tId === searchId || intakeId === searchId || refCode === searchId;
+  });
+
+  if (matchedTickets.length > 0) {
+    // Gather related relations (Tasks & Logs)
+    const tasksSheet = ss.getSheetByName('Engineer_Tasks');
+    const logsSheet = ss.getSheetByName('System_Logs');
+    
+    const tasks = tasksSheet ? mapRowsToObjects(tasksSheet).filter(tsk => 
+      matchedTickets.some(mt => String(mt.Ticket_ID) === String(tsk.Ticket_ID_Ref))
+    ) : [];
+    
+    const logs = logsSheet ? mapRowsToObjects(logsSheet).filter(l => 
+      matchedTickets.some(mt => String(mt.Ticket_ID) === String(l.Target_ID)) || 
+      tasks.some(tsk => String(tsk.Task_ID) === String(l.Target_ID))
+    ) : [];
+
+    return { tickets: matchedTickets, tasks: tasks, logs: logs };
   }
-  
+
+  // 3. Fallback search across Intake_Queue (if not yet promoted)
   const queueSheet = ss.getSheetByName('Intake_Queue');
   const queue = mapRowsToObjects(queueSheet);
-  const matchedQueue = queue.filter(q => q.Intake_ID === searchId);
   
+  const matchedQueue = queue.filter(q => {
+    const qId = String(q.Intake_ID || '').trim().toLowerCase();
+    
+    // Intake Queue uses flat JSON payload in V1 legacy rows
+    let payloadObj = {};
+    try { payloadObj = JSON.parse(q.Payload || q.payload || '{}'); } catch(e){}
+    const qRef = String(payloadObj.Ref_Code || payloadObj.refCode || '').trim().toLowerCase();
+
+    return qId === searchId || qRef === searchId;
+  });
+
   if (matchedQueue.length > 0) {
     return {
-      tickets: matchedQueue.map(q => ({
-        Ticket_ID: "Pending Assignment",
-        Intake_ID_Ref: q.Intake_ID,
-        Status: "Received",
-        Open_Date: q.Timestamp
-      }))
+      tickets: matchedQueue.map(q => {
+        let pObj = {};
+        try { pObj = JSON.parse(q.Payload || q.payload || '{}'); } catch(e){}
+        return {
+          Ticket_ID: "Pending Operations Review",
+          Intake_ID_Ref: q.Intake_ID,
+          Ref_Code: pObj.Ref_Code || pObj.refCode || 'N/A',
+          Company_Name: pObj.Company_Name || pObj.companyName || 'Unknown',
+          Status: "Received / Triage",
+          Open_Date: q.Timestamp
+        };
+      }),
+      tasks: [],
+      logs: []
     };
   }
 
-  throw new Error("No ticket or request found matching standard tracking code.");
+  throw new Error("No active records found matching the query.");
 }
 
 /**
@@ -1939,48 +2036,84 @@ function handleResolveTicket(payload) {
  * 9. Engineer Execution Loop: Resolve Task (Child Ticket Flow)
  */
 function handleResolveTask(payload) {
-  const { Task_ID, Ticket_ID_Ref, Status, Engineer_Email, Remarks } = payload;
+  const targetTaskId = String(payload.Task_ID || payload.childId || payload.taskId).trim();
+  const ticketIdRef = String(payload.Ticket_ID_Ref || payload.parentId || "").trim();
+  const targetStatus = payload.Status || payload.status;
+  const targetRemarks = payload.Remarks || payload.remarks || payload.remark;
+  const engineerEmail = payload.Engineer_Email || payload.actorEmail || 'SYSTEM';
   
-  if (!Task_ID || !Ticket_ID_Ref || !Status) {
+  if (!targetTaskId || !ticketIdRef || !targetStatus) {
     throw new Error("Missing Task_ID, Ticket_ID_Ref, or Status.");
   }
 
   // Step A: Update Engineer_Tasks
   const taskSheet = ss.getSheetByName('Engineer_Tasks');
-  if (taskSheet) {
-    const taskData = taskSheet.getDataRange().getValues();
-    const taskHeaders = getHeaders(taskSheet);
-    const taskIdIdx = taskHeaders.indexOf('Task_ID');
-    const taskStatusIdx = taskHeaders.indexOf('Status'); // Index 4 mapped? Let's use headers
-    const taskCloseDateIdx = taskHeaders.indexOf('Closed_Date'); // Index 6 mapped? Let's use headers
-    const taskRemarksIdx = taskHeaders.indexOf('Engineer_Remarks'); // Index 8 mapped? Let's use headers
+  if (!taskSheet) throw new Error("Engineer_Tasks sheet missing.");
 
-    if (taskIdIdx !== -1) {
-      for (let i = 1; i < taskData.length; i++) {
-        if (String(taskData[i][taskIdIdx]).trim() === String(Task_ID).trim()) {
-          const rowIndex = i + 1;
-          if (taskStatusIdx !== -1) taskSheet.getRange(rowIndex, taskStatusIdx + 1).setValue(Status);
-          if (taskRemarksIdx !== -1) taskSheet.getRange(rowIndex, taskRemarksIdx + 1).setValue(Remarks || "");
-          if ((Status.toLowerCase() === 'resolved' || Status.toLowerCase() === 'closed') && taskCloseDateIdx !== -1) {
-            taskSheet.getRange(rowIndex, taskCloseDateIdx + 1).setValue(new Date().toISOString());
-          }
-          break;
-        }
-      }
+  const data = taskSheet.getDataRange().getValues();
+  if (data.length < 2) throw new Error("No tasks found in database.");
+
+  const headers = data[0].map(h => String(h).trim());
+  const taskIdColIdx = headers.indexOf('Task_ID');
+  
+  // AGGRESSIVE COLUMN MATCHING
+  const remarksColIdx = headers.findIndex(h => ['Engineer_Remarks', 'Remarks', 'engineerRemarks', 'Admin_Eng_Remarks', 'Admin_Remarks'].includes(h));
+  const statusColIdx = headers.findIndex(h => ['Status', 'status', 'Task_Status'].includes(h));
+  const closeDateColIdx = headers.findIndex(h => ['Closed_Date', 'ClosedDate', 'closed_date', 'Close_Date'].includes(h));
+
+  if (taskIdColIdx === -1) throw new Error("Task_ID column missing in Engineer_Tasks.");
+
+  let rowFound = -1;
+  for (let i = 1; i < data.length; i++) {
+    if (String(data[i][taskIdColIdx]).trim() === targetTaskId) {
+      rowFound = i + 1; // +1 for 1-based indexing in Apps Script
+      break;
     }
+  }
+
+  if (rowFound === -1) throw new Error("Task ID " + targetTaskId + " not found in database.");
+
+  // 1. UPDATE STATUS
+  if (statusColIdx !== -1 && targetStatus) {
+    taskSheet.getRange(rowFound, statusColIdx + 1).setValue(targetStatus);
+  }
+
+  // 2. CUMULATIVE REMARKS UPDATE
+  if (remarksColIdx !== -1 && targetRemarks && targetRemarks.trim() !== "") {
+    const cell = taskSheet.getRange(rowFound, remarksColIdx + 1);
+    const existingRemarks = cell.getValue() || "";
+    
+    // Generate clean timestamp
+    const timestamp = new Date().toLocaleString('en-GB', { 
+      timeZone: 'Asia/Kolkata', 
+      day: '2-digit', month: 'short', year: 'numeric', 
+      hour: '2-digit', minute: '2-digit' 
+    });
+    
+    const newEntry = `[${timestamp}] ${targetRemarks.trim()}`;
+    const updatedRemarks = existingRemarks ? `${existingRemarks}\n${newEntry}` : newEntry;
+    
+    cell.setValue(updatedRemarks);
+  } else if (remarksColIdx === -1) {
+    Logger.log("CRITICAL: Could not find any Remarks column in Engineer_Tasks. Headers found: " + headers.join(", "));
+  }
+
+  // 3. CLOSED DATE UPDATE
+  if (targetStatus && (targetStatus.toLowerCase() === 'resolved' || targetStatus.toLowerCase() === 'closed') && closeDateColIdx !== -1) {
+    taskSheet.getRange(rowFound, closeDateColIdx + 1).setValue(new Date().toISOString());
   }
 
   // Step B: Update Master Ticket Status
   let updatedSlaDays = null;
-  evaluateAndEnforceParentStatus(Ticket_ID_Ref);
+  evaluateAndEnforceParentStatus(ticketIdRef);
 
   // Step C: Audit Trail
-  logSystemActivity(Engineer_Email || 'SYSTEM', "STATUS_UPDATE_" + Status, Ticket_ID_Ref, Remarks);
+  logSystemActivity(engineerEmail, "STATUS_UPDATE_" + targetStatus, targetTaskId, targetRemarks || '');
 
   return {
-    Task_ID: Task_ID,
-    Ticket_ID_Ref: Ticket_ID_Ref,
-    Status: Status,
+    Task_ID: targetTaskId,
+    Ticket_ID_Ref: ticketIdRef,
+    Status: targetStatus,
     Resolved_Days: updatedSlaDays,
     Message: "Task execution logged and SLA recalculated."
   };
@@ -2261,7 +2394,10 @@ function handleGetDashboard(payload) {
     // Step 4: Fetch and map Engineer_Tasks (children)
     const rawTaskObjects = taskSheet ? mapRowsToObjects(taskSheet) : [];
     const children = [];
-    
+    const taskHeaders = taskSheet ? getHeaders(taskSheet).map(h => String(h).trim()) : [];
+    const remarksColIdx = taskHeaders.findIndex(h => ['Engineer_Remarks', 'Remarks', 'engineerRemarks', 'Admin_Eng_Remarks', 'Admin_Remarks'].includes(h));
+    const remarksHeaderName = remarksColIdx !== -1 ? taskHeaders[remarksColIdx] : '';
+
     rawTaskObjects.forEach(row => {
       // Find role of the engineer
       const engEmail = String(row.Engineer_Email || "").trim().toLowerCase();
@@ -2278,6 +2414,8 @@ function handleGetDashboard(payload) {
           }
         }
       });
+
+      const remarksVal = remarksHeaderName ? (row[remarksHeaderName] || "") : "";
       
       children.push({
         Child_ID: row.Task_ID,
@@ -2296,8 +2434,12 @@ function handleGetDashboard(payload) {
         Closed_Date: row.Closed_Date || "",
         Instructions: row.Instructions || "",
         
-        Admin_Eng_Remarks: row.Engineer_Remarks,
-        admin_eng_remarks: row.Engineer_Remarks,
+        // Expose under all variations to be absolutely safe for the frontend UI
+        Engineer_Remarks: remarksVal,
+        engineerRemarks: remarksVal,
+        Remarks: remarksVal,
+        Admin_Eng_Remarks: remarksVal,
+        admin_eng_remarks: remarksVal,
         Acknowledged_At: acknowledgedAt
       });
     });
@@ -2482,9 +2624,27 @@ function handleCreateTicket(payload) {
         const intakeData = intakeSheet.getDataRange().getValues();
         const inIdIdx = intakeHeaders.indexOf("Intake_ID");
         const inStatusIdx = intakeHeaders.indexOf("Status");
+        const inUniqueIdIdx = intakeHeaders.indexOf("Unique_Product_Id");
+        const inSerialIdx = intakeHeaders.indexOf("ProductSerial");
+        
+        const targetUniqueId = ticketData.productId || ticketData.Unique_Product_Id || ticketData.uniqueId || "";
+        const targetSerial = ticketData.productSerial || ticketData.ProductSerial || ticketData.serial || "";
         
         for (let i = 1; i < intakeData.length; i++) {
-          if (String(intakeData[i][inIdIdx]).trim() === String(serviceRequestId).trim()) {
+          const rowIntakeId = String(intakeData[i][inIdIdx]).trim();
+          if (rowIntakeId === String(serviceRequestId).trim()) {
+            if (targetUniqueId || targetSerial) {
+              const rowUniqueId = inUniqueIdIdx !== -1 ? String(intakeData[i][inUniqueIdIdx]).trim() : "";
+              const rowSerial = inSerialIdx !== -1 ? String(intakeData[i][inSerialIdx]).trim() : "";
+              
+              const isMatchUnique = targetUniqueId && rowUniqueId && rowUniqueId === String(targetUniqueId).trim();
+              const isMatchSerial = targetSerial && rowSerial && rowSerial === String(targetSerial).trim();
+              
+              if (!isMatchUnique && !isMatchSerial) {
+                continue;
+              }
+            }
+            
             intakeSheet.getRange(i + 1, inStatusIdx + 1).setValue("Promoted");
             
             if (hasPayload) {
@@ -2657,67 +2817,54 @@ function handleCreateMasterTicket(payload) {
         }
       }
     }
+    ticketData.Ref_Code = ticketData.Ref_Code || refCode || "";
 
     const hasEngineer = engineer && engineer.email;
     const status = hasEngineer ? "In Progress" : "Open";
     const assignedEngName = hasEngineer ? (engineer.name || "") : "";
 
-    // Schema: ['Ticket_ID', 'Intake_ID_Ref', 'Ref_Code', 'Company_Name', 'Requester_Name', 'Client_Email', 'PhoneNumber', 'Location', 'Sub_Location', 'Room_Name', 'ProductMake', 'ProductModel', 'ProductSerial', 'MAC_ID', 'IP_Address', 'Sales_Order', 'Warranty_End_Date', 'Category', 'Attachment_URL', 'Service_Type', 'Status', 'Assigned_Engineer', 'Open_Date', 'Close_Date', 'Resolved_Days', 'Admin_Remarks']
-    const ticketRowPayload = {
-      Intake_ID: ticketData.Intake_ID || ticketData.Intake_ID_Ref || "MANUAL",
-      Ref_Code: refCode || ticketData.Ref_Code || "",
-      Company_Name: ticketData.Company_Name || "",
-      Requester_Name: ticketData.Requester_Name || payload.Requester_Name || ticketData.requesterName || ticketData.reqBy || "",
-      Client_Email: ticketData.Client_Email || payload.Client_Email || ticketData.clientEmail || ticketData.email || "",
-      PhoneNumber: ticketData.PhoneNumber || payload.PhoneNumber || ticketData.phoneNumber || ticketData.phone || "",
-      Location: ticketData.Location || "",
-      Sub_Location: ticketData.Sub_Location || "",
-      Room_Name: ticketData.Room_Name || "",
-      ProductMake: ticketData.ProductMake || "",
-      ProductModel: ticketData.ProductModel || "",
-      ProductSerial: ticketData.ProductSerial || "",
-      MAC_ID: ticketData.MAC_ID || "",
-      IP_Address: ticketData.IP_Address || "",
-      Sales_Order: ticketData.Sales_Order || payload.Sales_Order || ticketData.salesOrder || "",
-      Warranty_End_Date: ticketData.Warranty_End_Date || "",
-      Category: ticketData.Category || "",
-      Attachment_URL: ticketData.Attachment_URL || "",
-      Service_Type: ticketData.Service_Type || "Out of Warranty",
-      Admin_Remarks: ticketData.Admin_Remarks || ticketData.remarks || ""
-    };
-
-    const newTicketId = ticketId;
-    const assignedEngineer = assignedEngName;
-    const tData = ticketRowPayload;
+    const tData = ticketData || payload.ticketData || payload; // Failsafe extraction
 
     const newMasterRow = [
-      newTicketId,                           // 1. Ticket_ID
-      tData.Intake_ID || "MANUAL_ENTRY",     // 2. Intake_ID_Ref
-      tData.Ref_Code || "",                  // 3. Ref_Code
-      tData.Company_Name || "",              // 4. Company_Name
-      tData.Requester_Name || "",            // 5. Requester_Name
-      tData.Client_Email || "",              // 6. Client_Email
-      tData.PhoneNumber || "",               // 7. PhoneNumber
-      tData.Location || "",                  // 8. Location
-      tData.Sub_Location || "",              // 9. Sub_Location
-      tData.Room_Name || "",                 // 10. Room_Name
-      tData.ProductMake || "",               // 11. ProductMake
-      tData.ProductModel || "",              // 12. ProductModel
-      tData.ProductSerial || "",             // 13. ProductSerial
-      tData.MAC_ID || "",                    // 14. MAC_ID
-      tData.IP_Address || "",                // 15. IP_Address
-      tData.Sales_Order || "",               // 16. Sales_Order
-      tData.Warranty_End_Date || "",         // 17. Warranty_End_Date
+      ticketId,                               // 1. Ticket_ID
+      tData.Intake_ID_Ref || tData.Intake_ID || "MANUAL_ENTRY", // 2. Intake_ID_Ref
+      tData.Ref_Code || "",                   // 3. Ref_Code
+      tData.Company_Name || "",               // 4. Company_Name
+      tData.Requester_Name || "",             // 5. Requester_Name
+      tData.Client_Email || "",               // 6. Client_Email
+      tData.PhoneNumber || "",                // 7. PhoneNumber
+      tData.Location || "",                   // 8. Location
+      tData.Sub_Location || "",               // 9. Sub_Location
+      tData.Room_Name || "",                  // 10. Room_Name
+      tData.ProductMake || "",                // 11. ProductMake
+      tData.ProductModel || "",               // 12. ProductModel
+      tData.ProductSerial || "",              // 13. ProductSerial
+      tData.MAC_ID || "",                     // 14. MAC_ID
+      tData.IP_Address || "",                 // 15. IP_Address
+      tData.Sales_Order || "",                // 16. Sales_Order
+      tData.Warranty_End_Date || "",          // 17. Warranty_End_Date
       tData.Category || "",                  // 18. Category
       tData.Attachment_URL || "",            // 19. Attachment_URL
       tData.Service_Type || "General",       // 20. Service_Type
-      assignedEngineer ? "In Progress" : "Open", // 21. Status
-      assignedEngineer || "",                // 22. Assigned_Engineer
-      new Date().toISOString(),              // 23. Open_Date
-      "",                                    // 24. Close_Date
-      "",                                    // 25. Resolved_Days
-      tData.Admin_Remarks || ""              // 26. Admin_Remarks
+      hasEngineer ? "In Progress" : "Open",   // 21. Status
+      assignedEngName || "",                  // 22. Assigned_Engineer
+      new Date().toISOString(),               // 23. Open_Date
+      "",                                     // 24. Close_Date
+      "",                                     // 25. Resolved_Days
+      tData.Admin_Remarks || "",              // 26. Admin_Remarks
+      tData.Unique_Product_Id || "",          // 27. Unique_Product_Id
+      tData.Floor || "",                      // 28. Floor
+      tData.Room_Type || "",                  // 29. Room_Type
+      tData.Warranty_Start_Date || "",        // 30. Warranty_Start_Date
+      tData.DLP_Period || "",                 // 31. DLP_Period
+      tData.Warranty_Days_Left || "",         // 32. Warranty_Days_Left
+      tData.Asset_Status || "Active",         // 33. Asset_Status
+      tData.Issue_Type || tData.issueType || "" // 34. Issue_Type
     ];
+
+    // DIAGNOSTIC LOGGERS - Check your Apps Script Executions tab to see these
+    Logger.log("REACT PAYLOAD RECEIVED: " + JSON.stringify(tData));
+    Logger.log("SHEET INSERTION ARRAY: " + JSON.stringify(newMasterRow));
 
     ticketSheet.appendRow(newMasterRow);
 
@@ -2927,6 +3074,7 @@ function handleSearchTicket(payload) {
   
   return { success: false, message: "No active ticket or intake record found matching the search criteria." };
 }
+
 
 /**
  * HTML-to-PDF Service Report Generator

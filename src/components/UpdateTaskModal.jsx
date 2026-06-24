@@ -63,7 +63,12 @@ const UpdateTaskModal = ({ isOpen, onClose, taskConfig, currentUser, onSuccess }
       }
 
       if (response?.success) {
-        onSuccess(statusVal, remark); // Pass updated status/remark back
+        onSuccess(
+          statusVal, 
+          remark, 
+          taskConfig?.Task_ID || taskConfig?.childId, 
+          taskConfig?.Ticket_ID || taskConfig?.Ticket_ID_Ref || taskConfig?.parentId
+        );
         onClose();   // Hides the modal
       } else {
         setStatus({ loading: false, error: response?.message || 'Error occurred.' });
