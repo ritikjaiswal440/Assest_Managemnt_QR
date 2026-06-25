@@ -22,6 +22,7 @@ const TicketRequest = () => {
   const [branchOptions, setBranchOptions] = useState([]);
   const [selectedBranch, setSelectedBranch] = useState("");
   const [isVerifying, setIsVerifying] = useState(false);
+  const [availableHardware, setAvailableHardware] = useState([]);
 
   // Form State variables
   const [reqBy, setReqBy] = useState('');
@@ -77,6 +78,18 @@ const TicketRequest = () => {
     loadDropdowns();
   }, []);
 
+  // Filter available hardware based on selected branch
+  useEffect(() => {
+    if (selectedBranch && companyAssets.length > 0) {
+      const filtered = companyAssets.filter(a => 
+        String(a.Branch || a.Sub_Location || '').trim().toLowerCase() === String(selectedBranch).trim().toLowerCase()
+      );
+      setAvailableHardware(filtered);
+    } else {
+      setAvailableHardware([]);
+    }
+  }, [selectedBranch, companyAssets]);
+
   const handleVerifyRefCode = async (enteredCode) => {
     if (!enteredCode) return;
     setIsVerifying(true);
@@ -87,6 +100,7 @@ const TicketRequest = () => {
       
       if (data.success && data.branches && data.branches.length > 0) {
         setBranchOptions(data.branches);
+        setCompanyAssets(data.assets || []); // <-- Store the fetched assets
         if (data.branches.length === 1) {
           // Auto-select if there is only one branch
           setSelectedBranch(data.branches[0].Branch);
@@ -123,11 +137,13 @@ const TicketRequest = () => {
         setCompany(response?.data?.companyName || "Verified Client");
         
         // Filter assets by verified client code
-        if (dropdownData.assets) {
+        if (dropdownData.assets && dropdownData.assets.length > 0) {
           const filtered = dropdownData.assets.filter(asset => 
             String(asset.Company_Ref || '').trim().toLowerCase() === String(codeToUse).trim().toLowerCase()
           );
-          setCompanyAssets(filtered);
+          if (filtered.length > 0) {
+            setCompanyAssets(filtered);
+          }
         }
 
         setView('form');
@@ -188,15 +204,15 @@ const TicketRequest = () => {
   };
 
   const handleProductAssetSelect = (index, assetRef) => {
-    const selected = companyAssets.find(a => a.Asset_Ref === assetRef);
+    const selected = companyAssets.find(a => a.Asset_Ref === assetRef || a.Unique_Product_Id === assetRef);
     const updated = [...products];
     if (selected) {
       updated[index] = {
         ...updated[index],
-        uniqueId: selected.Asset_Ref,
-        productMake: selected.Make || '',
-        productModel: selected.Model || '',
-        productSerial: selected.Serial_Number || '',
+        uniqueId: selected.Asset_Ref || selected.Unique_Product_Id,
+        productMake: selected.Make || selected.ProductMake || '',
+        productModel: selected.Model || selected.ProductModel || '',
+        productSerial: selected.Serial_Number || selected.ProductSerial || '',
         salesOrder: selected.Sales_Order || '',
         invoiceNo: selected.Invoice_No || '',
         subLocation: selected.Branch || selected.Sub_Location || '',
@@ -573,9 +589,9 @@ const TicketRequest = () => {
                       disabled={status.loading}
                     >
                       <option value="">-- Custom / Manual Entry --</option>
-                      {companyAssets.map((asset, aidx) => (
-                        <option key={aidx} value={asset.Asset_Ref}>
-                          {asset.Asset_Ref} ({asset.Make} {asset.Model} - S/N: {asset.Serial_Number})
+                      {availableHardware.map((hw, idx) => (
+                        <option key={idx} value={hw.Unique_Product_Id || hw.Asset_Ref}>
+                          {hw.ProductMake || hw.Make} {hw.ProductModel || hw.Model} (S/N: {hw.ProductSerial || hw.Serial_Number || 'N/A'}) — {hw.Unique_Product_Id || hw.Asset_Ref}
                         </option>
                       ))}
                     </select>

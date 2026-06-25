@@ -102,9 +102,69 @@ function doGet(e) {
           }
         }
 
+        // --- NEW: FETCH LINKED HARDWARE ASSETS ---
+        const assetSheet = ss.getSheetByName("Asset_Master");
+        let matchedAssets = [];
+        
+        if (assetSheet) {
+          const assetData = assetSheet.getDataRange().getValues();
+          const aHeaders = assetData[0].map(h => String(h).trim());
+          
+          const aRefIdx = aHeaders.indexOf('Ref_Code');
+          const aBranchIdx = aHeaders.indexOf('Branch');
+          const aIdIdx = aHeaders.indexOf('Unique_Product_Id');
+          const aMakeIdx = aHeaders.indexOf('ProductMake');
+          const aModelIdx = aHeaders.indexOf('ProductModel');
+          const aSerialIdx = aHeaders.indexOf('ProductSerial');
+          const aLocIdx = aHeaders.indexOf('Location');
+          const aRoomIdx = aHeaders.indexOf('Room_Name');
+          const aRoomTypeIdx = aHeaders.indexOf('Room_Type');
+          const aFloorIdx = aHeaders.indexOf('Floor');
+          const aMacIdx = aHeaders.indexOf('MAC_ID');
+          const aIpIdx = aHeaders.indexOf('IP_Address');
+          const aWarrantyStartIdx = aHeaders.indexOf('Warranty_Start_Date');
+          const aDlpIdx = aHeaders.indexOf('DLP_Period');
+          const aWarrantyEndIdx = aHeaders.indexOf('Warranty_End_Date');
+          const aWarrantyDaysIdx = aHeaders.indexOf('Warranty_Days_Left');
+          const aStatusIdx = aHeaders.indexOf('Asset_Status');
+          const aSalesOrderIdx = aHeaders.indexOf('Sales_Order');
+          const aInvoiceIdx = aHeaders.indexOf('Invoice_No');
+
+          // Note: Start at 1 to skip headers
+          for (let j = 1; j < assetData.length; j++) {
+            if (String(assetData[j][aRefIdx]).trim() === String(code).trim()) {
+              matchedAssets.push({
+                Unique_Product_Id: assetData[j][aIdIdx] || "",
+                Asset_Ref: assetData[j][aIdIdx] || "",
+                Branch: assetData[j][aBranchIdx] || "",
+                ProductMake: assetData[j][aMakeIdx] || "",
+                Make: assetData[j][aMakeIdx] || "",
+                ProductModel: assetData[j][aModelIdx] || "",
+                Model: assetData[j][aModelIdx] || "",
+                ProductSerial: assetData[j][aSerialIdx] || "",
+                Serial_Number: assetData[j][aSerialIdx] || "",
+                Location: aLocIdx !== -1 ? assetData[j][aLocIdx] || "" : "",
+                Room_Name: aRoomIdx !== -1 ? assetData[j][aRoomIdx] || "" : "",
+                Room_Type: aRoomTypeIdx !== -1 ? assetData[j][aRoomTypeIdx] || "" : "",
+                Floor: aFloorIdx !== -1 ? assetData[j][aFloorIdx] || "" : "",
+                MAC_ID: aMacIdx !== -1 ? assetData[j][aMacIdx] || "" : "",
+                IP_Address: aIpIdx !== -1 ? assetData[j][aIpIdx] || "" : "",
+                Warranty_Start_Date: aWarrantyStartIdx !== -1 ? assetData[j][aWarrantyStartIdx] || "" : "",
+                DLP_Period: aDlpIdx !== -1 ? assetData[j][aDlpIdx] || "" : "",
+                Warranty_End_Date: aWarrantyEndIdx !== -1 ? assetData[j][aWarrantyEndIdx] || "" : "",
+                Warranty_Days_Left: aWarrantyDaysIdx !== -1 ? assetData[j][aWarrantyDaysIdx] || "" : "",
+                Asset_Status: aStatusIdx !== -1 ? assetData[j][aStatusIdx] || "Active" : "Active",
+                Sales_Order: aSalesOrderIdx !== -1 ? assetData[j][aSalesOrderIdx] || "" : "",
+                Invoice_No: aInvoiceIdx !== -1 ? assetData[j][aInvoiceIdx] || "" : ""
+              });
+            }
+          }
+        }
+
         return ContentService.createTextOutput(JSON.stringify({
           success: true,
-          branches: matchedBranches
+          branches: matchedBranches,
+          assets: matchedAssets // <-- NEW ASSET PAYLOAD
         })).setMimeType(ContentService.MimeType.JSON);
 
       } catch (error) {
