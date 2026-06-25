@@ -268,6 +268,7 @@ export default function CompanyDashboard() {
         onClose={() => setIsModalOpen(false)}
         onSave={handleSaveCompany}
         initialData={editingCompany}
+        companies={companies}
       />
     </section>
   );
