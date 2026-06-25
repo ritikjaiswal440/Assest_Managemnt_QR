@@ -525,58 +525,67 @@ function handleSubmitIntake(payload) {
   const productsArray = (payload.products && payload.products.length > 0)
     ? payload.products
     : [{
-        uniqueId: payload.uniqueId || payload.Unique_Product_Id || "",
-        salesOrder: payload.salesOrder || payload.Sales_Order || "",
+        uniqueId: payload.uniqueId || payload.Unique_Product_Id || (payload.payloadObj && payload.payloadObj.Unique_Product_Id) || "",
+        salesOrder: payload.salesOrder || payload.Sales_Order || (payload.payloadObj && payload.payloadObj.Sales_Order) || "",
         invoiceNo: payload.invoiceNo || payload.Invoice_No || "",
-        subLocation: payload.subLocation || payload.Sub_Location || "",
-        roomType: payload.roomType || payload.Room_Type || "",
-        floor: payload.floor || payload.Floor || "",
-        roomName: payload.roomName || payload.Room_Name || payload.room || "",
-        productMake: payload.productMake || payload.ProductMake || "",
-        productModel: payload.productModel || payload.ProductModel || "",
-        productSerial: payload.productSerial || payload.ProductSerial || "",
-        macId: payload.macId || payload.MAC_ID || "",
-        ipAddress: payload.ipAddress || payload.IP_Address || "",
-        warrantyStart: payload.warrantyStart || payload.Warranty_Start_Date || "",
-        dlpPeriod: payload.dlpPeriod || payload.DLP_Period || "",
-        warrantyEnd: payload.warrantyEnd || payload.Warranty_End_Date || "",
-        warrantyDays: payload.warrantyDays || payload.Warranty_Days_Left || "",
-        assetStatus: payload.assetStatus || payload.Asset_Status || ""
+        subLocation: payload.subLocation || payload.Sub_Location || (payload.payloadObj && payload.payloadObj.Sub_Location) || "",
+        roomType: payload.roomType || payload.Room_Type || (payload.payloadObj && payload.payloadObj.Room_Type) || "",
+        floor: payload.floor || payload.Floor || (payload.payloadObj && payload.payloadObj.Floor) || "",
+        roomName: payload.roomName || payload.Room_Name || payload.room || (payload.payloadObj && payload.payloadObj.Room_Name) || "",
+        productMake: payload.productMake || payload.ProductMake || (payload.payloadObj && payload.payloadObj.ProductMake) || "",
+        productModel: payload.productModel || payload.ProductModel || (payload.payloadObj && payload.payloadObj.ProductModel) || "",
+        productSerial: payload.productSerial || payload.ProductSerial || (payload.payloadObj && payload.payloadObj.ProductSerial) || "",
+        macId: payload.macId || payload.MAC_ID || (payload.payloadObj && payload.payloadObj.MAC_ID) || "",
+        ipAddress: payload.ipAddress || payload.IP_Address || (payload.payloadObj && payload.payloadObj.IP_Address) || "",
+        warrantyStart: payload.warrantyStart || payload.Warranty_Start_Date || (payload.payloadObj && payload.payloadObj.Warranty_Start_Date) || "",
+        dlpPeriod: payload.dlpPeriod || payload.DLP_Period || (payload.payloadObj && payload.payloadObj.DLP_Period) || "",
+        warrantyEnd: payload.warrantyEnd || payload.Warranty_End_Date || (payload.payloadObj && payload.payloadObj.Warranty_End_Date) || "",
+        warrantyDays: payload.warrantyDays || payload.Warranty_Days_Left || (payload.payloadObj && payload.payloadObj.Warranty_Days_Left) || "",
+        assetStatus: payload.assetStatus || payload.Asset_Status || (payload.payloadObj && payload.payloadObj.Asset_Status) || ""
       }];
 
+  const headers = getHeaders(sheet);
+  const payloadString = payload.payloadObj ? JSON.stringify(payload.payloadObj) : "{}";
+
   productsArray.forEach(prod => {
-    const newRow = [
-      newIntakeId,                                      // 1. Intake_ID (Shared)
-      payload.source || payload.Source || "Manual",     // 2. Source
-      prod.uniqueId || prod.Unique_Product_Id || "",    // 3. Unique_Product_Id
-      prod.salesOrder || prod.Sales_Order || "",        // 4. Sales_Order
-      prod.invoiceNo || prod.Invoice_No || "",          // 5. Invoice_No
-      payload.ref || payload.refCode || payload.Ref_Code || "", // 6. Ref_Code (Shared)
-      payload.companyName || payload.Company_Name || "",// 7. Company_Name (Shared)
-      payload.location || payload.Location || "",       // 8. Location (Shared)
-      prod.subLocation || prod.Sub_Location || "",      // 9. Sub_Location
-      prod.roomType || prod.Room_Type || "",            // 10. Room_Type
-      prod.floor || prod.Floor || "",                  // 11. Floor
-      payload.roomName || payload.Room_Name || prod.room || prod.Room_Name || prod.roomName || "", // 12. Room_Name (Shared/Fallback)
-      prod.productMake || prod.ProductMake || "",       // 13. ProductMake
-      prod.productModel || prod.ProductModel || "",     // 14. ProductModel
-      prod.productSerial || prod.ProductSerial || "",   // 15. ProductSerial
-      prod.macId || prod.MAC_ID || "",                  // 16. MAC_ID
-      prod.ipAddress || prod.IP_Address || "",          // 17. IP_Address
-      prod.warrantyStart || prod.Warranty_Start_Date || "", // 18. Warranty_Start_Date
-      prod.dlpPeriod || prod.DLP_Period || "",          // 19. DLP_Period
-      prod.warrantyEnd || prod.Warranty_End_Date || "", // 20. Warranty_End_Date
-      prod.warrantyDays || prod.Warranty_Days_Left || "", // 21. Warranty_Days_Left
-      prod.assetStatus || prod.Asset_Status || "",      // 22. Asset_Status
-      payload.requesterName || payload.Requester_Name || "", // 23. Requester_Name (Shared)
-      payload.email || payload.Client_Email || "",      // 24. Client_Email (Shared)
-      payload.phoneNumber || payload.PhoneNumber || "",// 25. PhoneNumber (Shared)
-      payload.category || payload.Category || "",       // 26. Category (Shared)
-      payload.issueDescription || payload.Issue_Description || "", // 27. Issue_Description (Shared)
-      fileUrl || payload.Attachment_URL || "",          // 28. Attachment_URL (Shared)
-      "Open",                                           // 29. Status
-      new Date().toISOString()                          // 30. Timestamp
-    ];
+    const newRow = headers.map(header => {
+      switch (header) {
+        case 'Intake_ID': return newIntakeId;
+        case 'Source': return payload.source || payload.Source || "Manual";
+        case 'Unique_Product_Id': return prod.uniqueId || prod.Unique_Product_Id || "";
+        case 'Sales_Order': return prod.salesOrder || prod.Sales_Order || "";
+        case 'Invoice_No': return prod.invoiceNo || prod.Invoice_No || "";
+        case 'Ref_Code': return payload.ref || payload.refCode || payload.Ref_Code || "";
+        case 'Company_Name': return payload.companyName || payload.Company_Name || "";
+        case 'Location': return payload.location || payload.Location || "";
+        case 'Sub_Location': return prod.subLocation || prod.Sub_Location || "";
+        case 'Room_Type': return prod.roomType || prod.Room_Type || "";
+        case 'Floor': return prod.floor || prod.Floor || "";
+        case 'Room_Name': return payload.roomName || payload.Room_Name || prod.room || prod.Room_Name || prod.roomName || "";
+        case 'ProductMake': return prod.productMake || prod.ProductMake || "";
+        case 'ProductModel': return prod.productModel || prod.ProductModel || "";
+        case 'ProductSerial': return prod.productSerial || prod.ProductSerial || "";
+        case 'MAC_ID': return prod.macId || prod.MAC_ID || "";
+        case 'IP_Address': return prod.ipAddress || prod.IP_Address || "";
+        case 'Warranty_Start_Date': return prod.warrantyStart || prod.Warranty_Start_Date || "";
+        case 'DLP_Period': return prod.dlpPeriod || prod.DLP_Period || "";
+        case 'Warranty_End_Date': return prod.warrantyEnd || prod.Warranty_End_Date || "";
+        case 'Warranty_Days_Left': return prod.warrantyDays || prod.Warranty_Days_Left || "";
+        case 'Asset_Status': return prod.assetStatus || prod.Asset_Status || "";
+        case 'Requester_Name': return payload.requesterName || payload.Requester_Name || "";
+        case 'Client_Email': return payload.email || payload.Client_Email || "";
+        case 'PhoneNumber': return payload.phoneNumber || payload.PhoneNumber || "";
+        case 'Category': return payload.category || payload.Category || "";
+        case 'Issue_Description': return payload.issueDescription || payload.Issue_Description || "";
+        case 'Attachment_URL': return fileUrl || payload.Attachment_URL || "";
+        case 'Status': return "Open";
+        case 'Timestamp': return new Date().toISOString();
+        case 'Payload': return payloadString;
+        case 'Sync_Status': return "Pending";
+        case 'Request_ID': return "";
+        default: return "";
+      }
+    });
     sheet.appendRow(newRow);
   });
   

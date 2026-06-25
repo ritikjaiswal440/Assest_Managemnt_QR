@@ -141,34 +141,60 @@ export default function PublicComplaintPortal() {
       // Map form state to the exact Intake_Queue schema before sending
       const payload = {
         Source: "QR",
-        Unique_Product_Id: asset?.assetId || assetId,
-        Sales_Order: asset?.salesOrder || "",
-        Invoice_No: asset?.invoiceNo || "",
-        Ref_Code: signature,
-        Company_Name: asset?.companyName || 'Unknown',
-        Location: asset?.location || 'N/A',
-        Sub_Location: asset?.subLocation || 'N/A',
-        Room_Type: asset?.roomType || 'N/A',
-        Floor: asset?.floor || 'N/A',
-        Room_Name: asset?.roomName || 'N/A',
-        ProductMake: asset?.productMake || '',
-        ProductModel: asset?.productModel || '',
-        ProductSerial: asset?.productSerial || '',
-        MAC_ID: asset?.macId || "",
-        IP_Address: asset?.ipAddress || "",
-        Warranty_Start_Date: asset?.warrantyStartDate || "",
-        DLP_Period: asset?.dlpPeriod || "",
-        Warranty_End_Date: asset?.warrantyEndDate || "",
-        Warranty_Days_Left: asset?.warrantyDaysLeft || "",
-        Asset_Status: asset?.assetStatus || "Active",
-        Requester_Name: formData.requestedBy,
-        Client_Email: formData.clientEmail,
-        PhoneNumber: formData.phoneNumber,
+        Unique_Product_Id: asset.Unique_Product_Id || asset.UNIQUE_PRODUCT_ID || asset.assetId || "",
+        Sales_Order: asset.Sales_Order || asset.SALES_ORDER || asset.salesOrder || "",
+        Invoice_No: asset.Invoice_No || asset.INVOICE_NO || asset.invoiceNo || "",
+        Ref_Code: asset.Ref_Code || asset.REF_CODE || signature || "",
+        Company_Name: asset.Company_Name || asset.COMPANY_NAME || asset.companyName || "",
+        Location: asset.Location || asset.LOCATION || asset.location || "",
+        Sub_Location: asset.Sub_Location || asset.SUB_LOCATION || asset.subLocation || "",
+        Room_Type: asset.Room_Type || asset.ROOM_TYPE || asset.roomType || "",
+        Floor: asset.Floor || asset.FLOOR || asset.floor || "",
+        Room_Name: asset.Room_Name || asset.ROOM_NAME || asset.roomName || "",
+        ProductMake: asset.ProductMake || asset.PRODUCTMAKE || asset.productMake || "",
+        ProductModel: asset.ProductModel || asset.PRODUCTMODEL || asset.productModel || "",
+        ProductSerial: asset.ProductSerial || asset.PRODUCTSERIAL || asset.productSerial || "",
+        MAC_ID: asset.MAC_ID || asset.MAC_Id || asset.macId || "",
+        IP_Address: asset.IP_Address || asset.IP_ADDRESS || asset.ipAddress || "",
+        Warranty_Start_Date: asset.Warranty_Start_Date || asset.WARRANTY_START_DATE || asset.warrantyStartDate || "",
+        DLP_Period: asset.DLP_Period || asset.DLP_PERIOD || asset.dlpPeriod || "",
+        Warranty_End_Date: asset.Warranty_End_Date || asset.WARRANTY_END_DATE || asset.warrantyEndDate || "",
+        Warranty_Days_Left: asset.Warranty_Days_Left || asset.WARRANTY_DAYS_LEFT || asset.warrantyDaysLeft || "",
+        Asset_Status: asset.Asset_Status || asset.ASSET_STATUS || asset.assetStatus || "Active",
+        
+        Requester_Name: formData.requestedBy || "",
+        Client_Email: formData.clientEmail || "",
+        PhoneNumber: formData.phoneNumber || "",
         Category: 'Hardware', // Default category for QR complaint
-        Issue_Description: formData.description,
+        Issue_Description: formData.description || "",
+        
         Attachment_Base64: base64String,
         Attachment_Name: attachment ? attachment.name : "",
-        Attachment_MimeType: attachment ? attachment.type : ""
+        Attachment_MimeType: attachment ? attachment.type : "",
+
+        // The "Deep Sync" Payload: Pack EVERYTHING so the Master_Tickets triage can extract it later
+        payloadObj: {
+          Unique_Product_Id: asset.Unique_Product_Id || asset.UNIQUE_PRODUCT_ID || asset.assetId || "",
+          Ref_Code: asset.Ref_Code || asset.REF_CODE || signature || "",
+          Company_Name: asset.Company_Name || asset.COMPANY_NAME || asset.companyName || "",
+          Location: asset.Location || asset.LOCATION || asset.location || "",
+          Sub_Location: asset.Sub_Location || asset.SUB_LOCATION || asset.subLocation || "",
+          Floor: asset.Floor || asset.FLOOR || asset.floor || "",
+          Room_Type: asset.Room_Type || asset.ROOM_TYPE || asset.roomType || "",
+          Room_Name: asset.Room_Name || asset.ROOM_NAME || asset.roomName || "",
+          ProductMake: asset.ProductMake || asset.PRODUCTMAKE || asset.productMake || "",
+          ProductModel: asset.ProductModel || asset.PRODUCTMODEL || asset.productModel || "",
+          ProductSerial: asset.ProductSerial || asset.PRODUCTSERIAL || asset.productSerial || "",
+          MAC_ID: asset.MAC_ID || asset.MAC_Id || asset.macId || "",
+          IP_Address: asset.IP_Address || asset.IP_ADDRESS || asset.ipAddress || "",
+          Sales_Order: asset.Sales_Order || asset.SALES_ORDER || asset.salesOrder || "",
+          Warranty_Start_Date: asset.Warranty_Start_Date || asset.WARRANTY_START_DATE || asset.warrantyStartDate || "",
+          Warranty_End_Date: asset.Warranty_End_Date || asset.WARRANTY_END_DATE || asset.warrantyEndDate || "",
+          DLP_Period: asset.DLP_Period || asset.DLP_PERIOD || asset.dlpPeriod || "",
+          Warranty_Days_Left: asset.Warranty_Days_Left || asset.WARRANTY_DAYS_LEFT || asset.warrantyDaysLeft || "",
+          Asset_Status: asset.Asset_Status || asset.ASSET_STATUS || asset.assetStatus || "",
+          Issue_Type: "Hardware"
+        }
       };
 
       const response = await submitToIntakeQueue(payload);
@@ -275,6 +301,33 @@ export default function PublicComplaintPortal() {
                   <div className="detail-item">
                     <span className="detail-label">Serial Number</span>
                     <span className="detail-value">{asset.productSerial || 'N/A'}</span>
+                  </div>
+                </div>
+              </div>
+
+              <hr className="section-divider" />
+
+              {/* --- NEW: NETWORK & IDENTITY SECTION --- */}
+              <div style={{ marginTop: '20px', marginBottom: '20px' }}>
+                <h4 style={{ color: '#3b82f6', borderBottom: '1px solid #e2e8f0', paddingBottom: '8px', marginBottom: '12px', fontSize: '1rem' }}>
+                  Network & Identity
+                </h4>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: '15px' }}>
+                  <div>
+                    <div style={{ fontSize: '0.7rem', color: '#64748b', textTransform: 'uppercase', fontWeight: 'bold' }}>Asset ID</div>
+                    <div style={{ fontWeight: '600', color: '#0f172a' }}>{asset.Unique_Product_Id || asset.UNIQUE_PRODUCT_ID || asset.assetId || 'N/A'}</div>
+                  </div>
+                  <div>
+                    <div style={{ fontSize: '0.7rem', color: '#64748b', textTransform: 'uppercase', fontWeight: 'bold' }}>Ref Code / SO</div>
+                    <div style={{ color: '#334155' }}>{asset.Ref_Code || asset.REF_CODE || asset.Sales_Order || asset.salesOrder || 'N/A'}</div>
+                  </div>
+                  <div>
+                    <div style={{ fontSize: '0.7rem', color: '#64748b', textTransform: 'uppercase', fontWeight: 'bold' }}>IP Address</div>
+                    <div style={{ color: '#334155' }}>{asset.IP_Address || asset.IP_ADDRESS || asset.ipAddress || 'DHCP'}</div>
+                  </div>
+                  <div>
+                    <div style={{ fontSize: '0.7rem', color: '#64748b', textTransform: 'uppercase', fontWeight: 'bold' }}>MAC ID</div>
+                    <div style={{ color: '#334155' }}>{asset.MAC_ID || asset.MAC_Id || asset.macId || 'N/A'}</div>
                   </div>
                 </div>
               </div>
