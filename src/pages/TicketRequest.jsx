@@ -117,8 +117,35 @@ const TicketRequest = () => {
   };
 
   const handleClearBranch = () => {
+    // 1. Clear the Branch Dropdown
     setSelectedBranch("");
+    
+    // 2. Clear the parent location state
     setLocation("");
+    
+    // 3. KILL THE GHOST STATE: Reset products array back to initial clean state
+    setProducts([
+      {
+        uniqueId: '',
+        productMake: '',
+        productModel: '',
+        productSerial: '',
+        salesOrder: '',
+        invoiceNo: '',
+        subLocation: '',
+        roomType: '',
+        floor: '',
+        roomName: '',
+        macId: '',
+        ipAddress: '',
+        warrantyStart: '',
+        dlpPeriod: '',
+        warrantyEnd: '',
+        warrantyDays: '',
+        assetStatus: 'Active',
+        selectedAsset: null
+      }
+    ]);
   };
 
   const handleAuth = useCallback(async (codeOverride = null) => {
