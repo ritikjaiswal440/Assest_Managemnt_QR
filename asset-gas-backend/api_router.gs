@@ -66,11 +66,53 @@ function doGet(e) {
 
   if (e && e.parameter) {
     const action = e.parameter.action || e.parameter.route;
+    // --- NEW ROUTE: VERIFY REF CODE FOR SMART FORM ---
     if (action === 'verifyRefCode') {
-      const code = e.parameter.code || e.parameter.Ref_Code || '';
-      const result = getCompanyBranchesByCode(code);
-      return ContentService.createTextOutput(JSON.stringify(result))
-        .setMimeType(ContentService.MimeType.JSON);
+      const code = e.parameter.code;
+      
+      if (!code) {
+        return ContentService.createTextOutput(JSON.stringify({ success: false, message: "No code provided" }))
+          .setMimeType(ContentService.MimeType.JSON);
+      }
+
+      try {
+        const ss = SpreadsheetApp.getActiveSpreadsheet();
+        const sheet = ss.getSheetByName("Company_Master");
+        
+        if (!sheet) throw new Error("Company_Master sheet missing");
+
+        const data = sheet.getDataRange().getValues();
+        const headers = data[0].map(h => String(h).trim());
+        
+        const refIdx = headers.indexOf('Ref_Code');
+        const locIdx = headers.indexOf('Location');
+        const branchIdx = headers.indexOf('Branch'); // Updated from Sub_Location
+        const statusIdx = headers.indexOf('Status');
+
+        let matchedBranches = [];
+
+        // Loop through Company_Master to find all branches for this Ref_Code
+        for (let i = 1; i < data.length; i++) {
+          if (String(data[i][refIdx]).trim() === String(code).trim()) {
+            matchedBranches.push({
+              Location: data[i][locIdx] || "",
+              Branch: data[i][branchIdx] || "",
+              Status: data[i][statusIdx] || "Active"
+            });
+          }
+        }
+
+        return ContentService.createTextOutput(JSON.stringify({
+          success: true,
+          branches: matchedBranches
+        })).setMimeType(ContentService.MimeType.JSON);
+
+      } catch (error) {
+        return ContentService.createTextOutput(JSON.stringify({ 
+          success: false, 
+          message: error.message 
+        })).setMimeType(ContentService.MimeType.JSON);
+      }
     }
     if (action === 'getDashboardData') {
       return getDashboardData();
