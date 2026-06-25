@@ -56,6 +56,8 @@ const TicketRequest = () => {
     }
   ]);
 
+  const asset = products[0]?.selectedAsset;
+
   // File Upload State
   const [attachment, setAttachment] = useState(null);
   const [fileName, setFileName] = useState('Attach Invoice, Image, or Document');
@@ -298,10 +300,10 @@ const TicketRequest = () => {
         Ref_Code: serviceRequestId,
         companyName: company,
         Company_Name: company,
-        location: location,
-        Location: location,
-        Branch: selectedBranch || "",
-        Sub_Location: selectedBranch || "",
+        location: asset?.Location || location || "",
+        Location: asset?.Location || location || "",
+        Branch: asset?.Branch || selectedBranch || "",
+        Sub_Location: asset?.Branch || selectedBranch || "",
         roomName: room,
         Room_Name: room,
         requesterName: reqBy,
@@ -466,9 +468,59 @@ const TicketRequest = () => {
                   <label>Client Email(s) - Comma separated <span className="req">*</span></label>
                   <input type="text" required value={clientEmail} onChange={e => setClientEmail(e.target.value)} placeholder="e.g., client1@example.com, client2@example.com" disabled={status.loading} />
                 </div>
-                <div className="input-group">
-                  <label>Location (Site) <span className="req">*</span></label>
-                  <input type="text" required value={location} onChange={e => setLocation(e.target.value)} disabled={status.loading} />
+                {/* --- DYNAMIC LOCATION & BRANCH SELECTOR --- */}
+                <div className="input-group" style={{ display: 'flex', flexDirection: 'column' }}>
+                  <label style={{ fontSize: '0.75rem', fontWeight: 'bold', color: '#0f172a', textTransform: 'uppercase', marginBottom: '8px' }}>
+                    {asset?.Unique_Product_Id ? 'Location & Branch' : 'Select Your Branch'} <span style={{ color: '#ef4444' }}>*</span>
+                  </label>
+                  
+                  {asset?.Unique_Product_Id ? (
+                    /* READ-ONLY STATE: User scanned a QR code, so we know exactly where they are */
+                    <div style={{ 
+                      padding: '12px 16px', 
+                      background: '#f1f5f9', 
+                      border: '1px solid #e2e8f0', 
+                      borderRadius: '6px', 
+                      color: '#475569', 
+                      fontSize: '0.9rem',
+                      fontWeight: '500' 
+                    }}>
+                      {asset.Location || 'N/A'} {asset.Branch ? `— ${asset.Branch}` : ''}
+                    </div>
+                  ) : (
+                    /* DROPDOWN STATE: User entered manually, force them to pick a valid branch */
+                    <select 
+                      value={selectedBranch} 
+                      onChange={(e) => {
+                        const branchVal = e.target.value;
+                        setSelectedBranch(branchVal);
+                        
+                        // Auto-fill the parent location state so both are captured
+                        const selectedOpt = branchOptions.find(b => b.Branch === branchVal);
+                        if (selectedOpt) {
+                          setLocation(selectedOpt.Location);
+                        }
+                      }}
+                      required
+                      style={{ 
+                        width: '100%', 
+                        padding: '12px 16px', 
+                        borderRadius: '6px', 
+                        border: '1px solid #cbd5e1',
+                        background: '#ffffff',
+                        fontSize: '0.9rem',
+                        color: '#0f172a',
+                        cursor: 'pointer'
+                      }}
+                    >
+                      <option value="" disabled>-- Choose Branch --</option>
+                      {branchOptions.map((opt, idx) => (
+                        <option key={idx} value={opt.Branch}>
+                          {opt.Location} — {opt.Branch}
+                        </option>
+                      ))}
+                    </select>
+                  )}
                 </div>
                 <div className="input-group">
                   <label>Room Name <span className="req">*</span></label>
