@@ -66,9 +66,12 @@ function doGet(e) {
 
   if (e && e.parameter) {
     const action = e.parameter.action || e.parameter.route;
+    if (action === 'getDashboardData') {
+      return getDashboardData();
+    }
     if (action === 'getCompanies') {
       const companySheet = ss.getSheetByName('Company_Master');
-      return jsonResponse(mapRowsToObjects(companySheet));
+      return jsonResponse(getGroupedCompanies(companySheet));
     }
     if (action === 'getComplaints') {
       const complaintsSheet = ss.getSheetByName('Intake_Queue');
@@ -151,6 +154,8 @@ function doPost(e) {
         break;
         
       case "getDashboard": return handleGetDashboard(payload);
+      
+      case "getDashboardData": return getDashboardData();
         
       case "createMasterTicket": return handleCreateMasterTicket(payload);
 
@@ -3277,5 +3282,95 @@ function handleGenerateServiceReport(payload) {
   file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
 
   return jsonResponse({ pdfUrl: file.getUrl() }, true, "PDF Generated successfully");
+}
+
+/**
+ * Perform grouping reducer on Company_Master data by Ref_Code
+ */
+function getGroupedCompanies(companySheet) {
+  let groupedCompanies = {};
+  
+  if (companySheet) {
+    const data = companySheet.getDataRange().getValues();
+    if (data.length > 1) {
+      const headers = data[0].map(h => String(h).trim());
+      
+      // Map indices
+      const refIdx = headers.indexOf('Ref_Code');
+      const nameIdx = headers.indexOf('Company_Name');
+      const locIdx = headers.indexOf('Location');
+      const branchIdx = headers.indexOf('Branch');
+      const supportIdx = headers.indexOf('Support_Type');
+      const amcStartIdx = headers.indexOf('AMC_Start_Date');
+      const amcEndIdx = headers.indexOf('AMC_End_Date');
+      const contactIdx = headers.indexOf('Primary_Contact');
+      const emailIdx = headers.indexOf('Primary_Email');
+      const phoneIdx = headers.indexOf('Primary_Phone');
+      const statusIdx = headers.indexOf('Status');
+      const clientLinkIdx = headers.indexOf('ClientLink');
+
+      for (let i = 1; i < data.length; i++) {
+        const row = data[i];
+        const refCode = String(row[refIdx] || "").trim();
+        if (!refCode) continue; // Skip empty rows
+
+        // Initialize Parent Company if it doesn't exist
+        if (!groupedCompanies[refCode]) {
+          groupedCompanies[refCode] = {
+            Ref_Code: refCode,
+            Company_Name: row[nameIdx] || "",
+            ClientLink: row[clientLinkIdx] || "",
+            branches: [] // Array to hold all physical locations
+          };
+        }
+
+        // Push specific branch data into the parent's array
+        groupedCompanies[refCode].branches.push({
+          Location: row[locIdx] || "",
+          Branch: row[branchIdx] || "",
+          Support_Type: row[supportIdx] || "Standard",
+          AMC_Start_Date: row[amcStartIdx] || "",
+          AMC_End_Date: row[amcEndIdx] || "",
+          Primary_Contact: row[contactIdx] || "",
+          Primary_Email: row[emailIdx] || "",
+          Primary_Phone: row[phoneIdx] || "",
+          Status: row[statusIdx] || "Active",
+          rowIndex: i + 1 // Save sheet row index in case we need to update it later
+        });
+      }
+    }
+  }
+  
+  return Object.values(groupedCompanies);
+}
+
+/**
+ * Returns operational metrics dashboard payload
+ */
+function getDashboardData() {
+  try {
+    const ss = SpreadsheetApp.getActiveSpreadsheet();
+    const ticketSheet = ss.getSheetByName("Master_Tickets");
+    const assetSheet = ss.getSheetByName("Asset_Master");
+    const companySheet = ss.getSheetByName("Company_Master");
+
+    const tickets = ticketSheet ? mapRowsToObjects(ticketSheet) : [];
+    const assets = assetSheet ? mapRowsToObjects(assetSheet) : [];
+    const companies = getGroupedCompanies(companySheet);
+
+    return ContentService.createTextOutput(JSON.stringify({
+      success: true,
+      data: {
+        tickets: tickets,
+        assets: assets,
+        companies: companies
+      }
+    })).setMimeType(ContentService.MimeType.JSON);
+  } catch (error) {
+    return ContentService.createTextOutput(JSON.stringify({
+      success: false,
+      message: "getDashboardData failed: " + error.message
+    })).setMimeType(ContentService.MimeType.JSON);
+  }
 }
 

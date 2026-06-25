@@ -17,7 +17,32 @@ export default function CompanyDashboard() {
     try {
       const result = await getCompanies();
       if (result.status === 'success' || result.success) {
-        setCompanies(result.data || []);
+        const flatCompanies = [];
+        (result.data || []).forEach(parent => {
+          if (parent.branches && parent.branches.length > 0) {
+            parent.branches.forEach(branch => {
+              flatCompanies.push({
+                Ref_Code: parent.Ref_Code,
+                Company_Name: parent.Company_Name,
+                ClientLink: parent.ClientLink,
+                ...branch
+              });
+            });
+          } else {
+            flatCompanies.push({
+              Ref_Code: parent.Ref_Code || parent.id || '',
+              Company_Name: parent.Company_Name || parent.name || '',
+              ClientLink: parent.ClientLink || '',
+              Location: '',
+              Branch: '',
+              Support_Type: 'Standard',
+              AMC_Start_Date: '',
+              AMC_End_Date: '',
+              Status: 'Active'
+            });
+          }
+        });
+        setCompanies(flatCompanies);
       } else {
         setError(result.message || 'Failed to fetch companies');
       }

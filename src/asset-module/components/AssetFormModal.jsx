@@ -1,5 +1,5 @@
 /* eslint-disable react-hooks/set-state-in-effect */
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { assetApi } from '../../services/apiClient';
 import './AssetFormModal.css';
 
@@ -67,6 +67,41 @@ export default function AssetFormModal({ isOpen, onClose, onSave, initialData, c
   const [fetchedCompanies, setFetchedCompanies] = useState([]);
   const companies = propCompanies && propCompanies.length > 0 ? propCompanies : fetchedCompanies;
 
+  // Flatten nested companies list for the selection mapping
+  const flatCompaniesList = useMemo(() => {
+    const list = [];
+    if (companies && Array.isArray(companies)) {
+      companies.forEach(parent => {
+        if (parent.branches && Array.isArray(parent.branches) && parent.branches.length > 0) {
+          parent.branches.forEach(branch => {
+            list.push({
+              Ref_Code: parent.Ref_Code,
+              Company_Name: parent.Company_Name,
+              ClientLink: parent.ClientLink,
+              ...branch
+            });
+          });
+        } else {
+          list.push({
+            Ref_Code: parent.Ref_Code || parent.id || '',
+            Company_Name: parent.Company_Name || parent.name || '',
+            ClientLink: parent.ClientLink || '',
+            Location: parent.Location || '',
+            Branch: parent.Branch || '',
+            Support_Type: parent.Support_Type || 'Standard',
+            AMC_Start_Date: parent.AMC_Start_Date || '',
+            AMC_End_Date: parent.AMC_End_Date || '',
+            Primary_Contact: parent.Primary_Contact || '',
+            Primary_Email: parent.Primary_Email || '',
+            Primary_Phone: parent.Primary_Phone || '',
+            Status: parent.Status || 'Active'
+          });
+        }
+      });
+    }
+    return list;
+  }, [companies]);
+
   const defaultState = {
     id: '',
     refCode: '',
@@ -125,13 +160,13 @@ export default function AssetFormModal({ isOpen, onClose, onSave, initialData, c
     } else {
       setFormData({
         ...defaultState,
-        refCode: companies && companies.length > 0 ? (companies[0].Ref_Code || companies[0].id) : '',
-        companyName: companies && companies.length > 0 ? (companies[0].Company_Name || companies[0].name) : '',
-        branch: companies && companies.length > 0 ? companies[0].Branch : ''
+        refCode: flatCompaniesList && flatCompaniesList.length > 0 ? (flatCompaniesList[0].Ref_Code || flatCompaniesList[0].id) : '',
+        companyName: flatCompaniesList && flatCompaniesList.length > 0 ? (flatCompaniesList[0].Company_Name || flatCompaniesList[0].name) : '',
+        branch: flatCompaniesList && flatCompaniesList.length > 0 ? flatCompaniesList[0].Branch : ''
       });
       setWarrantyDuration('12 Months');
     }
-  }, [initialData, isOpen, companies]);
+  }, [initialData, isOpen, flatCompaniesList]);
 
   useEffect(() => {
     let active = true;
@@ -194,7 +229,7 @@ export default function AssetFormModal({ isOpen, onClose, onSave, initialData, c
     
     // Company & Ref_Code Sync
     if (name === 'companyName') {
-      const selectedBranch = companies.find(c => c.name === value || c.Company_Name === value);
+      const selectedBranch = flatCompaniesList.find(c => c.name === value || c.Company_Name === value);
       setFormData(prev => ({
         ...prev,
         companyName: value,
@@ -244,7 +279,7 @@ export default function AssetFormModal({ isOpen, onClose, onSave, initialData, c
                     required
                   >
                     <option value="" disabled>Select Company Branch</option>
-                    {companies && companies.map(c => {
+                    {flatCompaniesList && flatCompaniesList.map(c => {
                       const cName = c.name || c.Company_Name;
                       const cId = c.id || c.Ref_Code;
                       const cLocation = c.Location || '';
