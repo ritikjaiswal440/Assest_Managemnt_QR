@@ -96,21 +96,37 @@ export default function AssetFormModal({ isOpen, onClose, onSave, initialData, c
 
   useEffect(() => {
     if (initialData) {
-      const formattedStartDate = formatDateToYYYYMMDD(initialData.warrantyStartDate);
-      const formattedEndDate = formatDateToYYYYMMDD(initialData.warrantyEndDate);
-      setFormData({ 
-        ...defaultState, 
-        ...initialData,
-        warrantyStartDate: formattedStartDate,
-        warrantyEndDate: formattedEndDate
-      });
-      const inferredDuration = getDurationInMonths(formattedStartDate, formattedEndDate);
+      const mappedData = {
+        id: initialData.Unique_Product_Id || initialData.UNIQUE_PRODUCT_ID || initialData.id || '',
+        refCode: initialData.Ref_Code || initialData.REF_CODE || initialData.refCode || '',
+        companyName: initialData.Company_Name || initialData.COMPANY_NAME || initialData.companyName || '',
+        branch: initialData.Branch || initialData.branch || '',
+        salesOrder: initialData.Sales_Order || initialData.SALES_ORDER || initialData.salesOrder || '',
+        invoiceNo: initialData.Invoice_No || initialData.INVOICE_NO || initialData.invoiceNo || '',
+        location: initialData.Location || initialData.LOCATION || initialData.location || '',
+        subLocation: initialData.Sub_Location || initialData.SUB_LOCATION || initialData.subLocation || '',
+        floor: initialData.Floor || initialData.floor || '',
+        roomType: initialData.Room_Type || initialData.roomType || '',
+        roomName: initialData.Room_Name || initialData.roomName || '',
+        productMake: initialData.ProductMake || initialData.PRODUCTMAKE || initialData.productMake || '',
+        productModel: initialData.ProductModel || initialData.PRODUCTMODEL || initialData.productModel || '',
+        productSerial: initialData.ProductSerial || initialData.PRODUCTSERIAL || initialData.productSerial || '',
+        macId: initialData.MAC_ID || initialData.macId || '',
+        ipAddress: initialData.IP_Address || initialData.IP_ADDRESS || initialData.ipAddress || '',
+        assetStatus: initialData.Asset_Status || initialData.ASSET_STATUS || initialData.assetStatus || 'Active',
+        warrantyStartDate: formatDateToYYYYMMDD(initialData.Warranty_Start_Date || initialData.WARRANTY_START_DATE || initialData.warrantyStartDate),
+        dlpPeriod: initialData.DLP_Period || initialData.dlpPeriod || '12 Months',
+        warrantyEndDate: formatDateToYYYYMMDD(initialData.Warranty_End_Date || initialData.WARRANTY_END_DATE || initialData.warrantyEndDate),
+        warrantyDaysLeft: initialData.Warranty_Days_Left || initialData.WARRANTY_DAYS_LEFT || initialData.warrantyDaysLeft || ''
+      };
+      setFormData(mappedData);
+      const inferredDuration = getDurationInMonths(mappedData.warrantyStartDate, mappedData.warrantyEndDate);
       setWarrantyDuration(inferredDuration);
     } else {
       setFormData({
         ...defaultState,
-        refCode: companies && companies.length > 0 ? (companies[0].id || companies[0].Ref_Code) : '',
-        companyName: companies && companies.length > 0 ? (companies[0].name || companies[0].Company_Name) : '',
+        refCode: companies && companies.length > 0 ? (companies[0].Ref_Code || companies[0].id) : '',
+        companyName: companies && companies.length > 0 ? (companies[0].Company_Name || companies[0].name) : '',
         branch: companies && companies.length > 0 ? companies[0].Branch : ''
       });
       setWarrantyDuration('12 Months');
