@@ -552,10 +552,22 @@ function handleSubmitIntake(payload) {
       switch (header) {
         case 'Intake_ID': return newIntakeId;
         case 'Source': return payload.source || payload.Source || "Manual";
-        case 'Unique_Product_Id': return prod.uniqueId || prod.Unique_Product_Id || "";
-        case 'Sales_Order': return prod.salesOrder || prod.Sales_Order || "";
-        case 'Invoice_No': return prod.invoiceNo || prod.Invoice_No || "";
-        case 'Ref_Code': return payload.ref || payload.refCode || payload.Ref_Code || "";
+        case 'Unique_Product_Id': {
+          const val = prod.uniqueId || prod.Unique_Product_Id || "";
+          return val ? `'${val}` : "";
+        }
+        case 'Sales_Order': {
+          const val = prod.salesOrder || prod.Sales_Order || "";
+          return val ? `'${val}` : "";
+        }
+        case 'Invoice_No': {
+          const val = prod.invoiceNo || prod.Invoice_No || "";
+          return val ? `'${val}` : "";
+        }
+        case 'Ref_Code': {
+          const val = payload.ref || payload.refCode || payload.Ref_Code || "";
+          return val ? `'${val}` : "";
+        }
         case 'Company_Name': return payload.companyName || payload.Company_Name || "";
         case 'Location': return payload.location || payload.Location || "";
         case 'Sub_Location': return prod.subLocation || prod.Sub_Location || "";
@@ -1142,7 +1154,9 @@ function handleGetPublicAssetDetails(params) {
     salesOrder: asset.Sales_Order || 'N/A',
     invoiceNo: asset.Invoice_No || 'N/A',
     macId: asset.MAC_ID || 'N/A',
-    ipAddress: asset.IP_Address || 'N/A'
+    ipAddress: asset.IP_Address || 'N/A',
+    refCode: asset.Company_Ref || '',
+    Ref_Code: asset.Company_Ref || ''
   };
 }
 
@@ -2612,11 +2626,13 @@ function handleCreateTicket(payload) {
           ]);
         } else {
           // New structured columns: ['Intake_ID', 'Source', 'Unique_Product_Id', 'Ref_Code', 'Company_Name', 'Requester_Name', 'Client_Email', 'PhoneNumber', 'Issue_Description', 'Status', 'Timestamp']
+          const pId = ticketData.productId || ticketData.Unique_Product_Id || "";
+          const rCode = refCode || ticketData.clientId || "";
           intakeSheet.appendRow([
             serviceRequestId,
             "Manual",
-            ticketData.productId || ticketData.Unique_Product_Id || "",
-            refCode || ticketData.clientId || "",
+            pId ? `'${pId}` : "",
+            rCode ? `'${rCode}` : "",
             ticketData.company || "",
             ticketData.reqBy || "",
             ticketData.clientEmail || "",
