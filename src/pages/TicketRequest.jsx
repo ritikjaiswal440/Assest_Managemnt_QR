@@ -492,10 +492,10 @@ const TicketRequest = () => {
                 {/* --- DYNAMIC LOCATION & BRANCH SELECTOR --- */}
                 <div className="input-group" style={{ display: 'flex', flexDirection: 'column' }}>
                   <label style={{ fontSize: '0.75rem', fontWeight: 'bold', color: '#0f172a', textTransform: 'uppercase', marginBottom: '8px' }}>
-                    {asset?.Unique_Product_Id ? 'Location & Branch' : 'Select Your Branch'} <span style={{ color: '#ef4444' }}>*</span>
+                    {(asset?.Unique_Product_Id && !selectedBranch) ? 'Location & Branch' : 'Select Your Branch'} <span style={{ color: '#ef4444' }}>*</span>
                   </label>
                   
-                  {asset?.Unique_Product_Id ? (
+                  {(asset?.Unique_Product_Id && !selectedBranch) ? (
                     /* READ-ONLY STATE: User scanned a QR code, so we know exactly where they are */
                     <div style={{ 
                       padding: '12px 16px', 
