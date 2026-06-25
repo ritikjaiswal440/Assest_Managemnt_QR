@@ -107,7 +107,7 @@ const TicketTable = ({ parents, children, logs = [], userRole, isAdmin, currentU
               p[5] = p.Client_Email;
               p[6] = p.PhoneNumber;
               p[7] = p.Location;
-              p[8] = p.Sub_Location;
+              p[8] = p.Branch || p.Sub_Location;
               p[9] = p.Floor;
               p[10] = p.Room_Type;
               p[11] = p.Room_Name;
@@ -224,7 +224,7 @@ const TicketTable = ({ parents, children, logs = [], userRole, isAdmin, currentU
                                     <div className="dossier-row"><span className="dossier-label">Phone:</span> <span className="dossier-value">{p.PhoneNumber || 'N/A'}</span></div>
                                   </>
                                 )}
-                                <div className="dossier-row" style={{marginTop: '8px'}}><span className="dossier-label">Site:</span> <span className="dossier-value">{p.Location || 'N/A'} &gt; {p.Sub_Location || 'N/A'}</span></div>
+                                <div className="dossier-row" style={{marginTop: '8px'}}><span className="dossier-label">Site:</span> <span className="dossier-value">{p.Location || 'N/A'} &gt; {p.Branch || p.Sub_Location || 'N/A'}</span></div>
                                 <div className="dossier-row"><span className="dossier-label">Room:</span> <span className="dossier-value">Flr {p.Floor || '-'} | {p.Room_Type || '-'} | {p.Room_Name || '-'}</span></div>
                               </div>
 

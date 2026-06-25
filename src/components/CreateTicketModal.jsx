@@ -12,7 +12,7 @@ const initialState = {
   salesOrder: '',
   clientId: '',
   location: '',
-  subLocation: '',
+  branch: '',
   roomName: '',
   room: '',
   reqBy: '',
@@ -69,7 +69,7 @@ const CreateTicketModal = ({ isOpen, onClose, clients = [], engineers = [], curr
           reqBy: initialData?.Requester_Name || initialData?.requesterName || '',
           phoneNumber: initialData?.PhoneNumber || initialData?.phoneNumber || '',
           location: initialData?.Location || initialData?.location || '',
-          subLocation: initialData?.Sub_Location || initialData?.subLocation || '',
+          branch: initialData?.Branch || initialData?.Sub_Location || initialData?.subLocation || '',
           roomName: initialData?.Room_Name || initialData?.roomName || initialData?.room || '',
           room: initialData?.Room_Name || initialData?.roomName || initialData?.room || '',
           category: initialData?.category || '',
@@ -215,7 +215,7 @@ const CreateTicketModal = ({ isOpen, onClose, clients = [], engineers = [], curr
         ...prev,
         uniqueId: selectedId,
         location: asset.Location || asset.location || prev.location || "",
-        subLocation: asset.Sub_Location || asset.subLocation || prev.subLocation || "",
+        branch: asset.Branch || asset.Sub_Location || asset.subLocation || prev.branch || "",
         floor: asset.Floor || asset.floor || prev.floor || "",
         roomType: asset.Room_Type || asset.roomType || prev.roomType || "",
         roomName: asset.Room_Name || asset.roomName || asset.room || prev.roomName || "",
@@ -261,7 +261,8 @@ const CreateTicketModal = ({ isOpen, onClose, clients = [], engineers = [], curr
         Client_Email: formData.clientEmail || "",
         PhoneNumber: formData.phoneNumber || "",
         Location: formData.location || "",
-        Sub_Location: formData.subLocation || "",
+        Branch: formData.branch || "",
+        Sub_Location: formData.branch || "", // fallback compatibility
         Room_Name: formData.roomName || "",
         ProductMake: formData.productMake || "",
         ProductModel: formData.productModel || "",
@@ -444,8 +445,8 @@ const CreateTicketModal = ({ isOpen, onClose, clients = [], engineers = [], curr
             </div>
 
             <div className="form-group">
-              <label>Sub Location</label>
-              <input type="text" name="subLocation" value={formData.subLocation} onChange={handleChange} placeholder="e.g. Block A" disabled={status.loading} />
+              <label>Branch</label>
+              <input type="text" name="branch" value={formData.branch} onChange={handleChange} placeholder="e.g. Block A" disabled={status.loading} />
             </div>
 
             <div className="form-group">

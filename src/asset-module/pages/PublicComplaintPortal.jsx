@@ -147,7 +147,8 @@ export default function PublicComplaintPortal() {
         Ref_Code: asset.Ref_Code || asset.REF_CODE || signature || "",
         Company_Name: asset.Company_Name || asset.COMPANY_NAME || asset.companyName || "",
         Location: asset.Location || asset.LOCATION || asset.location || "",
-        Sub_Location: asset.Sub_Location || asset.SUB_LOCATION || asset.subLocation || "",
+        Branch: asset.Branch || asset.Sub_Location || asset.SUB_LOCATION || asset.subLocation || "",
+        Sub_Location: asset.Branch || asset.Sub_Location || asset.SUB_LOCATION || asset.subLocation || "", // fallback compatibility
         Room_Type: asset.Room_Type || asset.ROOM_TYPE || asset.roomType || "",
         Floor: asset.Floor || asset.FLOOR || asset.floor || "",
         Room_Name: asset.Room_Name || asset.ROOM_NAME || asset.roomName || "",
@@ -178,7 +179,8 @@ export default function PublicComplaintPortal() {
           Ref_Code: asset.Ref_Code || asset.REF_CODE || signature || "",
           Company_Name: asset.Company_Name || asset.COMPANY_NAME || asset.companyName || "",
           Location: asset.Location || asset.LOCATION || asset.location || "",
-          Sub_Location: asset.Sub_Location || asset.SUB_LOCATION || asset.subLocation || "",
+          Branch: asset.Branch || asset.Sub_Location || asset.SUB_LOCATION || asset.subLocation || "",
+          Sub_Location: asset.Branch || asset.Sub_Location || asset.SUB_LOCATION || asset.subLocation || "", // fallback compatibility
           Floor: asset.Floor || asset.FLOOR || asset.floor || "",
           Room_Type: asset.Room_Type || asset.ROOM_TYPE || asset.roomType || "",
           Room_Name: asset.Room_Name || asset.ROOM_NAME || asset.roomName || "",
@@ -297,7 +299,7 @@ export default function PublicComplaintPortal() {
               <div style={{ marginBottom: '24px' }}>
                 <h4 style={{ color: '#64748b', fontSize: '0.8rem', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '12px', borderBottom: '1px solid #f1f5f9', paddingBottom: '8px' }}>Deployment Location</h4>
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: '16px' }}>
-                  <div><div style={{ fontSize: '0.75rem', color: '#64748b', marginBottom: '4px' }}>Site</div><div style={{ fontWeight: '500', color: '#334155' }}>{(asset.Location || asset.location || 'N/A')} &gt; {(asset.Sub_Location || asset.subLocation || 'N/A')}</div></div>
+                  <div><div style={{ fontSize: '0.75rem', color: '#64748b', marginBottom: '4px' }}>Site &gt; Branch</div><div style={{ fontWeight: '500', color: '#334155' }}>{(asset.Location || asset.location || 'N/A')} &gt; {(asset.Branch || asset.Sub_Location || asset.subLocation || 'N/A')}</div></div>
                   <div><div style={{ fontSize: '0.75rem', color: '#64748b', marginBottom: '4px' }}>Room</div><div style={{ fontWeight: '500', color: '#334155' }}>Flr {(asset.Floor || asset.floor || '-')} | {(asset.Room_Type || asset.roomType || 'N/A')}</div></div>
                   <div><div style={{ fontSize: '0.75rem', color: '#64748b', marginBottom: '4px' }}>Designation</div><div style={{ fontWeight: '500', color: '#334155' }}>{asset.Room_Name || asset.roomName || '-'}</div></div>
                 </div>

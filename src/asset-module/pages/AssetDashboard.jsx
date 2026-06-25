@@ -151,7 +151,8 @@ export default function AssetDashboard() {
             Ref_Code: formData.refCode,
             Company_Name: formData.companyName,
             Location: formData.location,
-            Sub_Location: formData.subLocation,
+            Branch: formData.branch || formData.subLocation || '',
+            Sub_Location: formData.branch || formData.subLocation || '',
             Room_Type: formData.roomType,
             Floor: formData.floor,
             Room_Name: formData.roomName,
@@ -186,7 +187,8 @@ export default function AssetDashboard() {
             Ref_Code: response.data.refCode || formData.refCode,
             Company_Name: formData.companyName,
             Location: formData.location,
-            Sub_Location: formData.subLocation,
+            Branch: formData.branch || formData.subLocation || '',
+            Sub_Location: formData.branch || formData.subLocation || '',
             Room_Type: formData.roomType,
             Floor: formData.floor,
             Room_Name: formData.roomName,
@@ -392,7 +394,7 @@ export default function AssetDashboard() {
                   const refCode = asset.Ref_Code || asset.REF_CODE || asset.refCode || 'N/A';
                   const company = asset.Company_Name || asset.COMPANY_NAME || asset.companyName || 'N/A';
                   const location = asset.Location || asset.LOCATION || asset.location || 'N/A';
-                  const subLoc = asset.Sub_Location || asset.SUB_LOCATION || asset.subLocation || '';
+                  const branch = asset.Branch || asset.Sub_Location || asset.SUB_LOCATION || asset.subLocation || '';
                   const roomInfo = `Flr ${asset.Floor || asset.floor || '-'} | ${asset.Room_Type || asset.roomType || '-'} | ${asset.Room_Name || asset.roomName || '-'}`;
                   const make = asset.ProductMake || asset.PRODUCTMAKE || asset.productMake || '';
                   const model = asset.ProductModel || asset.PRODUCTMODEL || asset.productModel || 'Unknown Model';
@@ -415,7 +417,7 @@ export default function AssetDashboard() {
                       {/* Company & Location Stack */}
                       <td>
                         <div style={{ fontWeight: 'bold', color: '#334155' }}>{company}</div>
-                        <div style={{ fontSize: '0.8rem', color: '#475569' }}>{location} {subLoc ? `> ${subLoc}` : ''}</div>
+                        <div style={{ fontSize: '0.8rem', color: '#475569' }}>{location} {branch ? `> ${branch}` : ''}</div>
                         <div style={{ fontSize: '0.75rem', color: '#94a3b8' }}>{roomInfo}</div>
                       </td>
 

@@ -238,15 +238,15 @@ export default function TrackTicket() {
                   <div className="details-section">
                     <div className="section-title">📍 Location Details</div>
                     <div style={{ padding: '8px 12px', background: '#f1f5f9', borderRadius: '6px', fontSize: '0.8rem', color: 'var(--slate-dark)', fontWeight: '600', marginBottom: '12px', lineHeight: '1.4' }}>
-                      Site: {t.Location || t.location} &gt; {t.Sub_Location || t.subLocation} &gt; Floor: {t.Floor || t.floor} &gt; Room: {t.Room_Name || t.roomName}
+                      Site: {t.Location || t.location} &gt; {t.Branch || t.Sub_Location || t.subLocation || ''} &gt; Floor: {t.Floor || t.floor} &gt; Room: {t.Room_Name || t.roomName}
                     </div>
                     <div className="info-row">
                       <span className="info-label">Site / Location</span>
                       <span className="info-value">{t.Location || t.location || 'N/A'}</span>
                     </div>
                     <div className="info-row">
-                      <span className="info-label">Sub-Location</span>
-                      <span className="info-value">{t.Sub_Location || t.subLocation || 'N/A'}</span>
+                      <span className="info-label">Branch</span>
+                      <span className="info-value">{t.Branch || t.Sub_Location || t.subLocation || 'N/A'}</span>
                     </div>
                     <div className="info-row">
                       <span className="info-label">Floor</span>

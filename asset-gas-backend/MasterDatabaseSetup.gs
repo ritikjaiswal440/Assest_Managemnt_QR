@@ -16,15 +16,15 @@ function setupMasterDatabase() {
     },
     {
       name: "Asset_Master",
-      headers: ['Unique_Product_Id', 'Sales_Order', 'Invoice_No', 'Ref_Code', 'Company_Name', 'Location', 'Sub_Location', 'Room_Type', 'Floor', 'Room_Name', 'ProductMake', 'ProductModel', 'ProductSerial', 'MAC_ID', 'IP_Address', 'Warranty_Start_Date', 'DLP_Period', 'Warranty_End_Date', 'Warranty_Days_Left', 'Asset_Status', 'Created_At', 'Updated_At']
+      headers: ['Unique_Product_Id', 'Sales_Order', 'Invoice_No', 'Ref_Code', 'Company_Name', 'Location', 'Branch', 'Room_Type', 'Floor', 'Room_Name', 'ProductMake', 'ProductModel', 'ProductSerial', 'MAC_ID', 'IP_Address', 'Warranty_Start_Date', 'DLP_Period', 'Warranty_End_Date', 'Warranty_Days_Left', 'Asset_Status', 'Created_At', 'Updated_At']
     },
     {
       name: "Intake_Queue",
-      headers: ['Intake_ID', 'Source', 'Unique_Product_Id', 'Sales_Order', 'Invoice_No', 'Ref_Code', 'Company_Name', 'Location', 'Sub_Location', 'Room_Type', 'Floor', 'Room_Name', 'ProductMake', 'ProductModel', 'ProductSerial', 'MAC_ID', 'IP_Address', 'Warranty_Start_Date', 'DLP_Period', 'Warranty_End_Date', 'Warranty_Days_Left', 'Asset_Status', 'Requester_Name', 'Client_Email', 'PhoneNumber', 'Category', 'Issue_Description', 'Attachment_URL', 'Status', 'Timestamp']
+      headers: ['Intake_ID', 'Source', 'Unique_Product_Id', 'Sales_Order', 'Invoice_No', 'Ref_Code', 'Company_Name', 'Location', 'Branch', 'Room_Type', 'Floor', 'Room_Name', 'ProductMake', 'ProductModel', 'ProductSerial', 'MAC_ID', 'IP_Address', 'Warranty_Start_Date', 'DLP_Period', 'Warranty_End_Date', 'Warranty_Days_Left', 'Asset_Status', 'Requester_Name', 'Client_Email', 'PhoneNumber', 'Category', 'Issue_Description', 'Attachment_URL', 'Status', 'Timestamp']
     },
     {
       name: "Master_Tickets",
-      headers: ['Ticket_ID', 'Intake_ID_Ref', 'Ref_Code', 'Company_Name', 'Requester_Name', 'Client_Email', 'PhoneNumber', 'Location', 'Sub_Location', 'Room_Name', 'ProductMake', 'ProductModel', 'ProductSerial', 'MAC_ID', 'IP_Address', 'Sales_Order', 'Warranty_End_Date', 'Category', 'Attachment_URL', 'Service_Type', 'Status', 'Assigned_Engineer', 'Open_Date', 'Close_Date', 'Resolved_Days', 'Admin_Remarks', 'Unique_Product_Id', 'Floor', 'Room_Type', 'Warranty_Start_Date', 'DLP_Period', 'Warranty_Days_Left', 'Asset_Status', 'Issue_Type']
+      headers: ['Ticket_ID', 'Intake_ID_Ref', 'Ref_Code', 'Company_Name', 'Requester_Name', 'Client_Email', 'PhoneNumber', 'Location', 'Branch', 'Room_Name', 'ProductMake', 'ProductModel', 'ProductSerial', 'MAC_ID', 'IP_Address', 'Sales_Order', 'Warranty_End_Date', 'Category', 'Attachment_URL', 'Service_Type', 'Status', 'Assigned_Engineer', 'Open_Date', 'Close_Date', 'Resolved_Days', 'Admin_Remarks', 'Unique_Product_Id', 'Floor', 'Room_Type', 'Warranty_Start_Date', 'DLP_Period', 'Warranty_Days_Left', 'Asset_Status', 'Issue_Type']
     },
     {
       name: "Engineer_Tasks",

@@ -528,7 +528,8 @@ function handleSubmitIntake(payload) {
         uniqueId: payload.uniqueId || payload.Unique_Product_Id || (payload.payloadObj && payload.payloadObj.Unique_Product_Id) || "",
         salesOrder: payload.salesOrder || payload.Sales_Order || (payload.payloadObj && payload.payloadObj.Sales_Order) || "",
         invoiceNo: payload.invoiceNo || payload.Invoice_No || "",
-        subLocation: payload.subLocation || payload.Sub_Location || (payload.payloadObj && payload.payloadObj.Sub_Location) || "",
+        Branch: payload.Branch || payload.branch || payload.subLocation || payload.Sub_Location || (payload.payloadObj && (payload.payloadObj.Branch || payload.payloadObj.Sub_Location)) || "",
+        subLocation: payload.Branch || payload.branch || payload.subLocation || payload.Sub_Location || (payload.payloadObj && (payload.payloadObj.Branch || payload.payloadObj.Sub_Location)) || "",
         roomType: payload.roomType || payload.Room_Type || (payload.payloadObj && payload.payloadObj.Room_Type) || "",
         floor: payload.floor || payload.Floor || (payload.payloadObj && payload.payloadObj.Floor) || "",
         roomName: payload.roomName || payload.Room_Name || payload.room || (payload.payloadObj && payload.payloadObj.Room_Name) || "",
@@ -570,7 +571,8 @@ function handleSubmitIntake(payload) {
         }
         case 'Company_Name': return payload.companyName || payload.Company_Name || "";
         case 'Location': return payload.location || payload.Location || "";
-        case 'Sub_Location': return prod.subLocation || prod.Sub_Location || "";
+        case 'Branch':
+        case 'Sub_Location': return prod.Branch || prod.subLocation || prod.Sub_Location || "";
         case 'Room_Type': return prod.roomType || prod.Room_Type || "";
         case 'Floor': return prod.floor || prod.Floor || "";
         case 'Room_Name': return payload.roomName || payload.Room_Name || prod.room || prod.Room_Name || prod.roomName || "";
@@ -642,8 +644,9 @@ function groupIntakeQueue(rawIntakeObjects) {
         company: row.Company_Name,
         Location: row.Location,
         location: row.Location,
-        Sub_Location: row.Sub_Location,
-        subLocation: row.Sub_Location,
+        Branch: row.Branch || pObj.Branch || pObj.Sub_Location || "",
+        Sub_Location: row.Branch || pObj.Branch || pObj.Sub_Location || "",
+        subLocation: row.Branch || pObj.Branch || pObj.Sub_Location || "",
         Room_Name: row.Room_Name,
         roomName: row.Room_Name,
         room: row.Room_Name,
@@ -684,8 +687,10 @@ function groupIntakeQueue(rawIntakeObjects) {
         salesOrder: row.Sales_Order,
         Invoice_No: row.Invoice_No,
         invoiceNo: row.Invoice_No,
-        subLocation: row.Sub_Location,
-        Sub_Location: row.Sub_Location,
+        branch: row.Branch || row.Sub_Location,
+        Branch: row.Branch || row.Sub_Location,
+        subLocation: row.Branch || row.Sub_Location,
+        Sub_Location: row.Branch || row.Sub_Location,
         roomType: row.Room_Type,
         Room_Type: row.Room_Type,
         floor: row.Floor,
@@ -893,7 +898,7 @@ function handlePromoteTicket(payload) {
     clientEmail = pData.clientEmail || pData.Client_Email || pData.email || "";
     phoneNumber = pData.phoneNumber || pData.PhoneNumber || pData.phone || "";
     salesOrder = pData.salesOrder || pData.Sales_Order || "";
-    subLocation = pData.subLocation || pData.Sub_Location || "";
+    subLocation = pData.Branch || pData.subLocation || pData.Sub_Location || "";
     roomName = pData.roomName || pData.Room_Name || pData.room || "";
     productMake = pData.productMake || pData.ProductMake || "";
     productModel = pData.productModel || pData.ProductModel || "";
@@ -918,6 +923,7 @@ function handlePromoteTicket(payload) {
     const descIdx = queueHeaders.indexOf('Issue_Description');
     const prodIdIdx = queueHeaders.indexOf('Unique_Product_Id');
     const locIdx = queueHeaders.indexOf('Location');
+    const branchIdx = queueHeaders.indexOf('Branch');
     const subLocIdx = queueHeaders.indexOf('Sub_Location');
     const roomNameIdx = queueHeaders.indexOf('Room_Name');
     const makeIdx = queueHeaders.indexOf('ProductMake');
@@ -944,7 +950,7 @@ function handlePromoteTicket(payload) {
     companyName = compNameIdx !== -1 ? intakeRow[compNameIdx] : "";
     description = descIdx !== -1 ? intakeRow[descIdx] : "";
     location = locIdx !== -1 ? intakeRow[locIdx] : "";
-    subLocation = subLocIdx !== -1 ? intakeRow[subLocIdx] : "";
+    subLocation = (branchIdx !== -1 ? intakeRow[branchIdx] : "") || (subLocIdx !== -1 ? intakeRow[subLocIdx] : "");
     roomName = roomNameIdx !== -1 ? intakeRow[roomNameIdx] : "";
     productMake = makeIdx !== -1 ? intakeRow[makeIdx] : "";
     productModel = modelIdx !== -1 ? intakeRow[productModel] : "";
@@ -1000,7 +1006,7 @@ function handlePromoteTicket(payload) {
     pData.Client_Email || clientEmail || "",                            // 6. Client_Email
     pData.PhoneNumber || phoneNumber || "",                             // 7. PhoneNumber
     pData.Location || location || "",                                   // 8. Location
-    pData.Sub_Location || subLocation || "",                            // 9. Sub_Location
+    pData.Branch || pData.Sub_Location || subLocation || "",            // 9. Branch
     pData.Room_Name || roomName || "",                                  // 10. Room_Name
     pData.ProductMake || productMake || "",                            // 11. ProductMake
     pData.ProductModel || productModel || "",                          // 12. ProductModel
@@ -1060,6 +1066,7 @@ function handleGetPublicAssetDetails(params) {
   const warrantyIdx = headers.indexOf('Warranty_End_Date');
   
   const locIdx = headers.indexOf('Location');
+  const branchIdx = headers.indexOf('Branch');
   const subLocIdx = headers.indexOf('Sub_Location');
   const floorIdx = headers.indexOf('Floor');
   const roomNameIdx = headers.indexOf('Room_Name');
@@ -1084,7 +1091,8 @@ function handleGetPublicAssetDetails(params) {
         Serial_Number: data[i][serialIdx],
         Warranty_End: data[i][warrantyIdx],
         Location: locIdx !== -1 ? data[i][locIdx] : '',
-        Sub_Location: subLocIdx !== -1 ? data[i][subLocIdx] : '',
+        Branch: branchIdx !== -1 ? data[i][branchIdx] : (subLocIdx !== -1 ? data[i][subLocIdx] : ''),
+        Sub_Location: branchIdx !== -1 ? data[i][branchIdx] : (subLocIdx !== -1 ? data[i][subLocIdx] : ''),
         Floor: floorIdx !== -1 ? data[i][floorIdx] : '',
         Room_Name: roomNameIdx !== -1 ? data[i][roomNameIdx] : '',
         Warranty_Start: warrantyStartIdx !== -1 ? data[i][warrantyStartIdx] : '',
@@ -1137,7 +1145,8 @@ function handleGetPublicAssetDetails(params) {
     assetId: asset.Asset_Ref,
     companyName: asset.CompanyName || 'N/A',
     location: asset.Location || 'N/A',
-    subLocation: asset.Sub_Location || 'N/A',
+    branch: asset.Branch || asset.Sub_Location || 'N/A',
+    subLocation: asset.Branch || asset.Sub_Location || 'N/A',
     floor: asset.Floor || 'N/A',
     roomType: asset.Asset_Type || 'N/A',
     roomName: asset.Room_Name || 'N/A',
@@ -1502,7 +1511,7 @@ function handleCreateAsset(payload) {
     payload.refCode || '',                
     payload.companyName || '',            
     payload.location || '',               
-    payload.subLocation || '',            
+    payload.branch || payload.subLocation || '',            
     payload.roomType || '',               
     payload.floor || '',                  
     payload.roomName || '',               
@@ -1555,7 +1564,7 @@ function handleUpdateAsset(payload) {
       sheet.getRange(i + 1, 4).setValue(payload.refCode || '');
       sheet.getRange(i + 1, 5).setValue(payload.companyName || '');
       sheet.getRange(i + 1, 6).setValue(payload.location || '');
-      sheet.getRange(i + 1, 7).setValue(payload.subLocation || '');
+      sheet.getRange(i + 1, 7).setValue(payload.branch || payload.subLocation || '');
       sheet.getRange(i + 1, 8).setValue(payload.roomType || '');
       sheet.getRange(i + 1, 9).setValue(payload.floor || '');
       sheet.getRange(i + 1, 10).setValue(payload.roomName || '');
@@ -2735,7 +2744,7 @@ function handleCreateTicket(payload) {
       payload.Client_Email || ticketData.Client_Email || ticketData.clientEmail || ticketData.email || "",
       payload.PhoneNumber || ticketData.PhoneNumber || ticketData.phoneNumber || ticketData.phone || "",
       ticketData.location || "",
-      ticketData.subLocation || ticketData.Sub_Location || "",
+      ticketData.Branch || ticketData.branch || ticketData.subLocation || ticketData.Sub_Location || "",
       ticketData.room || ticketData.Room_Name || "",
       ticketData.productMake || ticketData.ProductMake || "",
       ticketData.productModel || ticketData.ProductModel || "",
@@ -2859,7 +2868,7 @@ function handleCreateMasterTicket(payload) {
       tData.Client_Email || "",               // 6. Client_Email
       tData.PhoneNumber || "",                // 7. PhoneNumber
       tData.Location || "",                   // 8. Location
-      tData.Sub_Location || "",               // 9. Sub_Location
+      tData.Branch || tData.Sub_Location || "", // 9. Branch
       tData.Room_Name || "",                  // 10. Room_Name
       tData.ProductMake || "",                // 11. ProductMake
       tData.ProductModel || "",               // 12. ProductModel
@@ -3219,7 +3228,7 @@ function handleGenerateServiceReport(payload) {
           <h3>Client & Site Info</h3>
           <div class="field"><span class="field-label">Organization Name:</span><span class="field-value">${ticketRow.Company_Name || "N/A"}</span></div>
           <div class="field"><span class="field-label">Primary Site Location:</span><span class="field-value">${ticketRow.Location || "N/A"}</span></div>
-          <div class="field"><span class="field-label">Sub-Location:</span><span class="field-value">${ticketRow.Sub_Location || "N/A"}</span></div>
+           <div class="field"><span class="field-label">Branch:</span><span class="field-value">${ticketRow.Branch || ticketRow.Sub_Location || "N/A"}</span></div>
           <div class="field"><span class="field-label">Room / Zone Name:</span><span class="field-value">${ticketRow.Room_Name || "N/A"}</span></div>
         </div>
       </div>
