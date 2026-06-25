@@ -246,144 +246,209 @@ export default function PublicComplaintPortal() {
 
       {asset ? (
         <main className="portal-main">
-          <section className="portal-card asset-card md3-surface">
-            <div className="card-header">
-              <span className={`badge-support-tier ${getTierClass(asset.supportType)}`}>
-                {asset.supportType || 'Standard Support'}
+          {/* --- ENTERPRISE ASSET VERIFICATION CARD --- */}
+          <div style={{ 
+            background: '#ffffff', 
+            borderRadius: '12px', 
+            boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03)', 
+            border: '1px solid #e2e8f0',
+            overflow: 'hidden',
+            marginBottom: '24px'
+          }}>
+            <div style={{ padding: '16px 24px', background: '#f8fafc', borderBottom: '1px solid #e2e8f0', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <h3 style={{ margin: 0, fontSize: '1.1rem', color: '#0f172a', fontWeight: '600' }}>Hardware Verification</h3>
+              <span style={{ 
+                background: asset.supportType?.toLowerCase().includes('out') ? '#fee2e2' : '#e0f2fe', 
+                color: asset.supportType?.toLowerCase().includes('out') ? '#b91c1c' : '#0369a1', 
+                padding: '4px 10px', 
+                borderRadius: '20px', 
+                fontSize: '0.75rem', 
+                fontWeight: 'bold' 
+              }}>
+                {asset.supportType || 'Standard SLA'}
               </span>
-              <h2>Hardware Verification</h2>
             </div>
-            
-            <div className="asset-details-sections">
-              <div className="asset-section">
-                <h3 className="section-title">Location</h3>
-                <div className="asset-details-grid">
-                  <div className="detail-item">
-                    <span className="detail-label">Location</span>
-                    <span className="detail-value">{asset.location || 'N/A'}</span>
-                  </div>
-                  <div className="detail-item">
-                    <span className="detail-label">Sub Location</span>
-                    <span className="detail-value">{asset.subLocation || 'N/A'}</span>
-                  </div>
-                  <div className="detail-item">
-                    <span className="detail-label">Floor</span>
-                    <span className="detail-value">{asset.floor || 'N/A'}</span>
-                  </div>
-                  <div className="detail-item">
-                    <span className="detail-label">Room Type</span>
-                    <span className="detail-value">{asset.roomType || 'N/A'}</span>
-                  </div>
-                  <div className="detail-item">
-                    <span className="detail-label">Room Name</span>
-                    <span className="detail-value">{asset.roomName || 'N/A'}</span>
-                  </div>
+
+            <div style={{ padding: '24px' }}>
+              {/* Identity & Commercials */}
+              <div style={{ marginBottom: '24px' }}>
+                <h4 style={{ color: '#64748b', fontSize: '0.8rem', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '12px', borderBottom: '1px solid #f1f5f9', paddingBottom: '8px' }}>Identity & Commercials</h4>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: '16px' }}>
+                  <div><div style={{ fontSize: '0.75rem', color: '#64748b', marginBottom: '4px' }}>Asset ID</div><div style={{ fontWeight: '600', color: '#0f172a' }}>{asset.Unique_Product_Id || asset.UNIQUE_PRODUCT_ID || asset.assetId || 'N/A'}</div></div>
+                  <div><div style={{ fontSize: '0.75rem', color: '#64748b', marginBottom: '4px' }}>Ref Code</div><div style={{ fontWeight: '500', color: '#334155' }}>{asset.Ref_Code || asset.REF_CODE || asset.refCode || 'N/A'}</div></div>
+                  {/* NEW SALES ORDER FIELD */}
+                  <div><div style={{ fontSize: '0.75rem', color: '#64748b', marginBottom: '4px' }}>Sales Order (SO)</div><div style={{ fontWeight: '500', color: '#334155' }}>{asset.Sales_Order || asset.SALES_ORDER || asset.salesOrder || 'N/A'}</div></div>
+                  <div><div style={{ fontSize: '0.75rem', color: '#64748b', marginBottom: '4px' }}>Organization</div><div style={{ fontWeight: '500', color: '#334155' }}>{asset.Company_Name || asset.COMPANY_NAME || asset.companyName || 'N/A'}</div></div>
                 </div>
               </div>
 
-              <hr className="section-divider" />
-
-              <div className="asset-section">
-                <h3 className="section-title">Hardware</h3>
-                <div className="asset-details-grid">
-                  <div className="detail-item">
-                    <span className="detail-label">Client / Organization</span>
-                    <span className="detail-value">{asset.companyName || 'Unknown'}</span>
-                  </div>
-                  <div className="detail-item">
-                    <span className="detail-label">Hardware Maker</span>
-                    <span className="detail-value">{asset.productMake || 'N/A'}</span>
-                  </div>
-                  <div className="detail-item">
-                    <span className="detail-label">Model Name</span>
-                    <span className="detail-value">{asset.productModel || 'N/A'}</span>
-                  </div>
-                  <div className="detail-item">
-                    <span className="detail-label">Serial Number</span>
-                    <span className="detail-value">{asset.productSerial || 'N/A'}</span>
-                  </div>
+              {/* Network & Specs */}
+              <div style={{ marginBottom: '24px' }}>
+                <h4 style={{ color: '#64748b', fontSize: '0.8rem', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '12px', borderBottom: '1px solid #f1f5f9', paddingBottom: '8px' }}>Hardware & Network</h4>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: '16px', background: '#f8fafc', padding: '16px', borderRadius: '8px' }}>
+                  <div><div style={{ fontSize: '0.75rem', color: '#64748b', marginBottom: '4px' }}>Device</div><div style={{ fontWeight: '600', color: '#0f172a' }}>{asset.ProductMake || asset.productMake || ''} {asset.ProductModel || asset.productModel || ''}</div></div>
+                  <div><div style={{ fontSize: '0.75rem', color: '#64748b', marginBottom: '4px' }}>Serial Number</div><div style={{ fontWeight: '500', color: '#334155', fontFamily: 'monospace' }}>{asset.ProductSerial || asset.productSerial || 'N/A'}</div></div>
+                  <div><div style={{ fontSize: '0.75rem', color: '#64748b', marginBottom: '4px' }}>IP Address</div><div style={{ fontWeight: '500', color: '#334155', fontFamily: 'monospace' }}>{asset.IP_Address || asset.IP_ADDRESS || asset.ipAddress || 'DHCP'}</div></div>
+                  <div><div style={{ fontSize: '0.75rem', color: '#64748b', marginBottom: '4px' }}>MAC ID</div><div style={{ fontWeight: '500', color: '#334155', fontFamily: 'monospace' }}>{asset.MAC_ID || asset.MAC_Id || asset.macId || 'N/A'}</div></div>
                 </div>
               </div>
 
-              <hr className="section-divider" />
-
-              {/* --- NEW: NETWORK & IDENTITY SECTION --- */}
-              <div style={{ marginTop: '20px', marginBottom: '20px' }}>
-                <h4 style={{ color: '#3b82f6', borderBottom: '1px solid #e2e8f0', paddingBottom: '8px', marginBottom: '12px', fontSize: '1rem' }}>
-                  Network & Identity
-                </h4>
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: '15px' }}>
-                  <div>
-                    <div style={{ fontSize: '0.7rem', color: '#64748b', textTransform: 'uppercase', fontWeight: 'bold' }}>Asset ID</div>
-                    <div style={{ fontWeight: '600', color: '#0f172a' }}>{asset.Unique_Product_Id || asset.UNIQUE_PRODUCT_ID || asset.assetId || 'N/A'}</div>
-                  </div>
-                  <div>
-                    <div style={{ fontSize: '0.7rem', color: '#64748b', textTransform: 'uppercase', fontWeight: 'bold' }}>Ref Code / SO</div>
-                    <div style={{ color: '#334155' }}>{asset.Ref_Code || asset.REF_CODE || asset.Sales_Order || asset.salesOrder || 'N/A'}</div>
-                  </div>
-                  <div>
-                    <div style={{ fontSize: '0.7rem', color: '#64748b', textTransform: 'uppercase', fontWeight: 'bold' }}>IP Address</div>
-                    <div style={{ color: '#334155' }}>{asset.IP_Address || asset.IP_ADDRESS || asset.ipAddress || 'DHCP'}</div>
-                  </div>
-                  <div>
-                    <div style={{ fontSize: '0.7rem', color: '#64748b', textTransform: 'uppercase', fontWeight: 'bold' }}>MAC ID</div>
-                    <div style={{ color: '#334155' }}>{asset.MAC_ID || asset.MAC_Id || asset.macId || 'N/A'}</div>
-                  </div>
+              {/* Location */}
+              <div style={{ marginBottom: '24px' }}>
+                <h4 style={{ color: '#64748b', fontSize: '0.8rem', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '12px', borderBottom: '1px solid #f1f5f9', paddingBottom: '8px' }}>Deployment Location</h4>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: '16px' }}>
+                  <div><div style={{ fontSize: '0.75rem', color: '#64748b', marginBottom: '4px' }}>Site</div><div style={{ fontWeight: '500', color: '#334155' }}>{(asset.Location || asset.location || 'N/A')} &gt; {(asset.Sub_Location || asset.subLocation || 'N/A')}</div></div>
+                  <div><div style={{ fontSize: '0.75rem', color: '#64748b', marginBottom: '4px' }}>Room</div><div style={{ fontWeight: '500', color: '#334155' }}>Flr {(asset.Floor || asset.floor || '-')} | {(asset.Room_Type || asset.roomType || 'N/A')}</div></div>
+                  <div><div style={{ fontSize: '0.75rem', color: '#64748b', marginBottom: '4px' }}>Designation</div><div style={{ fontWeight: '500', color: '#334155' }}>{asset.Room_Name || asset.roomName || '-'}</div></div>
                 </div>
               </div>
 
-              <hr className="section-divider" />
-
-              <div className="asset-section">
-                <h3 className="section-title">Status & Warranty</h3>
-                <div className="asset-details-grid">
-                  <div className="detail-item">
-                    <span className="detail-label">Asset Status</span>
-                    <span className="detail-value">
-                      <span className={`badge-support-tier ${asset.assetStatus?.toLowerCase() === 'active' ? 'tier-active' : 'tier-expired'}`} style={{display: 'inline-block', marginTop: '4px'}}>
-                        {asset.assetStatus || 'Active'}
+              {/* Status & Warranty */}
+              <div>
+                <h4 style={{ color: '#64748b', fontSize: '0.8rem', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '12px', borderBottom: '1px solid #f1f5f9', paddingBottom: '8px' }}>Status & Warranty</h4>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: '16px', background: '#f8fafc', padding: '16px', borderRadius: '8px' }}>
+                  <div>
+                    <div style={{ fontSize: '0.75rem', color: '#64748b', marginBottom: '4px' }}>Asset Status</div>
+                    <div>
+                      <span style={{ 
+                        background: (asset.Asset_Status || asset.assetStatus)?.toLowerCase() === 'active' ? '#dcfce7' : '#fee2e2', 
+                        color: (asset.Asset_Status || asset.assetStatus)?.toLowerCase() === 'active' ? '#15803d' : '#b91c1c', 
+                        padding: '2px 8px', 
+                        borderRadius: '12px', 
+                        fontSize: '0.75rem', 
+                        fontWeight: '600' 
+                      }}>
+                        {asset.Asset_Status || asset.assetStatus || 'Active'}
                       </span>
-                    </span>
+                    </div>
                   </div>
-                  <div className="detail-item">
-                    <span className="detail-label">Warranty Start</span>
-                    <span className="detail-value">{asset.warrantyStartDate ? new Date(asset.warrantyStartDate).toLocaleDateString() : 'N/A'}</span>
+                  <div>
+                    <div style={{ fontSize: '0.75rem', color: '#64748b', marginBottom: '4px' }}>Warranty Start</div>
+                    <div style={{ fontWeight: '500', color: '#334155' }}>
+                      {(() => {
+                        const start = asset.Warranty_Start_Date || asset.warrantyStartDate;
+                        return start ? new Date(start).toLocaleDateString() : 'N/A';
+                      })()}
+                    </div>
                   </div>
-                  <div className="detail-item">
-                    <span className="detail-label">Warranty End</span>
-                    <span className="detail-value">{asset.warrantyEndDate ? new Date(asset.warrantyEndDate).toLocaleDateString() : 'N/A'}</span>
+                  <div>
+                    <div style={{ fontSize: '0.75rem', color: '#64748b', marginBottom: '4px' }}>Warranty End</div>
+                    <div style={{ fontWeight: '500', color: '#334155' }}>
+                      {(() => {
+                        const end = asset.Warranty_End_Date || asset.warrantyEndDate;
+                        return end ? new Date(end).toLocaleDateString() : 'N/A';
+                      })()}
+                    </div>
                   </div>
-                  <div className="detail-item">
-                    <span className="detail-label">DLP Period</span>
-                    <span className="detail-value">{asset.dlpPeriod ? `${asset.dlpPeriod} Months` : 'N/A'}</span>
+                  <div>
+                    <div style={{ fontSize: '0.75rem', color: '#64748b', marginBottom: '4px' }}>DLP Period</div>
+                    <div style={{ fontWeight: '500', color: '#334155' }}>
+                      {(() => {
+                        const val = asset.DLP_Period || asset.dlpPeriod;
+                        if (!val) return 'N/A';
+                        if (typeof val === 'string' && (val.includes('-') || val.includes('T'))) {
+                          try {
+                            const d = new Date(val);
+                            if (!isNaN(d.getTime())) {
+                              return d.toLocaleDateString();
+                            }
+                          } catch(e) {}
+                        }
+                        return `${val} Months`;
+                      })()}
+                    </div>
                   </div>
-                  <div className="detail-item">
-                    <span className="detail-label">Days Left</span>
-                    <span className="detail-value">
-                       <span className={`badge-support-tier ${asset.warrantyDaysLeft > 0 ? 'tier-active' : 'tier-expired'}`} style={{display: 'inline-block', marginTop: '4px'}}>
-                         {asset.warrantyDaysLeft > 0 ? `${asset.warrantyDaysLeft} Days` : 'Expired'}
-                       </span>
-                    </span>
+                  <div>
+                    <div style={{ fontSize: '0.75rem', color: '#64748b', marginBottom: '4px' }}>Days Left</div>
+                    <div>
+                      {(() => {
+                        const days = asset.Warranty_Days_Left || asset.warrantyDaysLeft;
+                        const isExpired = !(days > 0);
+                        return (
+                          <span style={{ 
+                            background: !isExpired ? '#dcfce7' : '#fee2e2', 
+                            color: !isExpired ? '#15803d' : '#b91c1c', 
+                            padding: '2px 8px', 
+                            borderRadius: '12px', 
+                            fontSize: '0.75rem', 
+                            fontWeight: '600' 
+                          }}>
+                            {!isExpired ? `${days} Days` : 'Expired'}
+                          </span>
+                        );
+                      })()}
+                    </div>
                   </div>
                 </div>
               </div>
             </div>
 
             {asset.supportType?.toLowerCase().includes('out') && (
-              <div className="support-warning-box">
+              <div style={{ padding: '12px 24px', background: '#fffbeb', borderTop: '1px solid #fef3c7', color: '#b45309', fontSize: '0.85rem' }}>
                 <strong>Attention:</strong> This hardware is currently <strong>Out of Support</strong>. New service requests may require quote approvals before engineer dispatch.
               </div>
             )}
-          </section>
+          </div>
 
           {/* Form UI */}
           {successReference ? (
-            <div className="success-state md3-surface">
-              <div className="success-icon">✓</div>
-              <h2>Complaint Logged Successfully.</h2>
-              <p>Your support request has been registered.</p>
-              <div className="reference-box">
-                Reference: <strong>{successReference}</strong>
+            /* --- ENTERPRISE SUCCESS CONFIRMATION --- */
+            <div style={{ 
+              marginTop: '32px',
+              padding: '40px 24px', 
+              background: '#ffffff', 
+              borderRadius: '12px', 
+              border: '1px solid #bbf7d0', // Subtle green border
+              boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.05)', 
+              textAlign: 'center',
+              animation: 'fadeIn 0.5s ease-out'
+            }}>
+              <div style={{ 
+                width: '64px', 
+                height: '64px', 
+                background: '#dcfce7', 
+                borderRadius: '50%', 
+                display: 'flex', 
+                justifyContent: 'center', 
+                alignItems: 'center', 
+                margin: '0 auto 20px auto' 
+              }}>
+                <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#16a34a" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+                  <polyline points="20 6 9 17 4 12"></polyline>
+                </svg>
+              </div>
+              
+              <h2 style={{ margin: '0 0 12px 0', color: '#064e3b', fontSize: '1.5rem', fontWeight: '700' }}>
+                Service Request Logged
+              </h2>
+              <p style={{ color: '#475569', fontSize: '1rem', maxWidth: '400px', margin: '0 auto 24px auto', lineHeight: '1.5' }}>
+                Your support request has been securely routed to our engineering dispatch team. 
+              </p>
+              
+              <div style={{ 
+                display: 'inline-block', 
+                background: '#f8fafc', 
+                border: '1px dashed #cbd5e1', 
+                padding: '12px 24px', 
+                borderRadius: '8px' 
+              }}>
+                <span style={{ color: '#64748b', fontSize: '0.85rem', display: 'block', marginBottom: '4px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                  Official Tracking Reference
+                </span>
+                <span style={{ color: '#0f172a', fontSize: '1.5rem', fontWeight: '800', fontFamily: 'monospace', letterSpacing: '1px' }}>
+                  {successReference || 'INQ-PENDING'}
+                </span>
+              </div>
+              
+              <div style={{ marginTop: '32px' }}>
+                <button 
+                  onClick={() => window.location.reload()} 
+                  style={{ background: '#f1f5f9', border: 'none', padding: '10px 20px', borderRadius: '6px', color: '#334155', fontWeight: '600', cursor: 'pointer', transition: 'background 0.2s' }}
+                  onMouseOver={(e) => e.target.style.background = '#e2e8f0'}
+                  onMouseOut={(e) => e.target.style.background = '#f1f5f9'}
+                >
+                  Submit Another Request
+                </button>
               </div>
             </div>
           ) : (
