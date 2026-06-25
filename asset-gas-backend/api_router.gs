@@ -66,6 +66,12 @@ function doGet(e) {
 
   if (e && e.parameter) {
     const action = e.parameter.action || e.parameter.route;
+    if (action === 'verifyRefCode') {
+      const code = e.parameter.code || e.parameter.Ref_Code || '';
+      const result = getCompanyBranchesByCode(code);
+      return ContentService.createTextOutput(JSON.stringify(result))
+        .setMimeType(ContentService.MimeType.JSON);
+    }
     if (action === 'getDashboardData') {
       return getDashboardData();
     }
@@ -156,6 +162,13 @@ function doPost(e) {
       case "getDashboard": return handleGetDashboard(payload);
       
       case "getDashboardData": return getDashboardData();
+      
+      case "verifyRefCode": {
+        const code = payload.code || payload.Ref_Code || '';
+        const result = getCompanyBranchesByCode(code);
+        return ContentService.createTextOutput(JSON.stringify(result))
+          .setMimeType(ContentService.MimeType.JSON);
+      }
         
       case "createMasterTicket": return handleCreateMasterTicket(payload);
 
@@ -3372,5 +3385,58 @@ function getDashboardData() {
       message: "getDashboardData failed: " + error.message
     })).setMimeType(ContentService.MimeType.JSON);
   }
+}
+
+/**
+ * Resolves all branches for a given Ref_Code
+ */
+function getCompanyBranchesByCode(code) {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const companySheet = ss.getSheetByName('Company_Master');
+  const branches = [];
+  let companyName = "";
+  
+  if (companySheet && code) {
+    const data = companySheet.getDataRange().getValues();
+    const headers = getHeaders(companySheet);
+    const refIdx = headers.indexOf('Ref_Code');
+    const nameIdx = headers.indexOf('Company_Name');
+    const locIdx = headers.indexOf('Location');
+    const branchIdx = headers.indexOf('Branch');
+    const supportIdx = headers.indexOf('Support_Type');
+    const amcStartIdx = headers.indexOf('AMC_Start_Date');
+    const amcEndIdx = headers.indexOf('AMC_End_Date');
+    const contactIdx = headers.indexOf('Primary_Contact');
+    const emailIdx = headers.indexOf('Primary_Email');
+    const phoneIdx = headers.indexOf('Primary_Phone');
+    const statusIdx = headers.indexOf('Status');
+    
+    const targetCode = String(code).trim().toLowerCase();
+    
+    for (let i = 1; i < data.length; i++) {
+      if (String(data[i][refIdx]).trim().toLowerCase() === targetCode) {
+        if (!companyName) {
+          companyName = data[i][nameIdx];
+        }
+        branches.push({
+          Location: data[i][locIdx] || "",
+          Branch: data[i][branchIdx] || "",
+          Support_Type: data[i][supportIdx] || "Standard",
+          AMC_Start_Date: data[i][amcStartIdx] || "",
+          AMC_End_Date: data[i][amcEndIdx] || "",
+          Primary_Contact: data[i][contactIdx] || "",
+          Primary_Email: data[i][emailIdx] || "",
+          Primary_Phone: data[i][phoneIdx] || "",
+          Status: data[i][statusIdx] || "Active"
+        });
+      }
+    }
+  }
+  
+  return {
+    success: branches.length > 0,
+    companyName: companyName,
+    branches: branches
+  };
 }
 

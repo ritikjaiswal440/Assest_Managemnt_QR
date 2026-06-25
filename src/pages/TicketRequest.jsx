@@ -19,6 +19,10 @@ const TicketRequest = () => {
   const [dropdownData, setDropdownData] = useState({ companies: [], assets: [] });
   const [companyAssets, setCompanyAssets] = useState([]);
 
+  const [branchOptions, setBranchOptions] = useState([]);
+  const [selectedBranch, setSelectedBranch] = useState("");
+  const [isVerifying, setIsVerifying] = useState(false);
+
   // Form State variables
   const [reqBy, setReqBy] = useState('');
   const [phoneNumber, setPhoneNumber] = useState('');
@@ -71,10 +75,41 @@ const TicketRequest = () => {
     loadDropdowns();
   }, []);
 
+  const handleVerifyRefCode = async (enteredCode) => {
+    if (!enteredCode) return;
+    setIsVerifying(true);
+    
+    try {
+      const response = await fetch(`${import.meta.env.VITE_GAS_API_URL}?action=verifyRefCode&code=${enteredCode}`);
+      const data = await response.json();
+      
+      if (data.success && data.branches && data.branches.length > 0) {
+        setBranchOptions(data.branches);
+        if (data.branches.length === 1) {
+          // Auto-select if there is only one branch
+          setSelectedBranch(data.branches[0].Branch);
+        }
+      } else {
+        setBranchOptions([]);
+        alert("Reference Code not found or has no active branches.");
+      }
+    } catch (error) {
+      console.error("Verification failed", error);
+    } finally {
+      setIsVerifying(false);
+    }
+  };
+
   const handleAuth = useCallback(async (codeOverride = null) => {
     const codeToUse = codeOverride || serviceRequestId;
     if (!codeToUse.trim()) {
       setStatus({ loading: false, error: "Please enter a reference code." });
+      return;
+    }
+
+    // Safety Lock: Ensure branch is selected if there are multiple branch options
+    if (branchOptions.length > 1 && !selectedBranch) {
+      setStatus({ loading: false, error: "You must select your specific branch location before submitting." });
       return;
     }
 
@@ -101,7 +136,7 @@ const TicketRequest = () => {
     } catch {
       setStatus({ loading: false, error: "Network error. Please try again." });
     }
-  }, [serviceRequestId, dropdownData.assets]);
+  }, [serviceRequestId, dropdownData.assets, branchOptions, selectedBranch]);
 
   // Auto-authenticate if URL has ?ref= and dropdown data is loaded
   useEffect(() => {
@@ -265,6 +300,8 @@ const TicketRequest = () => {
         Company_Name: company,
         location: location,
         Location: location,
+        Branch: selectedBranch || "",
+        Sub_Location: selectedBranch || "",
         roomName: room,
         Room_Name: room,
         requesterName: reqBy,
@@ -290,10 +327,10 @@ const TicketRequest = () => {
           Sales_Order: p.salesOrder,
           invoiceNo: p.invoiceNo,
           Invoice_No: p.invoiceNo,
-          branch: p.subLocation,
-          Branch: p.subLocation,
-          subLocation: p.subLocation,
-          Sub_Location: p.subLocation,
+          branch: p.subLocation || selectedBranch || "",
+          Branch: p.subLocation || selectedBranch || "",
+          subLocation: p.subLocation || selectedBranch || "",
+          Sub_Location: p.subLocation || selectedBranch || "",
           roomType: p.roomType,
           Room_Type: p.roomType,
           floor: p.floor,
@@ -372,9 +409,32 @@ const TicketRequest = () => {
                 type="text"
                 value={serviceRequestId}
                 onChange={(e) => setServiceRequestId(e.target.value)}
+                onBlur={(e) => handleVerifyRefCode(e.target.value)}
                 placeholder="e.g., A7K2L1"
                 disabled={status.loading}
               />
+              
+              {/* --- SMART BRANCH SELECTOR (Only shows for manual entry with valid Ref_Code) --- */}
+              {branchOptions.length > 1 && (
+                <div style={{ marginTop: '16px', background: '#f8fafc', padding: '16px', borderRadius: '8px', border: '1px solid #cbd5e1' }}>
+                  <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: '600', color: '#334155', marginBottom: '8px' }}>
+                    Select Your Specific Location <span style={{ color: '#ef4444' }}>*</span>
+                  </label>
+                  <select 
+                    value={selectedBranch} 
+                    onChange={(e) => setSelectedBranch(e.target.value)}
+                    required
+                    style={{ width: '100%', padding: '10px', borderRadius: '6px', border: '1px solid #94a3b8', color: '#334155' }}
+                  >
+                    <option value="" disabled>-- Please choose your physical branch --</option>
+                    {branchOptions.map((opt, idx) => (
+                      <option key={idx} value={opt.Branch}>
+                        {opt.Location} - {opt.Branch}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
             </div>
             <button className="btn btn-primary" onClick={() => handleAuth()} disabled={status.loading}>
               {status.loading ? 'Authenticating...' : 'Authenticate & Continue'}
