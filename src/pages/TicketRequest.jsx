@@ -116,6 +116,11 @@ const TicketRequest = () => {
     }
   };
 
+  const handleClearBranch = () => {
+    setSelectedBranch("");
+    setLocation("");
+  };
+
   const handleAuth = useCallback(async (codeOverride = null) => {
     const codeToUse = codeOverride || serviceRequestId;
     if (!codeToUse.trim()) {
@@ -504,38 +509,69 @@ const TicketRequest = () => {
                       {asset.Location || 'N/A'} {asset.Branch ? `— ${asset.Branch}` : ''}
                     </div>
                   ) : (
-                    /* DROPDOWN STATE: User entered manually, force them to pick a valid branch */
-                    <select 
-                      value={selectedBranch} 
-                      onChange={(e) => {
-                        const branchVal = e.target.value;
-                        setSelectedBranch(branchVal);
-                        
-                        // Auto-fill the parent location state so both are captured
-                        const selectedOpt = branchOptions.find(b => b.Branch === branchVal);
-                        if (selectedOpt) {
-                          setLocation(selectedOpt.Location);
-                        }
-                      }}
-                      required
-                      style={{ 
-                        width: '100%', 
-                        padding: '12px 16px', 
-                        borderRadius: '6px', 
-                        border: '1px solid #cbd5e1',
-                        background: '#ffffff',
-                        fontSize: '0.9rem',
-                        color: '#0f172a',
-                        cursor: 'pointer'
-                      }}
-                    >
-                      <option value="" disabled>-- Choose Branch --</option>
-                      {branchOptions.map((opt, idx) => (
-                        <option key={idx} value={opt.Branch}>
-                          {opt.Location} — {opt.Branch}
-                        </option>
-                      ))}
-                    </select>
+                    /* DROPDOWN STATE (MANUAL ENTRY) WITH RESET BUTTON */
+                    <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                      <select 
+                        value={selectedBranch} 
+                        onChange={(e) => {
+                          const branchVal = e.target.value;
+                          setSelectedBranch(branchVal);
+                          
+                          const selectedOpt = branchOptions.find(b => b.Branch === branchVal);
+                          if (selectedOpt) {
+                            setLocation(selectedOpt.Location);
+                          }
+                        }}
+                        required
+                        style={{ 
+                          flex: 1, 
+                          padding: '12px 16px', 
+                          borderRadius: '6px', 
+                          border: '1px solid #cbd5e1',
+                          background: '#ffffff',
+                          fontSize: '0.9rem',
+                          color: '#0f172a',
+                          cursor: 'pointer'
+                        }}
+                      >
+                        <option value="" disabled>-- Choose Branch --</option>
+                        {branchOptions.map((opt, idx) => (
+                          <option key={idx} value={opt.Branch}>
+                            {opt.Location} — {opt.Branch}
+                          </option>
+                        ))}
+                      </select>
+
+                      {/* CONDITIONAL RESET BUTTON */}
+                      {selectedBranch && (
+                        <button 
+                          type="button" 
+                          onClick={handleClearBranch}
+                          title="Clear Selection"
+                          style={{ 
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            background: '#fee2e2', 
+                            color: '#ef4444', 
+                            border: 'none', 
+                            borderRadius: '6px', 
+                            width: '42px',
+                            height: '42px',
+                            cursor: 'pointer',
+                            flexShrink: 0,
+                            transition: 'background 0.2s'
+                          }}
+                          onMouseOver={(e) => e.currentTarget.style.background = '#fecaca'}
+                          onMouseOut={(e) => e.currentTarget.style.background = '#fee2e2'}
+                        >
+                          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                            <line x1="18" y1="6" x2="6" y2="18"></line>
+                            <line x1="6" y1="6" x2="18" y2="18"></line>
+                          </svg>
+                        </button>
+                      )}
+                    </div>
                   )}
                 </div>
                 <div className="input-group">
