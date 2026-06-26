@@ -72,7 +72,9 @@ const CreateTicketModal = ({ isOpen, onClose, clients = [], engineers = [], curr
           branch: initialData?.Branch || initialData?.Sub_Location || initialData?.subLocation || '',
           roomName: initialData?.Room_Name || initialData?.roomName || initialData?.room || '',
           room: initialData?.Room_Name || initialData?.roomName || initialData?.room || '',
-          category: initialData?.category || '',
+          category: initialData?.Category || initialData?.category || '',
+          issueType: initialData?.Issue_Type || initialData?.issueType || '',
+          serviceType: initialData?.Type_of_Service || initialData?.serviceType || '',
           salesOrder: initialData?.Sales_Order || initialData?.salesOrder || '',
           description: `${initialData?.Issue_Description || initialData?.description || ''}${invoicePart}`,
           productMake: defaultMake,
@@ -467,7 +469,7 @@ const CreateTicketModal = ({ isOpen, onClose, clients = [], engineers = [], curr
             {/* --- Technical Details --- */}
             <div className="form-group">
               <label>Category *</label>
-              <select name="category" value={formData.category} onChange={handleChange} required disabled={status.loading}>
+              <select name="category" value={formData.category || ''} onChange={handleChange} required disabled={status.loading}>
                 <option value="">Select...</option>
                 <option>Hardware</option>
                 <option>Connectivity</option>
@@ -479,7 +481,7 @@ const CreateTicketModal = ({ isOpen, onClose, clients = [], engineers = [], curr
 
             <div className="form-group">
               <label>Issue Type *</label>
-              <select name="issueType" value={formData.issueType} onChange={handleChange} required disabled={status.loading}>
+              <select name="issueType" value={formData.issueType || ''} onChange={handleChange} required disabled={status.loading}>
                 <option value="">Select...</option>
                 <option>Audio</option>
                 <option>Video</option>
@@ -494,7 +496,7 @@ const CreateTicketModal = ({ isOpen, onClose, clients = [], engineers = [], curr
 
             <div className="form-group">
               <label>Type of Service</label>
-              <select name="serviceType" value={formData.serviceType} onChange={handleChange} disabled={status.loading}>
+              <select name="serviceType" value={formData.serviceType || ''} onChange={handleChange} disabled={status.loading}>
                 <option value="">Select...</option>
                 <option>DLP</option>
                 <option>OEM- Warranty</option>
