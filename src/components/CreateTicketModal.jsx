@@ -483,11 +483,9 @@ const CreateTicketModal = ({ isOpen, onClose, clients = [], engineers = [], curr
             <div className="form-group">
               <label>Category *</label>
               <select name="category" value={formData.category || ''} onChange={handleChange} required disabled={status.loading}>
-                <option value="" disabled>Select...</option>
-                <option value="Audio">Audio</option>
-                <option value="Video">Video</option>
-                <option value="Control System">Control System</option>
-                <option value="Network / IT">Network / IT</option>
+                <option value="" disabled>Select Category...</option>
+                
+                {/* SYNCHRONIZED OPTIONS — MATCHES PUBLIC FORM EXACTLY */}
                 <option value="Hardware">Hardware</option>
                 <option value="Connectivity">Connectivity</option>
                 <option value="Programming">Programming</option>
