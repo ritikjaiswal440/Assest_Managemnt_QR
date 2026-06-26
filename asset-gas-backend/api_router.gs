@@ -2393,14 +2393,9 @@ function handleExportData(payload) {
  * Handle Import Bulk Data - appends a 2D matrix directly using setValues
  */
 function handleImportBulk(payload) {
-  const sheetName = payload.sheetName;
-  const dataMatrix = payload.dataMatrix;
-
+  const sheetName = payload.sheetName || payload.sheet;
   if (!sheetName) {
     throw new Error("Import Error: Missing target sheetName.");
-  }
-  if (!dataMatrix || !Array.isArray(dataMatrix) || dataMatrix.length === 0) {
-    throw new Error("Import Error: Invalid or empty dataMatrix payload.");
   }
 
   const sheet = ss.getSheetByName(sheetName);
@@ -2410,18 +2405,71 @@ function handleImportBulk(payload) {
 
   const lock = LockService.getScriptLock();
   try {
-    // Acquire a lock to prevent concurrent write collisions
     lock.waitLock(15000);
 
-    const startRow = sheet.getLastRow() + 1;
-    const numRows = dataMatrix.length;
-    const numCols = dataMatrix[0].length;
+    const data = sheet.getDataRange().getValues();
+    const headers = data[0].map(h => String(h).trim());
+    
+    let rowsToAppend = [];
 
-    sheet.getRange(startRow, 1, numRows, numCols).setValues(dataMatrix);
+    if (payload.csvData && Array.isArray(payload.csvData)) {
+      // --- BACKEND AUTO-ID GENERATION FOR BULK IMPORT ---
+      const idIdx = headers.indexOf('Unique_Product_Id');
+      
+      // Find highest existing ID number and detect padding length
+      let maxIdNum = 0;
+      let padLen = 6; // Default to 6 digits padding (AVD/PD/000001)
+      
+      if (sheetName === "Asset_Master" && idIdx !== -1) {
+        for (let i = 1; i < data.length; i++) {
+          const currentId = String(data[i][idIdx] || "");
+          if (currentId.startsWith("AVD/PD/")) {
+            const numPart = currentId.replace("AVD/PD/", "");
+            const numPartLen = numPart.length;
+            const parsedNum = parseInt(numPart, 10);
+            if (!isNaN(parsedNum) && parsedNum > maxIdNum) {
+              maxIdNum = parsedNum;
+              padLen = numPartLen; // Adapt to current padding length
+            }
+          }
+        }
+      }
+
+      rowsToAppend = payload.csvData.map(rowObj => {
+        // If target is Asset_Master and ID is blank, auto-generate next sequential ID
+        if (sheetName === "Asset_Master" && idIdx !== -1) {
+          if (!rowObj.Unique_Product_Id || String(rowObj.Unique_Product_Id).trim() === "") {
+            maxIdNum++;
+            rowObj.Unique_Product_Id = `AVD/PD/${String(maxIdNum).padStart(padLen, '0')}`;
+          }
+        }
+
+        // Map object back to array based on sheet headers
+        return headers.map(header => {
+          if (header === 'Created_At' || header === 'Updated_At') return new Date().toISOString();
+          // Force string formatting for Ref_Code to prevent scientific notation/math errors
+          if (header === 'Ref_Code') return `'${rowObj[header] || ""}`;
+          return rowObj[header] !== undefined ? rowObj[header] : "";
+        });
+      });
+
+    } else if (payload.dataMatrix && Array.isArray(payload.dataMatrix)) {
+      rowsToAppend = payload.dataMatrix;
+    } else {
+      throw new Error("Import Error: Missing csvData or dataMatrix payload.");
+    }
+
+    if (rowsToAppend.length > 0) {
+      const startRow = sheet.getLastRow() + 1;
+      const numRows = rowsToAppend.length;
+      const numCols = headers.length > 0 ? headers.length : rowsToAppend[0].length;
+      
+      sheet.getRange(startRow, 1, numRows, numCols).setValues(rowsToAppend);
+    }
 
     return {
-      message: "Successfully imported " + numRows + " rows to " + sheetName + ".",
-      importedCount: numRows
+      message: "Successfully imported " + rowsToAppend.length + " rows to " + sheetName + ".",
+      importedCount: rowsToAppend.length
     };
 
   } finally {

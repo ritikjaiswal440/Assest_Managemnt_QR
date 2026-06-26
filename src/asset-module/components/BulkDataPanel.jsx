@@ -1,5 +1,5 @@
 import { useState, useRef } from 'react';
-import { exportBulkData, importBulkData } from '../../services/apiClient';
+import { exportBulkData, assetApi } from '../../services/apiClient';
 import './BulkDataPanel.css';
 
 export default function BulkDataPanel() {
@@ -12,6 +12,8 @@ export default function BulkDataPanel() {
   const [stats, setStats] = useState({ total: 0, valid: 0 });
   const [isUploading, setIsUploading] = useState(false);
   const [uploadResult, setUploadResult] = useState(null);
+  const [importErrors, setImportErrors] = useState([]);
+  const [isValidated, setIsValidated] = useState(false);
 
   const fileInputRef = useRef(null);
 
@@ -114,30 +116,81 @@ export default function BulkDataPanel() {
         resetForm();
         return;
       }
-      setParsedData(matrix);
-      // Exclude header row for pre-flight stats
-      setStats({ total: matrix.length - 1, valid: matrix.length - 1 });
+      
+      const headers = matrix[0].map(h => String(h).trim());
+      const rows = [];
+      for (let i = 1; i < matrix.length; i++) {
+        const row = matrix[i];
+        if (row.every(val => !String(val).trim())) continue;
+        
+        const obj = {};
+        headers.forEach((header, idx) => {
+          obj[header] = row[idx] !== undefined ? row[idx] : "";
+        });
+        rows.push(obj);
+      }
+
+      let errors = [];
+      let validRows = [];
+
+      if (activeTab === 'assets') {
+        rows.forEach((row, index) => {
+          let rowErrors = [];
+          
+          // STRICT SCHEMA ENFORCEMENT
+          if (!row.Ref_Code) rowErrors.push("Missing Ref_Code");
+          if (!row.Company_Name) rowErrors.push("Missing Company_Name");
+          if (!row.Branch) rowErrors.push("Missing Branch (Required for location binding)");
+          if (!row.ProductMake || !row.ProductModel) rowErrors.push("Missing Hardware Make/Model");
+          
+          if (rowErrors.length > 0) {
+            errors.push(`Row ${index + 2}: ${rowErrors.join(', ')}`);
+          } else {
+            validRows.push(row);
+          }
+        });
+
+        if (errors.length > 0) {
+          setImportErrors(errors);
+          setIsValidated(false);
+          setParsedData(null); // Reject the payload
+          setStats({ total: rows.length, valid: 0 });
+        } else {
+          setImportErrors([]);
+          setIsValidated(true);
+          setParsedData(validRows); // Accept the payload
+          setStats({ total: rows.length, valid: validRows.length });
+        }
+      } else {
+        // Company Profiles import: simple validation/accept
+        setImportErrors([]);
+        setIsValidated(true);
+        setParsedData(rows); // Accept the payload
+        setStats({ total: rows.length, valid: rows.length });
+      }
     };
     reader.readAsText(fileObj);
   };
 
   const handleUpload = async () => {
-    if (!parsedData || parsedData.length < 2) return;
+    if (!parsedData || parsedData.length === 0) return;
     
     setIsUploading(true);
     setUploadResult(null);
     
     const selectedSheet = activeTab === 'assets' ? 'Asset_Master' : 'Company_Master';
-    const dataMatrix = parsedData.slice(1); // Exclude headers for append
     
     try {
-      const response = await importBulkData(selectedSheet, dataMatrix);
+      const response = await assetApi('importBulkData', {
+        sheetName: selectedSheet,
+        csvData: parsedData
+      });
       
       if (response && response.success) {
         setUploadResult({
           type: 'success',
           message: response.message || response.data?.message || 'Import successful.',
-          importedCount: response.data?.importedCount || dataMatrix.length
+          importedCount: response.data?.importedCount || parsedData.length
         });
         setFile(null);
         setParsedData(null);
@@ -209,6 +262,8 @@ export default function BulkDataPanel() {
     setFile(null);
     setParsedData(null);
     setUploadResult(null);
+    setImportErrors([]);
+    setIsValidated(false);
     if (fileInputRef.current) fileInputRef.current.value = "";
   };
 
@@ -269,24 +324,48 @@ export default function BulkDataPanel() {
           </div>
 
           {/* Pre-flight Validation Banner */}
-          {parsedData && !uploadResult && (
-            <div className="validation-banner">
-              <h4>Pre-flight Summary</h4>
-              <div className="stats-row">
-                <div className="stat-box">
-                  <span className="stat-val">{stats.total}</span>
-                  <span className="stat-label">Rows Detected</span>
-                </div>
-                <div className="stat-box highlight">
-                  <span className="stat-val">Append Mode</span>
-                  <span className="stat-label">Will insert records to sheets</span>
-                </div>
-              </div>
+          {(parsedData || importErrors.length > 0) && !uploadResult && (
+            <div style={{ marginTop: '20px', padding: '16px', border: '1px solid #e2e8f0', borderRadius: '8px', background: '#f8fafc' }}>
+              <h4 style={{ margin: '0 0 12px 0', fontSize: '1rem', color: '#334155' }}>Pre-flight Summary</h4>
               
+              {importErrors.length > 0 ? (
+                <div style={{ background: '#fee2e2', padding: '12px', borderRadius: '6px', border: '1px solid #f87171' }}>
+                  <h5 style={{ color: '#991b1b', margin: '0 0 8px 0', fontSize: '0.9rem' }}>Validation Failed ({importErrors.length} Errors Found)</h5>
+                  <ul style={{ color: '#7f1d1d', fontSize: '0.85rem', margin: 0, paddingLeft: '20px', maxHeight: '150px', overflowY: 'auto' }}>
+                    {importErrors.map((err, i) => <li key={i}>{err}</li>)}
+                  </ul>
+                  <p style={{ fontSize: '0.8rem', color: '#991b1b', marginTop: '10px', fontWeight: 'bold' }}>
+                    Please fix these errors in your CSV and re-upload.
+                  </p>
+                </div>
+              ) : (
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+                  <div style={{ background: '#f1f5f9', padding: '16px', borderRadius: '6px', textAlign: 'center' }}>
+                    <div style={{ fontSize: '1.5rem', fontWeight: 'bold', color: '#0f172a' }}>{stats.total}</div>
+                    <div style={{ fontSize: '0.75rem', color: '#64748b', textTransform: 'uppercase' }}>Rows Detected</div>
+                  </div>
+                  <div style={{ background: '#dcfce7', padding: '16px', borderRadius: '6px', textAlign: 'center', color: '#166534' }}>
+                    <div style={{ fontWeight: 'bold', marginBottom: '4px', fontSize: '0.9rem' }}>Ready for Import</div>
+                    <div style={{ fontSize: '0.75rem' }}>IDs will be auto-generated if left blank.</div>
+                  </div>
+                </div>
+              )}
+
               <button 
-                className="btn-filled upload-action-btn"
-                onClick={handleUpload}
-                disabled={isUploading}
+                onClick={handleUpload} 
+                disabled={!isValidated || isUploading || !parsedData}
+                style={{ 
+                  width: '100%', 
+                  marginTop: '16px', 
+                  padding: '12px', 
+                  background: (!isValidated || !parsedData) ? '#94a3b8' : '#2563eb', 
+                  color: '#fff', 
+                  border: 'none', 
+                  borderRadius: '6px',
+                  cursor: (!isValidated || !parsedData) ? 'not-allowed' : 'pointer',
+                  fontWeight: 'bold',
+                  fontSize: '0.95rem'
+                }}
               >
                 {isUploading ? 'Transmitting Data...' : 'Proceed with Upload'}
               </button>
