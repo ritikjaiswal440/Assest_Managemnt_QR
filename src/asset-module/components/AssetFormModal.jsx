@@ -128,6 +128,50 @@ export default function AssetFormModal({ isOpen, onClose, onSave, initialData, c
 
   const [formData, setFormData] = useState(defaultState);
   const [warrantyDuration, setWarrantyDuration] = useState('12 Months');
+  const [availableBranches, setAvailableBranches] = useState([]);
+
+  // Initialize the branch list when the modal opens in Edit Mode
+  useEffect(() => {
+    if (formData?.refCode && companies?.length > 0) {
+      const parentCompany = companies.find(c => c.Ref_Code === formData.refCode);
+      if (parentCompany) {
+        setAvailableBranches(parentCompany.branches || []);
+      }
+    }
+  }, [formData?.refCode, companies]);
+
+  // Handler for when the Admin changes the Parent Company
+  const handleCompanyChange = (e) => {
+    const selectedRef = e.target.value;
+    const parentCompany = companies.find(c => c.Ref_Code === selectedRef);
+
+    if (parentCompany) {
+      setAvailableBranches(parentCompany.branches || []);
+      
+      // Update the payload AND forcefully wipe the old branch data
+      setFormData(prev => ({
+        ...prev,
+        refCode: parentCompany.Ref_Code,
+        companyName: parentCompany.Company_Name,
+        location: "", // Wipe old location
+        branch: ""    // Wipe old branch
+      }));
+    }
+  };
+
+  // Handler for when the Admin selects the specific new Branch
+  const handleBranchChange = (e) => {
+    const selectedBranchName = e.target.value;
+    const branchObj = availableBranches.find(b => b.Branch === selectedBranchName);
+    
+    if (branchObj) {
+      setFormData(prev => ({
+        ...prev,
+        branch: branchObj.Branch,
+        location: branchObj.Location
+      }));
+    }
+  };
 
   useEffect(() => {
     if (initialData) {
@@ -226,19 +270,7 @@ export default function AssetFormModal({ isOpen, onClose, onSave, initialData, c
 
   const handleChange = (e) => {
     const { name, value } = e.target;
-    
-    // Company & Ref_Code Sync
-    if (name === 'companyName') {
-      const selectedBranch = flatCompaniesList.find(c => c.name === value || c.Company_Name === value);
-      setFormData(prev => ({
-        ...prev,
-        companyName: value,
-        refCode: selectedBranch ? (selectedBranch.id || selectedBranch.Ref_Code) : '',
-        branch: selectedBranch ? selectedBranch.Branch : ''
-      }));
-    } else {
-      setFormData(prev => ({ ...prev, [name]: value }));
-    }
+    setFormData(prev => ({ ...prev, [name]: value }));
   };
 
   const handleDurationChange = (e) => {
@@ -266,33 +298,68 @@ export default function AssetFormModal({ isOpen, onClose, onSave, initialData, c
         <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', flex: 1, overflow: 'hidden' }}>
           <div className="modal-body">
             
+            {/* --- SMART REASSIGNMENT SECTION --- */}
+            <div style={{ padding: '16px', background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '8px', marginBottom: '20px' }}>
+              <h4 style={{ margin: '0 0 12px 0', fontSize: '0.85rem', color: '#64748b', textTransform: 'uppercase' }}>
+                Ownership & Deployment
+              </h4>
+              
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+                
+                {/* 1. Parent Company Selector */}
+                <div>
+                  <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 'bold', marginBottom: '6px', color: '#0f172a' }}>
+                    Parent Organization <span style={{ color: '#ef4444' }}>*</span>
+                  </label>
+                  <select 
+                    value={formData.refCode || ''} 
+                    onChange={handleCompanyChange} 
+                    required
+                    style={{ width: '100%', padding: '8px 12px', borderRadius: '6px', border: '1px solid #cbd5e1', background: '#ffffff' }}
+                  >
+                    <option value="" disabled>-- Select Company --</option>
+                    {companies?.map(company => (
+                      <option key={company.Ref_Code} value={company.Ref_Code}>
+                        {company.Ref_Code} — {company.Company_Name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* 2. Dependent Branch Selector */}
+                <div>
+                  <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 'bold', marginBottom: '6px', color: '#0f172a' }}>
+                    Physical Branch <span style={{ color: '#ef4444' }}>*</span>
+                  </label>
+                  <select 
+                    value={formData.branch || ''} 
+                    onChange={handleBranchChange} 
+                    required
+                    disabled={!formData.refCode || availableBranches.length === 0}
+                    style={{ 
+                      width: '100%', 
+                      padding: '8px 12px', 
+                      borderRadius: '6px', 
+                      border: '1px solid #cbd5e1', 
+                      background: (!formData.refCode || availableBranches.length === 0) ? '#f1f5f9' : '#ffffff',
+                      cursor: (!formData.refCode || availableBranches.length === 0) ? 'not-allowed' : 'pointer'
+                    }}
+                  >
+                    <option value="" disabled>-- Select Location --</option>
+                    {availableBranches.map((b, idx) => (
+                      <option key={idx} value={b.Branch}>
+                        {b.Location} — {b.Branch}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+              </div>
+            </div>
+
             <div className="form-section">
               <h4>Order Info</h4>
               <div className="form-grid">
-                <div className="form-group">
-                  <label>Company Branch</label>
-                  <select 
-                    name="companyName" 
-                    value={formData.companyName} 
-                    onChange={handleChange}
-                    className="md3-input"
-                    required
-                  >
-                    <option value="" disabled>Select Company Branch</option>
-                    {flatCompaniesList && flatCompaniesList.map(c => {
-                      const cName = c.name || c.Company_Name;
-                      const cId = c.id || c.Ref_Code;
-                      const cLocation = c.Location || '';
-                      const cBranch = c.Branch || '';
-                      const label = `${cName} - ${cLocation} (${cBranch})`;
-                      return <option key={`${cId}-${cName}-${cBranch}`} value={cName}>{label}</option>;
-                    })}
-                  </select>
-                </div>
-                <div className="form-group">
-                  <label>Ref Code</label>
-                  <input type="text" className="md3-input read-only-input" value={formData.refCode} readOnly />
-                </div>
                 <div className="form-group">
                   <label>Sales Order</label>
                   <input type="text" name="salesOrder" value={formData.salesOrder || ''} onChange={handleChange} className="md3-input" />
@@ -307,14 +374,6 @@ export default function AssetFormModal({ isOpen, onClose, onSave, initialData, c
             <div className="form-section">
               <h4>Location Info</h4>
               <div className="form-grid">
-                <div className="form-group">
-                  <label>Location</label>
-                  <input type="text" name="location" value={formData.location || ''} onChange={handleChange} className="md3-input" required />
-                </div>
-                <div className="form-group">
-                  <label>Sub Location</label>
-                  <input type="text" name="subLocation" value={formData.subLocation || ''} onChange={handleChange} className="md3-input" />
-                </div>
                 <div className="form-group">
                   <label>Floor</label>
                   <input type="text" name="floor" value={formData.floor || ''} onChange={handleChange} className="md3-input" />
