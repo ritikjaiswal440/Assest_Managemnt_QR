@@ -6,17 +6,50 @@ import './CompanyFormModal.css';
 // UTILITY: Safely converts any valid date string into HTML input format (YYYY-MM-DD)
 const formatDateForInput = (dateString) => {
   if (!dateString) return "";
-  const d = new Date(dateString);
-  // Check if it's an invalid date
+  
+  const str = String(dateString).trim();
+  const parts = str.split(/[\/\-]/);
+  
+  if (parts.length === 3) {
+    // Case 1: DD/MM/YYYY or D/M/YYYY
+    if (parts[2].length === 4) {
+      const day = parseInt(parts[0], 10);
+      const month = parseInt(parts[1], 10) - 1; // 0-indexed
+      const year = parseInt(parts[2], 10);
+      const d = new Date(year, month, day);
+      if (!isNaN(d.getTime())) {
+        const y = d.getFullYear();
+        const m = String(d.getMonth() + 1).padStart(2, '0');
+        const dayStr = String(d.getDate()).padStart(2, '0');
+        return `${y}-${m}-${dayStr}`;
+      }
+    }
+    // Case 2: YYYY-MM-DD or YYYY/MM/DD
+    if (parts[0].length === 4) {
+      const year = parseInt(parts[0], 10);
+      const month = parseInt(parts[1], 10) - 1; // 0-indexed
+      const day = parseInt(parts[2], 10);
+      const d = new Date(year, month, day);
+      if (!isNaN(d.getTime())) {
+        const y = d.getFullYear();
+        const m = String(d.getMonth() + 1).padStart(2, '0');
+        const dayStr = String(d.getDate()).padStart(2, '0');
+        return `${y}-${m}-${dayStr}`;
+      }
+    }
+  }
+
+  // Fallback to standard parsing for ISO strings, etc.
+  const d = new Date(str);
   if (isNaN(d.getTime())) return ""; 
   
-  // Format to local YYYY-MM-DD to avoid timezone shifting
   const year = d.getFullYear();
   const month = String(d.getMonth() + 1).padStart(2, '0');
   const day = String(d.getDate()).padStart(2, '0');
   
   return `${year}-${month}-${day}`;
 };
+
 
 export default function CompanyFormModal({ isOpen, onClose, onSave, initialData, companies = [] }) {
   const [formData, setFormData] = useState({
