@@ -3,6 +3,21 @@ import { useState, useEffect } from 'react';
 import { assetApi, updateCompany } from '../../services/apiClient';
 import './CompanyFormModal.css';
 
+// UTILITY: Safely converts any valid date string into HTML input format (YYYY-MM-DD)
+const formatDateForInput = (dateString) => {
+  if (!dateString) return "";
+  const d = new Date(dateString);
+  // Check if it's an invalid date
+  if (isNaN(d.getTime())) return ""; 
+  
+  // Format to local YYYY-MM-DD to avoid timezone shifting
+  const year = d.getFullYear();
+  const month = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  
+  return `${year}-${month}-${day}`;
+};
+
 export default function CompanyFormModal({ isOpen, onClose, onSave, initialData, companies = [] }) {
   const [formData, setFormData] = useState({
     refCode: '',
@@ -21,14 +36,6 @@ export default function CompanyFormModal({ isOpen, onClose, onSave, initialData,
 
   const [amcDuration, setAmcDuration] = useState('1 Year');
   const [isExistingParent, setIsExistingParent] = useState(false);
-
-  // Helper to safely format dates for input type="date"
-  const formatDateForInput = (dateString) => {
-    if (!dateString) return '';
-    const d = new Date(dateString);
-    if (isNaN(d.getTime())) return '';
-    return d.toISOString().split('T')[0];
-  };
 
   useEffect(() => {
     if (initialData) {
