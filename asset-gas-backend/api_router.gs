@@ -1463,7 +1463,7 @@ function handleGetDashboardKPIs(params) {
     }
 
     if (isAmcActive) {
-      if (supportType.indexOf("Comprehensive") !== -1) {
+      if (supportType.indexOf("Comprehensive") !== -1 && supportType.indexOf("Non-") === -1) {
         comprehensiveAmcAssets++;
       } else {
         nonComprehensiveAmcAssets++;

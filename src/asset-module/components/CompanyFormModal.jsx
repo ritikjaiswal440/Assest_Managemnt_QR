@@ -58,7 +58,7 @@ export default function CompanyFormModal({ isOpen, onClose, onSave, initialData,
     clientLink: '',
     location: '',
     branch: '',
-    supportType: 'Standard AMC',
+    supportType: 'Comprehensive AMC',
     amcStart: '',
     amcEnd: '',
     primaryContact: '',
@@ -78,7 +78,7 @@ export default function CompanyFormModal({ isOpen, onClose, onSave, initialData,
         clientLink: initialData.ClientLink || '',
         location: initialData.Location || '',
         branch: initialData.Branch || '',
-        supportType: initialData.Support_Type || 'Standard AMC',
+        supportType: initialData.Support_Type || 'Comprehensive AMC',
         amcStart: formatDateForInput(initialData.AMC_Start_Date),
         amcEnd: formatDateForInput(initialData.AMC_End_Date),
         primaryContact: initialData.Primary_Contact || '',
@@ -95,7 +95,7 @@ export default function CompanyFormModal({ isOpen, onClose, onSave, initialData,
         clientLink: '',
         location: '',
         branch: '',
-        supportType: 'Standard AMC',
+        supportType: 'Comprehensive AMC',
         amcStart: '',
         amcEnd: '',
         primaryContact: '',
@@ -293,14 +293,15 @@ export default function CompanyFormModal({ isOpen, onClose, onSave, initialData,
                   <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 'bold', marginBottom: '6px' }}>Support Tier</label>
                   <select 
                     name="supportType" 
-                    value={formData.supportType || 'Standard AMC'} 
+                    value={formData.supportType || 'Comprehensive AMC'} 
                     onChange={handleChange} 
                     style={{ width: '100%', padding: '8px', borderRadius: '4px', border: '1px solid #cbd5e1' }}
                   >
-                    <option value="Standard AMC">Standard AMC</option>
                     <option value="Comprehensive AMC">Comprehensive AMC</option>
-                    <option value="Warranty (DLP)">Warranty (DLP)</option>
-                    <option value="On-Call / Ad-hoc">On-Call / Ad-hoc</option>
+                    <option value="DLP">DLP</option>
+                    <option value="Non-Comprehensive AMC">Non-Comprehensive AMC</option>
+                    <option value="Warranty">Warranty</option>
+                    <option value="Out Of Support">Out Of Support</option>
                   </select>
                 </div>
                 <div>
