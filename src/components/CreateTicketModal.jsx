@@ -58,6 +58,19 @@ const CreateTicketModal = ({ isOpen, onClose, clients = [], engineers = [], curr
 
         const invoicePart = initialData?.invoiceUrl ? `\n\nSee Attached Client File: ${initialData.invoiceUrl}` : '';
 
+        // 1. DEEP HUNT: Check top-level, lowercase, and inside the parsed payloadObj
+        let rawCategory = 
+          initialData.Category || 
+          initialData.category || 
+          (initialData.payloadObj && initialData.payloadObj.Category) || 
+          "";
+
+        // 2. NORMALIZE: Ensure it's a clean string with no weird trailing spaces
+        let cleanCategory = String(rawCategory).trim();
+
+        // 3. DEBUGGER: This will tell you exactly what React is trying to map!
+        console.log("Extracted Category to map:", cleanCategory);
+
         // Pre-fill the form with the client's raw request data
         setFormData(prev => ({
           ...prev,
@@ -72,7 +85,7 @@ const CreateTicketModal = ({ isOpen, onClose, clients = [], engineers = [], curr
           branch: initialData?.Branch || initialData?.Sub_Location || initialData?.subLocation || '',
           roomName: initialData?.Room_Name || initialData?.roomName || initialData?.room || '',
           room: initialData?.Room_Name || initialData?.roomName || initialData?.room || '',
-          category: initialData?.Category || initialData?.category || '',
+          category: cleanCategory,
           issueType: initialData?.Issue_Type || initialData?.issueType || '',
           serviceType: initialData?.Type_of_Service || initialData?.serviceType || '',
           salesOrder: initialData?.Sales_Order || initialData?.salesOrder || '',
@@ -470,12 +483,16 @@ const CreateTicketModal = ({ isOpen, onClose, clients = [], engineers = [], curr
             <div className="form-group">
               <label>Category *</label>
               <select name="category" value={formData.category || ''} onChange={handleChange} required disabled={status.loading}>
-                <option value="">Select...</option>
-                <option>Hardware</option>
-                <option>Connectivity</option>
-                <option>Programming</option>
-                <option>Software</option>
-                <option>Network</option>
+                <option value="" disabled>Select...</option>
+                <option value="Audio">Audio</option>
+                <option value="Video">Video</option>
+                <option value="Control System">Control System</option>
+                <option value="Network / IT">Network / IT</option>
+                <option value="Hardware">Hardware</option>
+                <option value="Connectivity">Connectivity</option>
+                <option value="Programming">Programming</option>
+                <option value="Software">Software</option>
+                <option value="Network">Network</option>
               </select>
             </div>
 
