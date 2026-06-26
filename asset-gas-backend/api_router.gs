@@ -1605,16 +1605,31 @@ function handleGetFailureTrends(params) {
  */
 function handleCreateCompany(payload) {
   const sheet = ss.getSheetByName('Company_Master');
-  sheet.appendRow([
-    payload.Ref_Code,
-    payload.Company_Name,
-    payload.Location || '',
-    payload.Branch || '',
-    payload.Support_Type || 'Comprehensive AMC',
-    payload.AMC_Start || '',
-    payload.AMC_End || ''
-  ]);
-  return { success: true, message: "Company saved." };
+  if (!sheet) throw new Error("Company_Master sheet not found");
+  
+  const headers = getHeaders(sheet);
+  if (headers.length === 0) {
+    throw new Error("Company_Master headers are empty or missing.");
+  }
+  
+  const newRow = headers.map(header => {
+    if (header === 'Created_At') return new Date().toISOString();
+    if (header === 'Updated_At') return new Date().toISOString();
+    
+    // Support direct header name or camelCase properties sent by frontend
+    if (header === 'AMC_Start_Date') return payload.AMC_Start_Date || payload.amcStart || '';
+    if (header === 'AMC_End_Date') return payload.AMC_End_Date || payload.amcEnd || '';
+    if (header === 'Primary_Contact') return payload.Primary_Contact || payload.primaryContact || '';
+    if (header === 'Primary_Email') return payload.Primary_Email || payload.primaryEmail || '';
+    if (header === 'Primary_Phone') return payload.Primary_Phone || payload.primaryPhone || '';
+    if (header === 'ClientLink') return payload.ClientLink || payload.clientLink || '';
+    if (header === 'Status') return payload.Status || payload.status || 'Active';
+    
+    return payload[header] !== undefined ? payload[header] : '';
+  });
+  
+  sheet.appendRow(newRow);
+  return { success: true, message: "Company saved successfully." };
 }
 
 /**
@@ -1655,20 +1670,68 @@ function handleCreateAsset(payload) {
  * Update company details
  */
 function handleUpdateCompany(payload) {
-  const sheet = ss.getSheetByName('Company_Master');
+  const sheet = ss.getSheetByName("Company_Master");
+  if (!sheet) throw new Error("Company_Master sheet not found");
+
   const data = sheet.getDataRange().getValues();
+  const headers = data[0].map(h => String(h).trim());
+  
+  const refIdx = headers.indexOf('Ref_Code');
+  const branchIdx = headers.indexOf('Branch');
+  
+  if (refIdx === -1 || branchIdx === -1) {
+    throw new Error("Required sheet headers (Ref_Code, Branch) not found.");
+  }
+  
+  // Extract keys and data from either flattened payload or nested genericPost payload
+  const originalRef = (payload.originalKeys && payload.originalKeys.Ref_Code) || payload.Ref_Code;
+  const originalBranch = (payload.originalKeys && payload.originalKeys.Branch) || payload.Original_Branch || payload.Branch;
+  
+  const updateData = payload.newData || payload;
+  
+  let targetRowIndex = -1;
+
+  // Find the exact row matching the Ref_Code AND the Original Branch name
   for (let i = 1; i < data.length; i++) {
-    if (data[i][0] === payload.originalKeys.Ref_Code) {
-      sheet.getRange(i + 1, 2).setValue(payload.newData.Company_Name);
-      sheet.getRange(i + 1, 3).setValue(payload.newData.Location || '');
-      sheet.getRange(i + 1, 4).setValue(payload.newData.Branch || '');
-      sheet.getRange(i + 1, 5).setValue(payload.newData.Support_Type || '');
-      sheet.getRange(i + 1, 6).setValue(payload.newData.AMC_Start || '');
-      sheet.getRange(i + 1, 7).setValue(payload.newData.AMC_End || '');
-      return { success: true };
+    if (String(data[i][refIdx]).trim() === String(originalRef).trim() && 
+        String(data[i][branchIdx]).trim() === String(originalBranch).trim()) {
+      targetRowIndex = i + 1; // +1 because sheets are 1-indexed
+      break;
     }
   }
-  throw new Error("Company not found.");
+
+  if (targetRowIndex === -1) {
+    throw new Error("Could not locate the original branch record in the database.");
+  }
+
+  // Map the updated payload back to the exact column order
+  const updatedRow = headers.map(header => {
+    if (header === 'Created_At') {
+      const origCreatedIdx = headers.indexOf('Created_At');
+      return origCreatedIdx !== -1 ? data[targetRowIndex - 1][origCreatedIdx] : new Date().toISOString();
+    }
+    if (header === 'Updated_At') return new Date().toISOString();
+    
+    // Map dates to support both camelCase and database fields
+    if (header === 'AMC_Start_Date') return updateData.AMC_Start_Date || updateData.amcStart || '';
+    if (header === 'AMC_End_Date') return updateData.AMC_End_Date || updateData.amcEnd || '';
+    if (header === 'Primary_Contact') return updateData.Primary_Contact || updateData.primaryContact || '';
+    if (header === 'Primary_Email') return updateData.Primary_Email || updateData.primaryEmail || '';
+    if (header === 'Primary_Phone') return updateData.Primary_Phone || updateData.primaryPhone || '';
+    if (header === 'ClientLink') return updateData.ClientLink || updateData.clientLink || '';
+    if (header === 'Status') return updateData.Status || updateData.status || 'Active';
+    
+    // Retrieve value from updateData or retain original if undefined
+    return updateData[header] !== undefined ? updateData[header] : data[targetRowIndex - 1][headers.indexOf(header)];
+  });
+
+  // Overwrite the specific row
+  sheet.getRange(targetRowIndex, 1, 1, headers.length).setValues([updatedRow]);
+
+  return { 
+    success: true, 
+    message: "Branch updated successfully." 
+  };
 }
 
 /**

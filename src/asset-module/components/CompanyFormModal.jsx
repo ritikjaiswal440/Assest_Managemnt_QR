@@ -1,6 +1,6 @@
 /* eslint-disable react-hooks/set-state-in-effect */
 import { useState, useEffect } from 'react';
-import { assetApi, updateCompany } from '../../services/apiClient';
+import { assetApi } from '../../services/apiClient';
 import './CompanyFormModal.css';
 
 // UTILITY: Safely converts any valid date string into HTML input format (YYYY-MM-DD)
@@ -153,7 +153,11 @@ export default function CompanyFormModal({ isOpen, onClose, onSave, initialData,
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    const isEditMode = !!initialData; 
+    
     const payload = {
+      action: isEditMode ? "updateCompany" : "createCompany",
+      Original_Branch: isEditMode ? initialData.Branch : "", 
       Ref_Code: formData.refCode,
       Company_Name: formData.companyName,
       Location: formData.location,
@@ -165,37 +169,25 @@ export default function CompanyFormModal({ isOpen, onClose, onSave, initialData,
       Primary_Email: formData.primaryEmail || "",
       Primary_Phone: formData.primaryPhone || "",
       Status: formData.status || "Active",
-      ClientLink: formData.clientLink || "",
-      Created_At: initialData ? (initialData.Created_At || new Date().toISOString()) : new Date().toISOString()
+      ClientLink: formData.clientLink || ""
     };
     
     try {
-      if (initialData) {
-        // Edit Mode: Construct Composite Key
-        const originalKeys = {
-          Ref_Code: initialData.Ref_Code,
-          Company_Name: initialData.Company_Name,
-          Branch: initialData.Branch
-        };
-        
-        const response = await updateCompany(originalKeys, payload);
-        if (response && response.success) {
-          onSave(payload);
-        } else {
-          throw new Error(response?.message || 'Backend rejected the update operation.');
-        }
+      let response;
+      if (isEditMode) {
+        response = await assetApi('updateCompany', payload);
       } else {
-        // Create Mode
-        const response = await assetApi('createCompany', payload);
-        if (response && response.success) {
-          onSave(payload); 
-        } else {
-          throw new Error(response?.message || 'Backend rejected the save operation.');
-        }
+        response = await assetApi('createCompany', payload);
+      }
+      
+      if (response && response.success) {
+        onSave(payload);
+      } else {
+        throw new Error(response?.message || 'Backend rejected the operation.');
       }
     } catch (err) {
       console.error("Save/Update Company Failed. Payload Dump:", payload, "Error Detail:", err);
-      window.alert("Backend sync failed. Please verify the Google Sheet columns match the system schema exactly.");
+      window.alert(err.message || "Backend sync failed. Please verify the Google Sheet columns match the system schema exactly.");
     }
   };
 
