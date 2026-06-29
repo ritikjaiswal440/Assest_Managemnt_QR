@@ -92,8 +92,9 @@
 /* Analytics Grid */
 .analytics-layout-grid {
   display: grid;
-  grid-template-columns: 1.5fr 1fr;
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
   gap: 24px;
+  margin-top: 24px;
 }
 
 .chart-panel, .deep-dive-panel {
@@ -192,4 +193,50 @@
     width: 100%;
     text-align: left;
   }
+}
+
+/* Contract Health Portfolio Styles */
+.contract-health-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-top: 20px;
+}
+
+.health-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 16px;
+  background-color: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-left: 4px solid #64748b;
+  border-radius: 6px;
+  transition: transform 0.2s;
+}
+
+.health-item:hover {
+  transform: translateX(4px);
+  background-color: #f1f5f9;
+}
+
+.health-item:nth-child(1) { border-left-color: #8b5cf6; } /* DLP */
+.health-item:nth-child(2) { border-left-color: #22c55e; } /* AMC */
+.health-item:nth-child(3) { border-left-color: #3b82f6; } /* Warranty */
+.health-item.warning {
+  border-left-color: #ef4444;
+  background-color: #fef2f2;
+  border-color: #fca5a5;
+}
+
+.health-label {
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: #334155;
+}
+
+.health-count {
+  font-size: 1.25rem;
+  font-weight: 800;
+  color: #0f172a;
 }

@@ -1433,6 +1433,8 @@ function handleGetDashboardKPIs(params) {
   let expiredWarrantyAssets = 0;
   let comprehensiveAmcAssets = 0;
   let nonComprehensiveAmcAssets = 0;
+  let dlpAssets = 0;
+  let expiredAssets = 0;
   const expiringSoon = [];
 
   filteredAssets.forEach(asset => {
@@ -1446,7 +1448,12 @@ function handleGetDashboardKPIs(params) {
       }
     }
 
-    // 2. AMC Calculations via company branch matching
+    // 2. DLP Calculations
+    if (asset.DLP_Start_Date || asset.DLP_Period) {
+      dlpAssets++;
+    }
+
+    // 3. AMC Calculations via company branch matching
     const compKey = `${asset.Ref_Code || ''}_${asset.Company_Name || ''}`;
     const company = companyMap[compKey];
     
@@ -1468,9 +1475,11 @@ function handleGetDashboardKPIs(params) {
       } else {
         nonComprehensiveAmcAssets++;
       }
+    } else {
+      expiredAssets++;
     }
 
-    // 3. Expiring Soon Calculations (within 30 days)
+    // 4. Expiring Soon Calculations (within 30 days)
     const warrantyDays = getDaysRemaining(asset.Warranty_End_Date);
     const amcDays = amcEndDate ? getDaysRemaining(amcEndDate) : null;
 
@@ -1498,6 +1507,48 @@ function handleGetDashboardKPIs(params) {
   // Sort expiring assets by days remaining (most urgent first)
   expiringSoon.sort((a, b) => a.daysRemaining - b.daysRemaining);
 
+  // 5. Process Tickets (MTTR & Heatmap)
+  let branchHeatmap = {};
+  let totalResolvedTime = 0;
+  let resolvedCount = 0;
+  let slaBreaches = 0;
+  let openComplaints = 0;
+
+  filteredTickets.forEach(t => {
+    const status = String(t.Status || "").toLowerCase();
+    const branch = String(t.Branch || "Unknown");
+    const created = parseDateValue(t.Open_Date || t.Timestamp || t.Created_At);
+    const resolved = parseDateValue(t.Close_Date || t.Updated_At);
+
+    // Branch Heatmap (Where are tickets coming from?)
+    branchHeatmap[branch] = (branchHeatmap[branch] || 0) + 1;
+
+    if (status.includes('open') || status.includes('progress') || status.includes('pending')) {
+      openComplaints++;
+    } else if (status.includes('close') || status.includes('resolve')) {
+      resolvedCount++;
+      if (created && resolved) {
+        const hoursDiff = (resolved.getTime() - created.getTime()) / (1000 * 60 * 60);
+        totalResolvedTime += hoursDiff;
+        // Assume SLA is 48 hours for this metric
+        if (hoursDiff > 48) slaBreaches++;
+      }
+    }
+  });
+
+  let avgResolutionTimeHours = 0;
+  let slaComplianceRate = 100;
+  if (resolvedCount > 0) {
+    avgResolutionTimeHours = (totalResolvedTime / resolvedCount).toFixed(1);
+    slaComplianceRate = (((resolvedCount - slaBreaches) / resolvedCount) * 100).toFixed(1);
+  }
+
+  // Sort branch heatmap highest to lowest
+  const sortedBranches = Object.keys(branchHeatmap)
+    .map(b => ({ branch: b, count: branchHeatmap[b] }))
+    .sort((a, b) => b.count - a.count)
+    .slice(0, 5); // Top 5 worst branches
+
   return {
     metrics: {
       totalAssets: filteredAssets.length,
@@ -1505,8 +1556,13 @@ function handleGetDashboardKPIs(params) {
       comprehensiveAmcAssets: comprehensiveAmcAssets,
       nonComprehensiveAmcAssets: nonComprehensiveAmcAssets,
       expiredWarrantyAssets: expiredWarrantyAssets,
-      openComplaints: filteredTickets.filter(t => t.Status !== 'Closed').length
+      dlpAssets: dlpAssets,
+      expiredAssets: expiredAssets,
+      openComplaints: openComplaints,
+      avgResolutionTimeHours: avgResolutionTimeHours,
+      slaComplianceRate: slaComplianceRate
     },
+    branchHeatmap: sortedBranches,
     expiringSoon: expiringSoon,
     filterOptions: filterOptions
   };
