@@ -39,7 +39,16 @@ const initialState = {
   assetStatus: 'Active'
 };
 
+const STANDARD_CATEGORIES = [
+  "Hardware", 
+  "Connectivity", 
+  "Programming", 
+  "Software", 
+  "Network"
+];
+
 const CreateTicketModal = ({ isOpen, onClose, clients = [], engineers = [], currentUser, onSuccess, initialData }) => {
+  console.log("🔥 MODAL RECEIVED THIS DATA:", initialData);
   // 1. ALL HOOKS MUST BE AT THE VERY TOP
   const [formData, setFormData] = useState(initialState);
   const [status, setStatus] = useState({ loading: false, error: null });
@@ -58,18 +67,17 @@ const CreateTicketModal = ({ isOpen, onClose, clients = [], engineers = [], curr
 
         const invoicePart = initialData?.invoiceUrl ? `\n\nSee Attached Client File: ${initialData.invoiceUrl}` : '';
 
-        // 1. DEEP HUNT: Check top-level, lowercase, and inside the parsed payloadObj
-        let rawCategory = 
-          initialData.Category || 
-          initialData.category || 
-          (initialData.payloadObj && initialData.payloadObj.Category) || 
-          "";
-
-        // 2. NORMALIZE: Ensure it's a clean string with no weird trailing spaces
-        let cleanCategory = String(rawCategory).trim();
+        // 1. DEEP HUNT & NORMALIZE: Check top-level, lowercase, and inside the parsed payloadObj
+        let rawCat = initialData.Category || initialData.category || (initialData.payloadObj && initialData.payloadObj.Category) || "";
+        
+        // Clean it: Trim spaces and capitalize the first letter for strict matching
+        let cleanCat = String(rawCat).trim();
+        if (cleanCat) {
+          cleanCat = cleanCat.charAt(0).toUpperCase() + cleanCat.slice(1);
+        }
 
         // 3. DEBUGGER: This will tell you exactly what React is trying to map!
-        console.log("Extracted Category to map:", cleanCategory);
+        console.log("Extracted Category to map:", cleanCat);
 
         // Pre-fill the form with the client's raw request data
         setFormData(prev => ({
@@ -85,7 +93,7 @@ const CreateTicketModal = ({ isOpen, onClose, clients = [], engineers = [], curr
           branch: initialData?.Branch || initialData?.Sub_Location || initialData?.subLocation || '',
           roomName: initialData?.Room_Name || initialData?.roomName || initialData?.room || '',
           room: initialData?.Room_Name || initialData?.roomName || initialData?.room || '',
-          category: cleanCategory,
+          category: cleanCat,
           issueType: initialData?.Issue_Type || initialData?.issueType || '',
           serviceType: initialData?.Type_of_Service || initialData?.serviceType || '',
           salesOrder: initialData?.Sales_Order || initialData?.salesOrder || '',
@@ -483,14 +491,19 @@ const CreateTicketModal = ({ isOpen, onClose, clients = [], engineers = [], curr
             <div className="form-group">
               <label>Category *</label>
               <select name="category" value={formData.category || ''} onChange={handleChange} required disabled={status.loading}>
-                <option value="" disabled>Select Category...</option>
+                <option value="" disabled>Select...</option>
                 
-                {/* SYNCHRONIZED OPTIONS — MATCHES PUBLIC FORM EXACTLY */}
-                <option value="Hardware">Hardware</option>
-                <option value="Connectivity">Connectivity</option>
-                <option value="Programming">Programming</option>
-                <option value="Software">Software</option>
-                <option value="Network">Network</option>
+                {/* Map the standard correct options */}
+                {STANDARD_CATEGORIES.map(cat => (
+                  <option key={cat} value={cat}>{cat}</option>
+                ))}
+
+                {/* THE CATCH-ALL: If the ticket has a category that isn't in our standard list (like an old ticket), FORCE it to render so React can bind it! */}
+                {formData.category && !STANDARD_CATEGORIES.includes(formData.category) && (
+                  <option value={formData.category}>
+                    {formData.category} (Legacy/Unknown)
+                  </option>
+                )}
               </select>
             </div>
 

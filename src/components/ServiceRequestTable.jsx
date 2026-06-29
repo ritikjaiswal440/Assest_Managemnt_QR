@@ -380,6 +380,8 @@ const ServiceRequestTable = ({ requests, masterTickets, onConvertToMaster, onArc
                                   DLP_Period: dlpPeriod !== 'N/A' ? dlpPeriod : '',
                                   Warranty_Days_Left: warrantyDays !== 'N/A' ? warrantyDays : '',
                                   Asset_Status: assetStatus !== 'N/A' ? assetStatus : '',
+                                  Category: item.Category || item.category || req.Category || req.category || '',
+                                  category: item.Category || item.category || req.Category || req.category || '',
                                   Attachment_URL: item.Attachment_URL || item.attachmentUrl || req.Attachment_URL || req.attachmentUrl || '',
                                   attachmentUrl: item.Attachment_URL || item.attachmentUrl || req.Attachment_URL || req.attachmentUrl || '',
                                   invoiceUrl: item.invoiceUrl || req.invoiceUrl || ''

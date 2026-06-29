@@ -12,11 +12,11 @@ function setupMasterDatabase() {
     },
     {
       name: "Company_Master",
-      headers: ['Ref_Code', 'Company_Name', 'Location', 'Branch', 'Support_Type', 'AMC_Start_Date', 'AMC_End_Date', 'Primary_Contact', 'Primary_Email', 'Primary_Phone', 'Status', 'Created_At', 'ClientLink']
+      headers: ['Ref_Code', 'Company_Name', 'Location', 'Branch', 'Support_Type', 'DLP_Start_Date', 'DLP_Period', 'DLP_End_Date', 'AMC_Start_Date', 'AMC_End_Date', 'Primary_Contact', 'Primary_Email', 'Primary_Phone', 'Status', 'Created_At', 'ClientLink']
     },
     {
       name: "Asset_Master",
-      headers: ['Unique_Product_Id', 'Sales_Order', 'Invoice_No', 'Ref_Code', 'Company_Name', 'Location', 'Branch', 'Room_Type', 'Floor', 'Room_Name', 'ProductMake', 'ProductModel', 'ProductSerial', 'MAC_ID', 'IP_Address', 'Warranty_Start_Date', 'DLP_Period', 'Warranty_End_Date', 'Warranty_Days_Left', 'Asset_Status', 'Created_At', 'Updated_At']
+      headers: ['Unique_Product_Id', 'Sales_Order', 'Invoice_No', 'Ref_Code', 'Company_Name', 'Location', 'Branch', 'Room_Type', 'Floor', 'Room_Name', 'ProductMake', 'ProductModel', 'ProductSerial', 'MAC_ID', 'IP_Address', 'Warranty_Start_Date', 'DLP_Start_Date', 'DLP_Period', 'DLP_End_Date', 'Warranty_End_Date', 'Warranty_Days_Left', 'Asset_Status', 'Created_At', 'Updated_At']
     },
     {
       name: "Intake_Queue",

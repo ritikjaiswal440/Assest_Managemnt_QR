@@ -3,6 +3,18 @@ import React, { useState, useEffect } from 'react';
 import CompanyFormModal from '../components/CompanyFormModal';
 import { getCompanies } from '../../services/apiClient';
 
+// Helper to make raw DB dates look pretty on the dashboard (DD/MM/YYYY)
+const formatDisplayDate = (dateString) => {
+  if (!dateString) return 'N/A';
+  // If it's already a short date from Excel (like 25/06/2025), just return it
+  if (String(dateString).length <= 10 && String(dateString).includes('/')) return dateString;
+  
+  const d = new Date(dateString);
+  if (isNaN(d.getTime())) return 'N/A';
+  
+  return d.toLocaleDateString('en-GB'); // Renders as DD/MM/YYYY
+};
+
 export default function CompanyDashboard() {
   const [companies, setCompanies] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -213,10 +225,39 @@ export default function CompanyDashboard() {
                                       </span>
                                     </div>
 
-                                    <div className="branch-stat"><span className="stat-label">Support Tier:</span> <span className="stat-value">{branch.Support_Type || 'Standard'}</span></div>
-                                    <div className="branch-stat"><span className="stat-label">AMC Start:</span> <span className="stat-value">{branch.AMC_Start_Date || 'N/A'}</span></div>
-                                    <div className="branch-stat"><span className="stat-label">AMC End:</span> <span className="stat-value" style={{ color: isExpired ? '#dc2626' : '#15803d', fontWeight: 'bold' }}>{branch.AMC_End_Date || 'N/A'}</span></div>
-                                    
+                                    {/* --- SLA & CONTRACT TIMELINES --- */}
+                                    <div className="branch-stat">
+                                      <span className="stat-label">Support Tier:</span> 
+                                      <span className="stat-value" style={{ fontWeight: '600', color: '#0f172a' }}>{branch.Support_Type || 'Standard'}</span>
+                                    </div>
+
+                                    {/* AMC BLOCK */}
+                                    <div className="branch-stat">
+                                      <span className="stat-label">AMC Start:</span> 
+                                      <span className="stat-value">{formatDisplayDate(branch.AMC_Start_Date)}</span>
+                                    </div>
+                                    <div className="branch-stat">
+                                      <span className="stat-label">AMC End:</span> 
+                                      <span className="stat-value" style={{ color: '#15803d', fontWeight: 'bold' }}>
+                                        {formatDisplayDate(branch.AMC_End_Date)}
+                                      </span>
+                                    </div>
+
+                                    {/* NEW DLP BLOCK */}
+                                    <div style={{ marginTop: '8px', paddingTop: '8px', borderTop: '1px dashed #e2e8f0' }}>
+                                      <div className="branch-stat">
+                                        <span className="stat-label">DLP Start:</span> 
+                                        <span className="stat-value">{formatDisplayDate(branch.DLP_Start_Date)}</span>
+                                      </div>
+                                      <div className="branch-stat">
+                                        <span className="stat-label">DLP End:</span> 
+                                        <span className="stat-value" style={{ color: '#0284c7', fontWeight: 'bold' }}>
+                                          {formatDisplayDate(branch.DLP_End_Date)}
+                                        </span>
+                                      </div>
+                                    </div>
+
+                                    {/* --- LOCAL CONTACT DETAILS --- */}
                                     <div style={{ marginTop: '12px', paddingTop: '12px', borderTop: '1px dashed #e2e8f0' }}>
                                       <div className="branch-stat"><span className="stat-label">Contact:</span> <span className="stat-value">{branch.Primary_Contact || 'N/A'}</span></div>
                                       <div className="branch-stat"><span className="stat-label">Phone:</span> <span className="stat-value">{branch.Primary_Phone || 'N/A'}</span></div>

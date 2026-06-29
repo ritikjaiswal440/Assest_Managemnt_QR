@@ -1624,6 +1624,9 @@ function handleCreateCompany(payload) {
     if (header === 'Primary_Phone') return payload.Primary_Phone || payload.primaryPhone || '';
     if (header === 'ClientLink') return payload.ClientLink || payload.clientLink || '';
     if (header === 'Status') return payload.Status || payload.status || 'Active';
+    if (header === 'DLP_Period') return payload.DLP_Period || payload.dlpPeriod || '';
+    if (header === 'DLP_Start_Date') return payload.DLP_Start_Date || payload.dlpStart || '';
+    if (header === 'DLP_End_Date') return payload.DLP_End_Date || payload.dlpEnd || '';
     
     return payload[header] !== undefined ? payload[header] : '';
   });
@@ -1637,33 +1640,48 @@ function handleCreateCompany(payload) {
  */
 function handleCreateAsset(payload) {
   const sheet = ss.getSheetByName('Asset_Master');
+  if (!sheet) throw new Error("Asset_Master sheet not found");
+  
+  const headers = getHeaders(sheet);
+  if (headers.length === 0) {
+    throw new Error("Asset_Master headers are empty or missing.");
+  }
+  
   const newId = 'AVD/PD/' + String(sheet.getLastRow() + 1).padStart(6, '0');
   
-  sheet.appendRow([
-    newId,                                
-    payload.salesOrder || '',             
-    payload.invoiceNo || '',              
-    payload.refCode || '',                
-    payload.companyName || '',            
-    payload.location || '',               
-    payload.branch || payload.subLocation || '',            
-    payload.roomType || '',               
-    payload.floor || '',                  
-    payload.roomName || '',               
-    payload.productMake || '',            
-    payload.productModel || '',           
-    payload.productSerial || '',          
-    payload.macId || '',                  
-    payload.ipAddress || '',              
-    payload.warrantyStartDate || '',      
-    payload.dlpPeriod || '',              
-    payload.warrantyEndDate || '',        
-    payload.warrantyDaysLeft || '',       
-    payload.assetStatus || 'Active',      
-    new Date(),                           
-    new Date()                            
-  ]);
-  return { id: newId, refCode: payload.refCode };
+  const newRow = headers.map(header => {
+    if (header === 'Unique_Product_Id') return newId;
+    if (header === 'Created_At') return new Date();
+    if (header === 'Updated_At') return new Date();
+    
+    // Map dates and support both camelCase and database fields
+    if (header === 'Sales_Order') return payload.salesOrder || payload.Sales_Order || '';
+    if (header === 'Invoice_No') return payload.invoiceNo || payload.Invoice_No || '';
+    if (header === 'Ref_Code') return payload.refCode || payload.Ref_Code || '';
+    if (header === 'Company_Name') return payload.companyName || payload.Company_Name || '';
+    if (header === 'Location') return payload.location || payload.Location || '';
+    if (header === 'Branch') return payload.branch || payload.subLocation || payload.Branch || '';
+    if (header === 'Room_Type') return payload.roomType || payload.Room_Type || '';
+    if (header === 'Floor') return payload.floor || payload.Floor || '';
+    if (header === 'Room_Name') return payload.roomName || payload.Room_Name || '';
+    if (header === 'ProductMake') return payload.productMake || payload.ProductMake || '';
+    if (header === 'ProductModel') return payload.productModel || payload.ProductModel || '';
+    if (header === 'ProductSerial') return payload.productSerial || payload.ProductSerial || '';
+    if (header === 'MAC_ID') return payload.macId || payload.MAC_ID || '';
+    if (header === 'IP_Address') return payload.ipAddress || payload.IP_Address || '';
+    if (header === 'Warranty_Start_Date') return payload.warrantyStartDate || payload.Warranty_Start_Date || '';
+    if (header === 'DLP_Start_Date') return payload.dlpStart || payload.DLP_Start_Date || '';
+    if (header === 'DLP_Period') return payload.dlpPeriod || payload.DLP_Period || '';
+    if (header === 'DLP_End_Date') return payload.dlpEnd || payload.DLP_End_Date || '';
+    if (header === 'Warranty_End_Date') return payload.warrantyEndDate || payload.Warranty_End_Date || '';
+    if (header === 'Warranty_Days_Left') return payload.warrantyDaysLeft || payload.Warranty_Days_Left || '';
+    if (header === 'Asset_Status') return payload.assetStatus || payload.Asset_Status || 'Active';
+    
+    return payload[header] !== undefined ? payload[header] : '';
+  });
+  
+  sheet.appendRow(newRow);
+  return { id: newId, refCode: payload.refCode || payload.Ref_Code };
 }
 
 /**
@@ -1720,6 +1738,9 @@ function handleUpdateCompany(payload) {
     if (header === 'Primary_Phone') return updateData.Primary_Phone || updateData.primaryPhone || '';
     if (header === 'ClientLink') return updateData.ClientLink || updateData.clientLink || '';
     if (header === 'Status') return updateData.Status || updateData.status || 'Active';
+    if (header === 'DLP_Period') return updateData.DLP_Period || updateData.dlpPeriod || '';
+    if (header === 'DLP_Start_Date') return updateData.DLP_Start_Date || updateData.dlpStart || '';
+    if (header === 'DLP_End_Date') return updateData.DLP_End_Date || updateData.dlpEnd || '';
     
     // Retrieve value from updateData or retain original if undefined
     return updateData[header] !== undefined ? updateData[header] : data[targetRowIndex - 1][headers.indexOf(header)];
@@ -1739,33 +1760,65 @@ function handleUpdateCompany(payload) {
  */
 function handleUpdateAsset(payload) {
   const sheet = ss.getSheetByName('Asset_Master');
+  if (!sheet) throw new Error("Asset_Master sheet not found");
+
   const data = sheet.getDataRange().getValues();
+  const headers = data[0].map(h => String(h).trim());
+  
+  const idIdx = headers.indexOf('Unique_Product_Id');
+  if (idIdx === -1) {
+    throw new Error("Required sheet header (Unique_Product_Id) not found.");
+  }
+  
+  const targetId = payload.id || payload.uniqueProductId || payload.Unique_Product_Id;
+  let targetRowIndex = -1;
+
   for (let i = 1; i < data.length; i++) {
-    if (data[i][0] === payload.id || data[i][0] === payload.uniqueProductId) {
-      sheet.getRange(i + 1, 2).setValue(payload.salesOrder || '');
-      sheet.getRange(i + 1, 3).setValue(payload.invoiceNo || '');
-      sheet.getRange(i + 1, 4).setValue(payload.refCode || '');
-      sheet.getRange(i + 1, 5).setValue(payload.companyName || '');
-      sheet.getRange(i + 1, 6).setValue(payload.location || '');
-      sheet.getRange(i + 1, 7).setValue(payload.branch || payload.subLocation || '');
-      sheet.getRange(i + 1, 8).setValue(payload.roomType || '');
-      sheet.getRange(i + 1, 9).setValue(payload.floor || '');
-      sheet.getRange(i + 1, 10).setValue(payload.roomName || '');
-      sheet.getRange(i + 1, 11).setValue(payload.productMake || '');
-      sheet.getRange(i + 1, 12).setValue(payload.productModel || '');
-      sheet.getRange(i + 1, 13).setValue(payload.productSerial || '');
-      sheet.getRange(i + 1, 14).setValue(payload.macId || '');
-      sheet.getRange(i + 1, 15).setValue(payload.ipAddress || '');
-      sheet.getRange(i + 1, 16).setValue(payload.warrantyStartDate || '');
-      sheet.getRange(i + 1, 17).setValue(payload.dlpPeriod || '');
-      sheet.getRange(i + 1, 18).setValue(payload.warrantyEndDate || '');
-      sheet.getRange(i + 1, 19).setValue(payload.warrantyDaysLeft || '');
-      sheet.getRange(i + 1, 20).setValue(payload.assetStatus || 'Active');
-      sheet.getRange(i + 1, 22).setValue(new Date());
-      return { success: true };
+    if (String(data[i][idIdx]).trim() === String(targetId).trim()) {
+      targetRowIndex = i + 1;
+      break;
     }
   }
-  throw new Error("Asset not found.");
+
+  if (targetRowIndex === -1) {
+    throw new Error("Asset not found.");
+  }
+
+  const updatedRow = headers.map(header => {
+    if (header === 'Unique_Product_Id') return data[targetRowIndex - 1][idIdx];
+    if (header === 'Created_At') {
+      const origCreatedIdx = headers.indexOf('Created_At');
+      return origCreatedIdx !== -1 ? data[targetRowIndex - 1][origCreatedIdx] : new Date();
+    }
+    if (header === 'Updated_At') return new Date();
+    
+    if (header === 'Sales_Order') return payload.salesOrder || payload.Sales_Order || '';
+    if (header === 'Invoice_No') return payload.invoiceNo || payload.Invoice_No || '';
+    if (header === 'Ref_Code') return payload.refCode || payload.Ref_Code || '';
+    if (header === 'Company_Name') return payload.companyName || payload.Company_Name || '';
+    if (header === 'Location') return payload.location || payload.Location || '';
+    if (header === 'Branch') return payload.branch || payload.subLocation || payload.Branch || '';
+    if (header === 'Room_Type') return payload.roomType || payload.Room_Type || '';
+    if (header === 'Floor') return payload.floor || payload.Floor || '';
+    if (header === 'Room_Name') return payload.roomName || payload.Room_Name || '';
+    if (header === 'ProductMake') return payload.productMake || payload.ProductMake || '';
+    if (header === 'ProductModel') return payload.productModel || payload.ProductModel || '';
+    if (header === 'ProductSerial') return payload.productSerial || payload.ProductSerial || '';
+    if (header === 'MAC_ID') return payload.macId || payload.MAC_ID || '';
+    if (header === 'IP_Address') return payload.ipAddress || payload.IP_Address || '';
+    if (header === 'Warranty_Start_Date') return payload.warrantyStartDate || payload.Warranty_Start_Date || '';
+    if (header === 'DLP_Start_Date') return payload.dlpStart || payload.DLP_Start_Date || '';
+    if (header === 'DLP_Period') return payload.dlpPeriod || payload.DLP_Period || '';
+    if (header === 'DLP_End_Date') return payload.dlpEnd || payload.DLP_End_Date || '';
+    if (header === 'Warranty_End_Date') return payload.warrantyEndDate || payload.Warranty_End_Date || '';
+    if (header === 'Warranty_Days_Left') return payload.warrantyDaysLeft || payload.Warranty_Days_Left || '';
+    if (header === 'Asset_Status') return payload.assetStatus || payload.Asset_Status || 'Active';
+
+    return payload[header] !== undefined ? payload[header] : data[targetRowIndex - 1][headers.indexOf(header)];
+  });
+
+  sheet.getRange(targetRowIndex, 1, 1, headers.length).setValues([updatedRow]);
+  return { success: true };
 }
 
 /**
@@ -3527,6 +3580,9 @@ function getGroupedCompanies(companySheet) {
       const locIdx = headers.indexOf('Location');
       const branchIdx = headers.indexOf('Branch');
       const supportIdx = headers.indexOf('Support_Type');
+      const dlpIdx = headers.indexOf('DLP_Period');
+      const dlpStartIdx = headers.indexOf('DLP_Start_Date');
+      const dlpEndIdx = headers.indexOf('DLP_End_Date');
       const amcStartIdx = headers.indexOf('AMC_Start_Date');
       const amcEndIdx = headers.indexOf('AMC_End_Date');
       const contactIdx = headers.indexOf('Primary_Contact');
@@ -3555,6 +3611,9 @@ function getGroupedCompanies(companySheet) {
           Location: row[locIdx] || "",
           Branch: row[branchIdx] || "",
           Support_Type: row[supportIdx] || "Standard",
+          DLP_Period: dlpIdx !== -1 ? row[dlpIdx] || "" : "",
+          DLP_Start_Date: dlpStartIdx !== -1 ? row[dlpStartIdx] || "" : "",
+          DLP_End_Date: dlpEndIdx !== -1 ? row[dlpEndIdx] || "" : "",
           AMC_Start_Date: row[amcStartIdx] || "",
           AMC_End_Date: row[amcEndIdx] || "",
           Primary_Contact: row[contactIdx] || "",

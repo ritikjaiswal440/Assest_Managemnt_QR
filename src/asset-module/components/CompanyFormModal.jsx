@@ -59,6 +59,9 @@ export default function CompanyFormModal({ isOpen, onClose, onSave, initialData,
     location: '',
     branch: '',
     supportType: 'Comprehensive AMC',
+    dlpPeriod: '',
+    dlpStart: '',
+    dlpEnd: '',
     amcStart: '',
     amcEnd: '',
     primaryContact: '',
@@ -79,6 +82,9 @@ export default function CompanyFormModal({ isOpen, onClose, onSave, initialData,
         location: initialData.Location || '',
         branch: initialData.Branch || '',
         supportType: initialData.Support_Type || 'Comprehensive AMC',
+        dlpPeriod: initialData.DLP_Period || '',
+        dlpStart: formatDateForInput(initialData.DLP_Start_Date),
+        dlpEnd: formatDateForInput(initialData.DLP_End_Date),
         amcStart: formatDateForInput(initialData.AMC_Start_Date),
         amcEnd: formatDateForInput(initialData.AMC_End_Date),
         primaryContact: initialData.Primary_Contact || '',
@@ -96,6 +102,9 @@ export default function CompanyFormModal({ isOpen, onClose, onSave, initialData,
         location: '',
         branch: '',
         supportType: 'Comprehensive AMC',
+        dlpPeriod: '',
+        dlpStart: '',
+        dlpEnd: '',
         amcStart: '',
         amcEnd: '',
         primaryContact: '',
@@ -126,9 +135,41 @@ export default function CompanyFormModal({ isOpen, onClose, onSave, initialData,
 
   if (!isOpen) return null;
 
+  // UTILITY: Adds X months to a given date and returns YYYY-MM-DD
+  const calculateDLPEndDate = (startDateString, monthsToAdd) => {
+    if (!startDateString || !monthsToAdd) return "";
+    
+    const date = new Date(startDateString);
+    if (isNaN(date.getTime())) return ""; // Invalid date protection
+    
+    // Add the exact number of months
+    date.setMonth(date.getMonth() + parseInt(monthsToAdd, 10));
+    
+    // Format back to strict HTML YYYY-MM-DD
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    
+    return `${year}-${month}-${day}`;
+  };
+
   const handleChange = (e) => {
     const { name, value } = e.target;
-    setFormData(prev => ({ ...prev, [name]: value }));
+    
+    setFormData(prev => {
+      const updatedData = { ...prev, [name]: value };
+      
+      // --- SMART DLP AUTO-CALCULATOR ---
+      if (name === 'dlpPeriod' || name === 'dlpStart') {
+        const startDate = name === 'dlpStart' ? value : prev.dlpStart;
+        const months = name === 'dlpPeriod' ? value : prev.dlpPeriod;
+        
+        // Auto-fill the end date in the background
+        updatedData.dlpEnd = calculateDLPEndDate(startDate, months);
+      }
+      
+      return updatedData;
+    });
   };
 
   const handleRefCodeChange = (e) => {
@@ -163,6 +204,9 @@ export default function CompanyFormModal({ isOpen, onClose, onSave, initialData,
       Location: formData.location,
       Branch: formData.branch,
       Support_Type: formData.supportType || "Standard AMC",
+      DLP_Start_Date: formData.dlpStart || "",
+      DLP_Period: formData.dlpPeriod || "",
+      DLP_End_Date: formData.dlpEnd || "",
       AMC_Start_Date: formData.amcStart || "",
       AMC_End_Date: formData.amcEnd || "",
       Primary_Contact: formData.primaryContact || "",
@@ -303,6 +347,47 @@ export default function CompanyFormModal({ isOpen, onClose, onSave, initialData,
                     <option value="Warranty">Warranty</option>
                     <option value="Out Of Support">Out Of Support</option>
                   </select>
+                </div>
+                <div style={{ gridColumn: '1 / -1', borderTop: '1px dashed #cbd5e1', paddingTop: '12px', marginTop: '4px' }}>
+                  <h5 style={{ margin: '0 0 12px 0', fontSize: '0.8rem', color: '#475569' }}>Defect Liability Period (DLP) Timeline</h5>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '12px' }}>
+                    
+                    <div>
+                      <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 'bold', marginBottom: '6px' }}>Start Date</label>
+                      <input 
+                        type="date" 
+                        name="dlpStart" 
+                        value={formData.dlpStart || ''} 
+                        onChange={handleChange} 
+                        style={{ width: '100%', padding: '8px', borderRadius: '4px', border: '1px solid #cbd5e1' }} 
+                      />
+                    </div>
+
+                    <div>
+                      <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 'bold', marginBottom: '6px' }}>Duration (Months)</label>
+                      <input 
+                        type="number" 
+                        name="dlpPeriod" 
+                        value={formData.dlpPeriod || ''} 
+                        onChange={handleChange} 
+                        placeholder="e.g., 12"
+                        style={{ width: '100%', padding: '8px', borderRadius: '4px', border: '1px solid #cbd5e1' }} 
+                      />
+                    </div>
+
+                    <div>
+                      <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 'bold', marginBottom: '6px', color: '#0f172a' }}>Calculated End Date</label>
+                      <input 
+                        type="date" 
+                        name="dlpEnd" 
+                        value={formData.dlpEnd || ''} 
+                        readOnly
+                        style={{ width: '100%', padding: '8px', borderRadius: '4px', border: '1px solid #94a3b8', background: '#e2e8f0', color: '#475569', cursor: 'not-allowed' }} 
+                        title="This date is calculated automatically"
+                      />
+                    </div>
+
+                  </div>
                 </div>
                 <div>
                   <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 'bold', marginBottom: '6px' }}>AMC Duration</label>
