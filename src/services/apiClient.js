@@ -136,4 +136,9 @@ export const getDashboard = () => genericPost('getDashboard');
 
 // --- LEGACY ALIASES (Do not use for new code) ---
 export const gasApi = genericPost;
-export const assetApi = genericPost;
+export const assetApi = (action, payload) => {
+    if (action === 'getAssetInventory') {
+        return genericPost('getAssets', payload);
+    }
+    return genericPost(action, payload);
+};

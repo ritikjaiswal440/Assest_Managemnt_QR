@@ -503,6 +503,7 @@ function doPost(e) {
       }
  
       case "getAssets":
+      case "getAssetInventory":
         return handleGetAssets();
 
       default:

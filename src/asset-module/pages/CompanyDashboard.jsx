@@ -1,7 +1,7 @@
 /* eslint-disable react-hooks/set-state-in-effect */
 import React, { useState, useEffect } from 'react';
 import CompanyFormModal from '../components/CompanyFormModal';
-import { getCompanies, updateSalesOrderContracts, getAssetInventory } from '../../services/apiClient';
+import { getCompanies, updateSalesOrderContracts, getAssetInventory, assetApi } from '../../services/apiClient';
 
 // Helper to make raw DB dates look pretty on the dashboard (DD/MM/YYYY)
 const formatDisplayDate = (dateString) => {
@@ -32,11 +32,12 @@ export default function CompanyDashboard() {
   const [error, setError] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
   const [expandedCompany, setExpandedCompany] = useState(null);
-  
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingCompany, setEditingCompany] = useState(null);
   const [selectedSOEdit, setSelectedSOEdit] = useState(null);
-  const [selectedSOAssets, setSelectedSOAssets] = useState(null);
+  const [drillDownSO, setDrillDownSO] = useState(null);
+  const [projectAssets, setProjectAssets] = useState([]);
+  const [isFetchingAssets, setIsFetchingAssets] = useState(false);
 
   const toggleCompany = (refCode) => {
     if (expandedCompany === refCode) {
@@ -44,6 +45,24 @@ export default function CompanyDashboard() {
     } else {
       setExpandedCompany(refCode);
     }
+  };
+
+  // Triggered when a Sales Order is clicked
+  const openProjectHardware = async (salesOrder) => {
+    setDrillDownSO(salesOrder);
+    setIsFetchingAssets(true);
+    
+    try {
+      const res = await assetApi('getAssetInventory'); 
+      if (res.success && res.data) {
+        const filtered = res.data.filter(a => a.Sales_Order === salesOrder);
+        setProjectAssets(filtered);
+      }
+    } catch (error) {
+      console.error("Failed to fetch assets for project:", error);
+    }
+    
+    setIsFetchingAssets(false);
   };
 
   const fetchCompanies = async () => {
@@ -242,14 +261,13 @@ export default function CompanyDashboard() {
                                                
                                                {/* SO Header & Status */}
                                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px', paddingBottom: '8px', borderBottom: '1px dashed #cbd5e1' }}>
-                                                 <a 
-                                                   href={`#/asset-admin?salesOrder=${encodeURIComponent(so.Sales_Order)}`} 
-                                                   target="_blank" 
-                                                   rel="noopener noreferrer"
-                                                   style={{ fontWeight: 'bold', color: '#2563eb', textDecoration: 'none', cursor: 'pointer' }}
+                                                 <span 
+                                                   onClick={() => openProjectHardware(so.Sales_Order)}
+                                                   style={{ fontWeight: 'bold', color: '#2563eb', textDecoration: 'underline', cursor: 'pointer' }}
+                                                   title="View Hardware Inventory"
                                                  >
                                                    📦 {so.Sales_Order}
-                                                 </a>
+                                                 </span>
                                                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                                                    <span style={{ 
                                                      fontSize: '0.75rem', 
@@ -375,11 +393,63 @@ export default function CompanyDashboard() {
         onSave={fetchCompanies}
       />
 
-      <AssetDrillDownModal 
-        isOpen={!!selectedSOAssets}
-        onClose={() => setSelectedSOAssets(null)}
-        soId={selectedSOAssets}
-      />
+      {/* --- PROJECT HARDWARE INVENTORY MODAL --- */}
+      {drillDownSO && (
+        <div className="modal-overlay" style={{ zIndex: 1000 }}>
+          <div className="modal-content" style={{ maxWidth: '800px', width: '95%', padding: '24px' }}>
+            
+            {/* Header */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', borderBottom: '1px solid #e2e8f0', paddingBottom: '16px' }}>
+              <div>
+                <h3 style={{ margin: 0, color: '#0f172a', fontSize: '1.25rem' }}>Project Hardware Inventory</h3>
+                <p style={{ margin: '4px 0 0 0', fontSize: '0.85rem', color: '#64748b' }}>Sales Order: {drillDownSO}</p>
+              </div>
+              <button onClick={() => setDrillDownSO(null)} style={{ background: 'transparent', border: 'none', fontSize: '24px', cursor: 'pointer', color: '#94a3b8' }}>✕</button>
+            </div>
+
+            {/* Body: Loading, Empty, or Table */}
+            {isFetchingAssets ? (
+              <div style={{ padding: '40px', textAlign: 'center', color: '#64748b', fontSize: '0.9rem' }}>
+                <span className="material-symbols-outlined" style={{ animation: 'spin 1s linear infinite', verticalAlign: 'middle', marginRight: '8px' }}>sync</span>
+                Loading project hardware...
+              </div>
+            ) : projectAssets.length === 0 ? (
+              <div style={{ padding: '40px', textAlign: 'center', color: '#64748b', fontSize: '0.9rem', background: '#f8fafc', borderRadius: '8px' }}>
+                No hardware found linked to this Sales Order in the Asset Master.
+              </div>
+            ) : (
+              <div style={{ maxHeight: '450px', overflowY: 'auto', border: '1px solid #e2e8f0', borderRadius: '8px' }}>
+                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.85rem' }}>
+                  <thead style={{ position: 'sticky', top: 0, background: '#f8fafc', zIndex: 1 }}>
+                    <tr style={{ borderBottom: '2px solid #e2e8f0', textAlign: 'left' }}>
+                      <th style={{ padding: '12px 16px', color: '#475569', fontWeight: 'bold' }}>ASSET ID</th>
+                      <th style={{ padding: '12px 16px', color: '#475569', fontWeight: 'bold' }}>PRODUCT MAKE</th>
+                      <th style={{ padding: '12px 16px', color: '#475569', fontWeight: 'bold' }}>PRODUCT MODEL</th>
+                      <th style={{ padding: '12px 16px', color: '#475569', fontWeight: 'bold' }}>SERIAL NUMBER</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {projectAssets.map((asset, i) => (
+                      <tr key={i} style={{ borderBottom: '1px solid #e2e8f0', background: i % 2 === 0 ? '#ffffff' : '#f8fafc' }}>
+                        <td style={{ padding: '12px 16px', color: '#2563eb', fontWeight: 'bold' }}>{asset.Unique_Product_Id || asset.id || asset.Ref_Code || '-'}</td>
+                        <td style={{ padding: '12px 16px', color: '#334155' }}>{asset.ProductMake || asset.Make || '-'}</td>
+                        <td style={{ padding: '12px 16px', color: '#334155' }}>{asset.ProductModel || asset.Model || '-'}</td>
+                        <td style={{ padding: '12px 16px', color: '#334155' }}>{asset.ProductSerial || asset.Serial_No || '-'}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+
+            {/* Footer */}
+            <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '20px' }}>
+              <button className="md3-btn md3-btn-primary" onClick={() => setDrillDownSO(null)}>Close</button>
+            </div>
+
+          </div>
+        </div>
+      )}
     </section>
   );
 }
@@ -636,90 +706,4 @@ function SalesOrderEditModal({ isOpen, onClose, so, onSave }) {
   );
 }
 
-// --- PROJECT HARDWARE DRILL DOWN MODAL ---
-function AssetDrillDownModal({ isOpen, onClose, soId }) {
-  const [assets, setAssets] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
 
-  useEffect(() => {
-    if (isOpen && soId) {
-      const loadAssets = async () => {
-        setLoading(true);
-        setError('');
-        try {
-          const res = await getAssetInventory();
-          if (res && res.success && res.data) {
-            const filtered = res.data.filter(asset => 
-              String(asset.Sales_Order || '').trim().toLowerCase() === String(soId).trim().toLowerCase()
-            );
-            setAssets(filtered);
-          } else {
-            setError(res.message || 'Failed to fetch assets.');
-          }
-        } catch (err) {
-          console.error(err);
-          setError('Network error fetching connected hardware assets.');
-        } finally {
-          setLoading(false);
-        }
-      };
-      loadAssets();
-    }
-  }, [isOpen, soId]);
-
-  if (!isOpen) return null;
-
-  return (
-    <div className="modal-overlay">
-      <div className="modal-content large-modal" style={{ maxWidth: '800px' }}>
-        <div className="modal-header">
-          <div>
-            <h2 style={{ margin: 0 }}>Project Hardware Inventory</h2>
-            <p style={{ margin: '4px 0 0 0', fontSize: '0.85rem', color: '#64748b' }}>
-              Sales Order: <b>{soId}</b>
-            </p>
-          </div>
-          <button type="button" className="icon-button" onClick={onClose}>✕</button>
-        </div>
-        
-        <div style={{ padding: '20px', maxHeight: '70vh', overflowY: 'auto' }}>
-          {loading ? (
-            <p>Loading connected hardware...</p>
-          ) : error ? (
-            <div className="error-banner">{error}</div>
-          ) : assets.length === 0 ? (
-            <p style={{ color: '#64748b', fontStyle: 'italic' }}>No hardware assets are currently linked to this Sales Order.</p>
-          ) : (
-            <div className="table-responsive">
-              <table className="material-table" style={{ width: '100%', fontSize: '0.85rem' }}>
-                <thead>
-                  <tr style={{ background: '#f8fafc' }}>
-                    <th style={{ padding: '10px' }}>Asset ID</th>
-                    <th style={{ padding: '10px' }}>Product Make</th>
-                    <th style={{ padding: '10px' }}>Product Model</th>
-                    <th style={{ padding: '10px' }}>Serial Number</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {assets.map((asset, index) => (
-                    <tr key={index}>
-                      <td style={{ padding: '10px', fontWeight: 'bold', color: '#2563eb' }}>{asset.Unique_Product_Id}</td>
-                      <td style={{ padding: '10px' }}>{asset.ProductMake}</td>
-                      <td style={{ padding: '10px' }}>{asset.ProductModel}</td>
-                      <td style={{ padding: '10px', fontFamily: 'monospace' }}>{asset.ProductSerial || 'N/A'}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </div>
-        
-        <div className="modal-actions" style={{ borderTop: '1px solid #e2e8f0', padding: '15px 20px' }}>
-          <button type="button" className="btn-filled" onClick={onClose}>Close</button>
-        </div>
-      </div>
-    </div>
-  );
-}
