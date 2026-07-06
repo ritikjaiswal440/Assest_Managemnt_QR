@@ -243,7 +243,7 @@ export default function CompanyDashboard() {
                                                {/* SO Header & Status */}
                                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px', paddingBottom: '8px', borderBottom: '1px dashed #cbd5e1' }}>
                                                  <a 
-                                                   href={`${window.location.pathname.split('/pages')[0].replace(/\/$/, '')}/assets?salesOrder=${encodeURIComponent(so.Sales_Order)}`} 
+                                                   href={`#/asset-admin?salesOrder=${encodeURIComponent(so.Sales_Order)}`} 
                                                    target="_blank" 
                                                    rel="noopener noreferrer"
                                                    style={{ fontWeight: 'bold', color: '#2563eb', textDecoration: 'none', cursor: 'pointer' }}

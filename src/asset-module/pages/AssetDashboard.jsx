@@ -156,18 +156,12 @@ export default function AssetDashboard() {
   }, []);
 
   useEffect(() => {
-    let searchParams = new URLSearchParams(window.location.search);
-    let targetSO = searchParams.get('salesOrder');
-
-    if (!targetSO && window.location.hash) {
-      const hashPart = window.location.hash;
-      const questionMarkIdx = hashPart.indexOf('?');
-      if (questionMarkIdx !== -1) {
-        searchParams = new URLSearchParams(hashPart.substring(questionMarkIdx));
-        targetSO = searchParams.get('salesOrder');
-      }
-    }
-
+    const hashString = window.location.hash;
+    const queryString = hashString.includes('?') ? hashString.split('?')[1] : '';
+    const params = new URLSearchParams(queryString);
+    
+    const targetSO = params.get('salesOrder');
+    
     if (targetSO && assets.length > 0) {
       setSearchTerm(targetSO);
     }
