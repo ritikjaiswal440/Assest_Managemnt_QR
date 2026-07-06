@@ -106,3 +106,121 @@ function generateBrandedHtmlEmailTemplate(title, messageBody) {
   </div>
   `;
 }
+
+/**
+ * Dynamically calculates Support Type based on current date and contract timelines.
+ * Priority: DLP > Warranty > Comprehensive AMC > Non-Comprehensive AMC > Out Of Support
+ */
+function calculateActiveSupportStatus(dlpStart, dlpEnd, warrantyStart, warrantyEnd, amcStart, amcEnd, nonAmcStart, nonAmcEnd) {
+  const now = new Date().getTime();
+  
+  // Helper to safely check if 'now' falls between two dates
+  const isActive = (startRaw, endRaw) => {
+    if (!startRaw || !endRaw) return false;
+    const s = new Date(startRaw).getTime();
+    const e = new Date(endRaw).getTime();
+    return (!isNaN(s) && !isNaN(e) && now >= s && now <= e);
+  };
+
+  // 1. Check DLP Window
+  if (isActive(dlpStart, dlpEnd)) {
+    return "DLP";
+  }
+  
+  // 2. Check OEM Warranty Window
+  if (isActive(warrantyStart, warrantyEnd)) {
+    return "Warranty";
+  }
+  
+  // 3. Check Comprehensive AMC Window
+  if (isActive(amcStart, amcEnd)) {
+    return "Comprehensive AMC";
+  }
+  
+  // 4. Check Non-Comprehensive AMC Window
+  if (isActive(nonAmcStart, nonAmcEnd)) {
+    return "Non-Comprehensive AMC";
+  }
+  
+  // 5. Default if all timelines are expired or blank
+  return "Out Of Support";
+}
+
+/**
+ * ONE-TIME MIGRATION SCRIPT:
+ * Copies legacy SLA dates from Company_Master down to individual assets in Asset_Master.
+ * Run this ONCE from the Apps Script Editor.
+ */
+function migrateLegacySLAToAssets() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const compSheet = ss.getSheetByName("Company_Master");
+  const assetSheet = ss.getSheetByName("Asset_Master");
+  
+  if (!compSheet || !assetSheet) throw new Error("Missing Master Sheets.");
+
+  const cData = compSheet.getDataRange().getValues();
+  const aData = assetSheet.getDataRange().getValues();
+  
+  const cHeaders = cData[0].map(h => String(h).trim());
+  const aHeaders = aData[0].map(h => String(h).trim());
+
+  // Company Indices
+  const cRefIdx = cHeaders.indexOf("Ref_Code");
+  const cBranchIdx = cHeaders.indexOf("Branch");
+  const cDlpStartIdx = cHeaders.indexOf("DLP_Start_Date");
+  const cDlpEndIdx = cHeaders.indexOf("DLP_End_Date");
+  const cAmcStartIdx = cHeaders.indexOf("AMC_Start_Date");
+  const cAmcEndIdx = cHeaders.indexOf("AMC_End_Date");
+  const cNonAmcStartIdx = cHeaders.indexOf("NON_CAMC_Start_Date");
+  const cNonAmcEndIdx = cHeaders.indexOf("NON_CAMC_End_Date");
+
+  // Asset Indices
+  const aRefIdx = aHeaders.indexOf("Ref_Code");
+  const aBranchIdx = aHeaders.indexOf("Branch");
+  const aDlpStartIdx = aHeaders.indexOf("DLP_Start_Date");
+  const aDlpEndIdx = aHeaders.indexOf("DLP_End_Date");
+  const aAmcStartIdx = aHeaders.indexOf("AMC_Start_Date");
+  const aAmcEndIdx = aHeaders.indexOf("AMC_End_Date");
+  const aNonAmcStartIdx = aHeaders.indexOf("NON_CAMC_Start_Date");
+  const aNonAmcEndIdx = aHeaders.indexOf("NON_CAMC_End_Date");
+
+  // 1. Build a map of existing branch contracts
+  let branchContracts = {};
+  for (let i = 1; i < cData.length; i++) {
+    const key = cData[i][cRefIdx] + "|" + cData[i][cBranchIdx];
+    branchContracts[key] = {
+      dlpS: cData[i][cDlpStartIdx], dlpE: cData[i][cDlpEndIdx],
+      amcS: cData[i][cAmcStartIdx], amcE: cData[i][cAmcEndIdx],
+      nonS: cData[i][cNonAmcStartIdx], nonE: cData[i][cNonAmcEndIdx]
+    };
+  }
+
+  let updatedCount = 0;
+  
+  // 2. Loop through assets and apply legacy dates if they are blank
+  const updatedAssets = aData.map((row, index) => {
+    if (index === 0) return row;
+    
+    const key = row[aRefIdx] + "|" + row[aBranchIdx];
+    const contract = branchContracts[key];
+    
+    if (contract) {
+      let modified = false;
+      // Only migrate if the asset doesn't already have dates
+      if (!row[aDlpStartIdx] && contract.dlpS) { row[aDlpStartIdx] = contract.dlpS; row[aDlpEndIdx] = contract.dlpE; modified = true; }
+      if (!row[aAmcStartIdx] && contract.amcS) { row[aAmcStartIdx] = contract.amcS; row[aAmcEndIdx] = contract.amcE; modified = true; }
+      if (!row[aNonAmcStartIdx] && contract.nonS) { row[aNonAmcStartIdx] = contract.nonS; row[aNonAmcEndIdx] = contract.nonE; modified = true; }
+      
+      if (modified) updatedCount++;
+    }
+    return row;
+  });
+
+  // 3. Batch write back to database
+  if (updatedCount > 0) {
+    assetSheet.getRange(1, 1, updatedAssets.length, aHeaders.length).setValues(updatedAssets);
+    Logger.log(`Migration Complete: ${updatedCount} assets updated with legacy branch SLAs.`);
+  } else {
+    Logger.log("No assets required migration.");
+  }
+}

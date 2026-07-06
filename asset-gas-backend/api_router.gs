@@ -186,8 +186,7 @@ function doGet(e) {
       return jsonResponse(mapRowsToObjects(complaintsSheet));
     }
     if (action === 'getAssets') {
-      const assetSheet = ss.getSheetByName('Asset_Master');
-      return jsonResponse(mapRowsToObjects(assetSheet));
+      return handleGetAssets();
     }
   }
 
@@ -355,6 +354,154 @@ function doPost(e) {
         responseData = handleValidateRef(payload);
         break;
 
+      case "bulkUpdateAmcBySalesOrder": {
+        const sheet = ss.getSheetByName("Asset_Master");
+        if (!sheet) throw new Error("Asset_Master sheet not found");
+ 
+        const data = sheet.getDataRange().getValues();
+        const headers = data[0].map(h => String(h).trim());
+ 
+        const ensureHeader = (headerName) => {
+          let idx = headers.indexOf(headerName);
+          if (idx === -1) {
+            idx = headers.length;
+            sheet.getRange(1, idx + 1).setValue(headerName);
+            headers.push(headerName);
+            data.forEach((row, rIdx) => {
+              if (rIdx === 0) row.push(headerName);
+              else row.push('');
+            });
+          }
+          return idx;
+        };
+ 
+        const soIdx = ensureHeader('Sales_Order');
+        const amcStartIdx = ensureHeader('AMC_Start_Date');
+        const amcEndIdx = ensureHeader('AMC_End_Date');
+        const nonAmcStartIdx = ensureHeader('NON_CAMC_Start_Date');
+        const nonAmcEndIdx = ensureHeader('NON_CAMC_End_Date');
+ 
+        let updatedCount = 0;
+ 
+        // Map through memory array to update dates where the Sales Order matches
+        const newValues = data.map((row, index) => {
+          if (index === 0) return row; // Skip header
+ 
+          if (String(row[soIdx]).trim() === String(payload.salesOrder).trim()) {
+            if (payload.amcType === 'Comprehensive AMC') {
+              row[amcStartIdx] = payload.startDate;
+              row[amcEndIdx] = payload.endDate;
+              row[nonAmcStartIdx] = '';
+              row[nonAmcEndIdx] = '';
+            } else if (payload.amcType === 'Non-Comprehensive AMC') {
+              row[nonAmcStartIdx] = payload.startDate;
+              row[nonAmcEndIdx] = payload.endDate;
+              row[amcStartIdx] = '';
+              row[amcEndIdx] = '';
+            }
+            updatedCount++;
+          }
+          return row;
+        });
+ 
+        // Execute a single batch write for maximum performance
+        if (updatedCount > 0) {
+          sheet.getRange(1, 1, newValues.length, headers.length).setValues(newValues);
+        }
+ 
+        return ContentService.createTextOutput(JSON.stringify({ 
+          success: true, 
+          message: `Successfully updated ${updatedCount} assets.`,
+          updatedCount: updatedCount
+        })).setMimeType(ContentService.MimeType.JSON);
+      }
+
+      case "updateSalesOrderContracts": {
+        const sheet = ss.getSheetByName("Asset_Master");
+        if (!sheet) throw new Error("Asset_Master sheet not found");
+ 
+        const data = sheet.getDataRange().getValues();
+        const headers = data[0].map(h => String(h).trim());
+ 
+        const ensureHeader = (headerName) => {
+          let idx = headers.indexOf(headerName);
+          if (idx === -1) {
+            idx = headers.length;
+            sheet.getRange(1, idx + 1).setValue(headerName);
+            headers.push(headerName);
+            data.forEach((row, rIdx) => {
+              if (rIdx === 0) row.push(headerName);
+              else row.push('');
+            });
+          }
+          return idx;
+        };
+ 
+        const soIdx = ensureHeader('Sales_Order');
+        const supportTypeIdx = ensureHeader('Support_Type');
+        const dlpStartIdx = ensureHeader('DLP_Start_Date');
+        const dlpEndIdx = ensureHeader('DLP_End_Date');
+        const warrantyStartIdx = ensureHeader('Warranty_Start_Date');
+        const warrantyEndIdx = ensureHeader('Warranty_End_Date');
+        const amcStartIdx = ensureHeader('AMC_Start_Date');
+        const amcEndIdx = ensureHeader('AMC_End_Date');
+        const nonAmcStartIdx = ensureHeader('NON_CAMC_Start_Date');
+        const nonAmcEndIdx = ensureHeader('NON_CAMC_End_Date');
+ 
+        let updatedCount = 0;
+ 
+        const newValues = data.map((row, index) => {
+          if (index === 0) return row; // Skip header
+ 
+          if (String(row[soIdx]).trim() === String(payload.salesOrder).trim()) {
+            row[dlpStartIdx] = payload.dlpStart || '';
+            row[dlpEndIdx] = payload.dlpEnd || '';
+            
+            const isComp = (payload.amcType === 'COMP' || payload.amcType === 'Comprehensive AMC');
+            const isNonComp = (payload.amcType === 'NON-COMP' || payload.amcType === 'Non-Comprehensive AMC');
+            
+            if (isComp) {
+              row[amcStartIdx] = payload.amcStart || '';
+              row[amcEndIdx] = payload.amcEnd || '';
+              row[nonAmcStartIdx] = '';
+              row[nonAmcEndIdx] = '';
+            } else if (isNonComp) {
+              row[nonAmcStartIdx] = payload.amcStart || '';
+              row[nonAmcEndIdx] = payload.amcEnd || '';
+              row[amcStartIdx] = '';
+              row[amcEndIdx] = '';
+            } else {
+              row[amcStartIdx] = '';
+              row[amcEndIdx] = '';
+              row[nonAmcStartIdx] = '';
+              row[nonAmcEndIdx] = '';
+            }
+
+            // INSTANT STATUS RECALCULATION FIX:
+            row[supportTypeIdx] = calculateActiveSupportStatus(
+              row[dlpStartIdx], row[dlpEndIdx],
+              row[warrantyStartIdx] ? row[warrantyStartIdx] : null,
+              row[warrantyEndIdx] ? row[warrantyEndIdx] : null,
+              row[amcStartIdx], row[amcEndIdx],
+              row[nonAmcStartIdx], row[nonAmcEndIdx]
+            );
+
+            updatedCount++;
+          }
+          return row;
+        });
+ 
+        if (updatedCount > 0) {
+          sheet.getRange(1, 1, newValues.length, headers.length).setValues(newValues);
+        }
+ 
+        return ContentService.createTextOutput(JSON.stringify({ 
+          success: true, 
+          message: `Successfully updated ${updatedCount} assets for Sales Order ${payload.salesOrder}.`,
+          updatedCount: updatedCount
+        })).setMimeType(ContentService.MimeType.JSON);
+      }
+ 
       case "getAssets":
         return handleGetAssets();
 
@@ -587,7 +734,83 @@ function handleGetAssets() {
   try {
     const sheet = ss.getSheetByName('Asset_Master');
     if (!sheet) throw new Error("Asset_Master sheet not found");
+
+    // Make sure Asset_Master has the necessary SLA columns
+    const headers = getHeaders(sheet);
+    const ensureHeader = (headerName) => {
+      if (headers.indexOf(headerName) === -1) {
+        sheet.getRange(1, headers.length + 1).setValue(headerName);
+        headers.push(headerName);
+      }
+    };
+    ensureHeader('AMC_Start_Date');
+    ensureHeader('AMC_End_Date');
+    ensureHeader('NON_CAMC_Start_Date');
+    ensureHeader('NON_CAMC_End_Date');
+
     const assets = mapRowsToObjects(sheet);
+    
+    // Fetch Company_Master to build branchContractMap
+    const companySheet = ss.getSheetByName("Company_Master");
+    const branchContractMap = {};
+    if (companySheet) {
+      const cData = companySheet.getDataRange().getValues();
+      if (cData.length > 1) {
+        const cHeaders = cData[0].map(h => String(h).trim());
+        const cRefIdx = cHeaders.indexOf('Ref_Code');
+        const cBranchIdx = cHeaders.indexOf('Branch');
+        const cAmcStartIdx = cHeaders.indexOf('AMC_Start_Date');
+        const cAmcEndIdx = cHeaders.indexOf('AMC_End_Date');
+        const cNonAmcStartIdx = cHeaders.indexOf('NON_CAMC_Start_Date');
+        const cNonAmcEndIdx = cHeaders.indexOf('NON_CAMC_End_Date');
+
+        for (let j = 1; j < cData.length; j++) {
+          const ref = String(cData[j][cRefIdx] || "").trim();
+          const branch = String(cData[j][cBranchIdx] || "").trim();
+          const key = (ref + "|" + branch).toLowerCase();
+          branchContractMap[key] = {
+            amcStart: cAmcStartIdx !== -1 ? cData[j][cAmcStartIdx] : "",
+            amcEnd: cAmcEndIdx !== -1 ? cData[j][cAmcEndIdx] : "",
+            nonAmcStart: cNonAmcStartIdx !== -1 ? cData[j][cNonAmcStartIdx] : "",
+            nonAmcEnd: cNonAmcEndIdx !== -1 ? cData[j][cNonAmcEndIdx] : ""
+          };
+        }
+      }
+    }
+
+    assets.forEach(asset => {
+      const ref = String(asset.Ref_Code || "").trim();
+      const branch = String(asset.Branch || asset.Sub_Location || "").trim();
+      const key = (ref + "|" + branch).toLowerCase();
+      
+      let amcStart = asset.AMC_Start_Date || "";
+      let amcEnd = asset.AMC_End_Date || "";
+      let nonAmcStart = asset.NON_CAMC_Start_Date || "";
+      let nonAmcEnd = asset.NON_CAMC_End_Date || "";
+      
+      // If asset specific dates are empty, inherit from parent branch contract
+      if (!amcStart && !amcEnd && !nonAmcStart && !nonAmcEnd && branchContractMap[key]) {
+        const contract = branchContractMap[key];
+        amcStart = contract.amcStart;
+        amcEnd = contract.amcEnd;
+        nonAmcStart = contract.nonAmcStart;
+        nonAmcEnd = contract.nonAmcEnd;
+        
+        // Populate the inherited dates into the asset payload
+        asset.AMC_Start_Date = amcStart;
+        asset.AMC_End_Date = amcEnd;
+        asset.NON_CAMC_Start_Date = nonAmcStart;
+        asset.NON_CAMC_End_Date = nonAmcEnd;
+      }
+      
+      const dlpStart = asset.DLP_Start_Date || "";
+      const dlpEnd = asset.DLP_End_Date || "";
+      const warrantyStart = asset.Warranty_Start_Date || "";
+      const warrantyEnd = asset.Warranty_End_Date || "";
+      
+      asset.Support_Type = calculateActiveSupportStatus(dlpStart, dlpEnd, warrantyStart, warrantyEnd, amcStart, amcEnd, nonAmcStart, nonAmcEnd);
+    });
+
     return jsonResponse(assets, true, "Assets loaded successfully");
   } catch (err) {
     return jsonResponse([], false, err.message);
@@ -1217,6 +1440,8 @@ function handleGetPublicAssetDetails(params) {
         Room_Name: roomNameIdx !== -1 ? data[i][roomNameIdx] : '',
         Warranty_Start: warrantyStartIdx !== -1 ? data[i][warrantyStartIdx] : '',
         DLP_Period: dlpIdx !== -1 ? data[i][dlpIdx] : '',
+        DLP_Start_Date: headers.indexOf('DLP_Start_Date') !== -1 ? data[i][headers.indexOf('DLP_Start_Date')] : '',
+        DLP_End_Date: headers.indexOf('DLP_End_Date') !== -1 ? data[i][headers.indexOf('DLP_End_Date')] : '',
         Days_Left: daysLeftIdx !== -1 ? data[i][daysLeftIdx] : '',
         Asset_Status: assetStatusIdx !== -1 ? data[i][assetStatusIdx] : 'Active',
         Sales_Order: salesOrderIdx !== -1 ? data[i][salesOrderIdx] : '',
@@ -1232,7 +1457,7 @@ function handleGetPublicAssetDetails(params) {
     throw new Error("Asset not found in registry.");
   }
   
-  let supportType = 'Unknown';
+  let supportType = 'Out Of Support';
   let isExpired = false;
   
   if (asset.Company_Ref) {
@@ -1242,20 +1467,77 @@ function handleGetPublicAssetDetails(params) {
       const compHeaders = getHeaders(companySheet);
       const cRefIdx = compHeaders.indexOf('Ref_Code');
       const cNameIdx = compHeaders.indexOf('Company_Name');
-      const cSupportIdx = compHeaders.indexOf('Support_Type');
-      const cEndIdx = compHeaders.indexOf('AMC_End');
+      const cLocIdx = compHeaders.indexOf('Location');
+      const cBranchIdx = compHeaders.indexOf('Branch');
+      
+      const cDlpStartIdx = compHeaders.indexOf('DLP_Start_Date');
+      const cDlpEndIdx = compHeaders.indexOf('DLP_End_Date');
+      const cAmcStartIdx = compHeaders.indexOf('AMC_Start_Date');
+      const cAmcEndIdx = compHeaders.indexOf('AMC_End_Date');
+      const cNonAmcStartIdx = compHeaders.indexOf('NON_CAMC_Start_Date');
+      const cNonAmcEndIdx = compHeaders.indexOf('NON_CAMC_End_Date');
+
+      // Find matching branch row
+      let branchRowIdx = -1;
+      const targetRef = String(asset.Company_Ref).trim().toLowerCase();
+      const targetLoc = String(asset.Location).trim().toLowerCase();
+      const targetBranch = String(asset.Branch || asset.Sub_Location).trim().toLowerCase();
 
       for (let i = 1; i < compData.length; i++) {
-        if (String(compData[i][cRefIdx]).trim() === String(asset.Company_Ref).trim()) {
-          supportType = compData[i][cSupportIdx] || 'Standard';
-          if (compData[i][cEndIdx]) {
-            isExpired = new Date(compData[i][cEndIdx]) < new Date();
-          }
-          asset.CompanyName = compData[i][cNameIdx];
-          if (!asset.Location) {
-            asset.Location = compData[i][compHeaders.indexOf('Location')];
-          }
+        const rowRef = String(compData[i][cRefIdx]).trim().toLowerCase();
+        const rowLoc = String(compData[i][cLocIdx]).trim().toLowerCase();
+        const rowBranch = String(compData[i][cBranchIdx]).trim().toLowerCase();
+        
+        if (rowRef === targetRef && rowLoc === targetLoc && rowBranch === targetBranch) {
+          branchRowIdx = i;
           break;
+        }
+      }
+
+      // Fallback to just Ref_Code match if exact branch doesn't exist
+      if (branchRowIdx === -1) {
+        for (let i = 1; i < compData.length; i++) {
+          const rowRef = String(compData[i][cRefIdx]).trim().toLowerCase();
+          if (rowRef === targetRef) {
+            branchRowIdx = i;
+            break;
+          }
+        }
+      }
+
+      if (branchRowIdx !== -1) {
+        const row = compData[branchRowIdx];
+        asset.CompanyName = row[cNameIdx];
+        if (!asset.Location) {
+          asset.Location = row[cLocIdx];
+        }
+
+        // Get asset's specific DLP dates or fallback to branch's DLP dates
+        let dlpStart = asset.DLP_Start_Date || "";
+        let dlpEnd = asset.DLP_End_Date || "";
+        
+        if (!dlpStart) {
+          dlpStart = cDlpStartIdx !== -1 ? row[cDlpStartIdx] : "";
+          dlpEnd = cDlpEndIdx !== -1 ? row[cDlpEndIdx] : "";
+        }
+        
+        const amcStart = cAmcStartIdx !== -1 ? row[cAmcStartIdx] : "";
+        const amcEnd = cAmcEndIdx !== -1 ? row[cAmcEndIdx] : "";
+        const nonAmcStart = cNonAmcStartIdx !== -1 ? row[cNonAmcStartIdx] : "";
+        const nonAmcEnd = cNonAmcEndIdx !== -1 ? row[cNonAmcEndIdx] : "";
+        
+        const warrantyStart = asset.Warranty_Start || "";
+        const warrantyEnd = asset.Warranty_End || "";
+        supportType = calculateActiveSupportStatus(dlpStart, dlpEnd, warrantyStart, warrantyEnd, amcStart, amcEnd, nonAmcStart, nonAmcEnd);
+        
+        // Compute expiration status: if supportType is Out Of Support, or AMC end date is past
+        if (supportType === 'Out Of Support') {
+          isExpired = true;
+        } else {
+          // If we are under AMC, check if AMC end date is past
+          if (supportType.includes('AMC') && amcEnd) {
+            isExpired = new Date(amcEnd) < new Date();
+          }
         }
       }
     }
@@ -1330,37 +1612,74 @@ function handleGenerateQRSig(params) {
 /**
  * Fetch dashboard aggregated KPIs
  */
-function handleGetDashboardKPIs(params) {
-  const assetSheet = ss.getSheetByName('Asset_Master');
-  const compSheet = ss.getSheetByName('Company_Master');
-  const ticketSheet = ss.getSheetByName('Master_Tickets');
-  const intakeSheet = ss.getSheetByName('Intake_Queue');
+function handleGetDashboardKPIs(payload) {
+  const assetSheet = ss.getSheetByName("Asset_Master");
+  const ticketSheet = ss.getSheetByName("Intake_Queue");
+  const compSheet = ss.getSheetByName("Company_Master");
+  
+  const aData = assetSheet ? assetSheet.getDataRange().getValues() : [];
+  const tData = ticketSheet ? ticketSheet.getDataRange().getValues() : [];
+  const cData = compSheet ? compSheet.getDataRange().getValues() : [];
+  
+  const aHeaders = aData.length > 0 ? aData[0].map(h => String(h).trim()) : [];
+  const tHeaders = tData.length > 0 ? tData[0].map(h => String(h).trim()) : [];
+  const cHeaders = cData.length > 0 ? cData[0].map(h => String(h).trim()) : [];
 
-  const assets = mapRowsToObjects(assetSheet);
-  const companies = mapRowsToObjects(compSheet);
-  const tickets = mapRowsToObjects(ticketSheet);
-  const intakes = mapRowsToObjects(intakeSheet);
+  // Asset Indices
+  const aSupportIdx = aHeaders.indexOf('Support_Type');
+  const aDlpStartIdx = aHeaders.indexOf('DLP_Start_Date');
+  const aDlpEndIdx = aHeaders.indexOf('DLP_End_Date');
+  const aMakeIdx = aHeaders.indexOf('ProductMake');
+  const aCompanyIdx = aHeaders.indexOf('Company_Name');
+  const aLocationIdx = aHeaders.indexOf('Location');
+  const aBranchIdx = aHeaders.indexOf('Branch');
+  const aRoomIdx = aHeaders.indexOf('Room_Name');
+  const aUniqueProductIdx = aHeaders.indexOf('Unique_Product_Id');
+  const aProductModelIdx = aHeaders.indexOf('ProductModel');
+  const aWarrantyEndIdx = aHeaders.indexOf('Warranty_End_Date');
+  const aWarrantyStartIdx = aHeaders.indexOf('Warranty_Start_Date');
+  
+  // Ticket Indices
+  const tStatusIdx = tHeaders.indexOf('Status');
+  const tCategoryIdx = tHeaders.indexOf('Category');
+  const tCreatedIdx = tHeaders.indexOf('Created_At') !== -1 ? tHeaders.indexOf('Created_At') : tHeaders.indexOf('Timestamp');
+  const tCompanyIdx = tHeaders.indexOf('Company_Name');
+  const tLocationIdx = tHeaders.indexOf('Location');
+  const tRoomIdx = tHeaders.indexOf('Room_Name');
 
-  const companyFilter = params.companyName || params.company || "";
-  const locationFilter = params.location || "";
-  const roomFilter = params.roomName || params.room || "";
+  // Company Indices
+  const cRefIdx = cHeaders.indexOf('Ref_Code');
+  const cCompIdx = cHeaders.indexOf('Company_Name');
+  const cLocIdx = cHeaders.indexOf('Location');
+  const cBranchIdx = cHeaders.indexOf('Branch');
+  const cSupportIdx = cHeaders.indexOf('Support_Type');
+  const cAmcEndIdx = cHeaders.indexOf('AMC_End_Date');
+  const cDlpStartIdx = cHeaders.indexOf('DLP_Start_Date');
+  const cDlpEndIdx = cHeaders.indexOf('DLP_End_Date');
+  const cAmcStartIdx = cHeaders.indexOf('AMC_Start_Date');
+  const cNonAmcStartIdx = cHeaders.indexOf('NON_CAMC_Start_Date');
+  const cNonAmcEndIdx = cHeaders.indexOf('NON_CAMC_End_Date');
 
-  // Map intakes for room filtering and resolving make/model
-  const intakeMap = {};
-  intakes.forEach(inq => {
-    let payloadObj = {};
-    try {
-      payloadObj = JSON.parse(inq.Payload || '{}');
-    } catch (e) {}
-    intakeMap[inq.Intake_ID] = { ...inq, payloadObj };
-  });
+  // 1. Extract Frontend Filters
+  const filterStart = payload.startDate ? new Date(payload.startDate) : null;
+  const filterEnd = payload.endDate ? new Date(payload.endDate) : null;
+  const fBrand = (payload.brand || "").toLowerCase().trim();
+  const fCompany = (payload.companyName || "").toLowerCase().trim();
+  const fLocation = (payload.location || "").toLowerCase().trim();
+  const fRoom = (payload.roomName || "").toLowerCase().trim();
+  
+  let metrics = {
+    totalAssets: 0,
+    activeWarrantyAssets: 0,
+    comprehensiveAmcAssets: 0,
+    dlpAssets: 0,
+    expiredAssets: 0,
+    openComplaints: 0
+  };
 
-  // Map company branches for AMC calculations
-  const companyMap = {};
-  companies.forEach(c => {
-    const key = `${c.Ref_Code || ''}_${c.Company_Name || ''}`;
-    companyMap[key] = c;
-  });
+  let categoryFailures = {};
+  let brandDistribution = {};
+  const expiringSoon = [];
 
   const today = new Date();
   today.setHours(0, 0, 0, 0);
@@ -1373,6 +1692,7 @@ function handleGetDashboardKPIs(params) {
     return null;
   }
 
+  // Calculate days remaining helper
   function getDaysRemaining(endDate) {
     const end = parseDateValue(endDate);
     if (!end) return null;
@@ -1382,105 +1702,113 @@ function handleGetDashboardKPIs(params) {
     return Math.ceil(diff / (1000 * 60 * 60 * 24));
   }
 
-  // Calculate unique options for filters from all assets
-  const companiesSet = new Set();
-  const locationsSet = new Set();
-  const roomsSet = new Set();
+  // Map company branches for Support_Type & AMC End Date fallback
+  const companyMap = {};
+  for (let j = 1; j < cData.length; j++) {
+    const ref = String(cData[j][cRefIdx] || "");
+    const name = String(cData[j][cCompIdx] || "");
+    const loc = String(cData[j][cLocIdx] || "");
+    const branch = String(cData[j][cBranchIdx] || "");
+    const key = `${ref.toLowerCase()}_${name.toLowerCase()}_${loc.toLowerCase()}_${branch.toLowerCase()}`;
+    companyMap[key] = {
+      dlpStart: cDlpStartIdx !== -1 ? cData[j][cDlpStartIdx] : "",
+      dlpEnd: cDlpEndIdx !== -1 ? cData[j][cDlpEndIdx] : "",
+      amcStart: cAmcStartIdx !== -1 ? cData[j][cAmcStartIdx] : "",
+      amcEnd: cAmcEndIdx !== -1 ? cData[j][cAmcEndIdx] : "",
+      nonAmcStart: cNonAmcStartIdx !== -1 ? cData[j][cNonAmcStartIdx] : "",
+      nonAmcEnd: cNonAmcEndIdx !== -1 ? cData[j][cNonAmcEndIdx] : ""
+    };
+  }
 
-  assets.forEach(asset => {
-    if (asset.Company_Name) companiesSet.add(asset.Company_Name);
-    if (asset.Location) locationsSet.add(asset.Location);
-    if (asset.Room_Name) roomsSet.add(asset.Room_Name);
-  });
+  // Initialize Sets to capture unique options from the database
+  const uniqueBrands = new Set();
+  const uniqueCompanies = new Set();
+  const uniqueLocations = new Set();
+  const uniqueRooms = new Set();
 
-  const filterOptions = {
-    companies: Array.from(companiesSet).sort(),
-    locations: Array.from(locationsSet).sort(),
-    rooms: Array.from(roomsSet).sort()
-  };
+  // 2. Process Assets (Apply Company, Location, Brand filters)
+  for (let i = 1; i < aData.length; i++) {
+    const brand = String(aData[i][aMakeIdx] || "Unknown").trim();
+    const compName = String(aData[i][aCompanyIdx] || "").trim();
+    const locName = String(aData[i][aLocationIdx] || "").trim();
+    const roomName = String(aData[i][aRoomIdx] || "").trim();
 
-  // Apply filters
-  const filteredAssets = assets.filter(asset => {
-    if (companyFilter && asset.Company_Name !== companyFilter) return false;
-    if (locationFilter && asset.Location !== locationFilter) return false;
-    if (roomFilter && asset.Room_Name !== roomFilter) return false;
-    return true;
-  });
+    if (brand && brand !== "Unknown") uniqueBrands.add(brand);
+    if (compName) uniqueCompanies.add(compName);
+    if (locName) uniqueLocations.add(locName);
+    if (roomName) uniqueRooms.add(roomName);
 
-  const filteredCompanies = companies.filter(c => {
-    if (companyFilter && c.Company_Name !== companyFilter) return false;
-    if (locationFilter && c.Location !== locationFilter) return false;
-    return true;
-  });
-
-  const filteredTickets = tickets.filter(t => {
-    if (companyFilter && t.Company_Name !== companyFilter) return false;
-    if (locationFilter && t.Location !== locationFilter) return false;
-    if (roomFilter) {
-      const intakeId = t.Intake_ID_Ref;
-      if (intakeId && intakeMap[intakeId]) {
-        const payloadObj = intakeMap[intakeId].payloadObj;
-        const assetRoom = payloadObj.roomName || payloadObj.Room_Name || "";
-        if (assetRoom !== roomFilter) return false;
-      } else {
-        return false;
-      }
-    }
-    return true;
-  });
-
-  let activeWarrantyAssets = 0;
-  let expiredWarrantyAssets = 0;
-  let comprehensiveAmcAssets = 0;
-  let nonComprehensiveAmcAssets = 0;
-  let dlpAssets = 0;
-  let expiredAssets = 0;
-  const expiringSoon = [];
-
-  filteredAssets.forEach(asset => {
-    // 1. Warranty Calculations
-    const warrantyEnd = parseDateValue(asset.Warranty_End_Date);
-    if (warrantyEnd) {
-      if (warrantyEnd >= today) {
-        activeWarrantyAssets++;
-      } else {
-        expiredWarrantyAssets++;
-      }
-    }
-
-    // 2. DLP Calculations
-    if (asset.DLP_Start_Date || asset.DLP_Period) {
-      dlpAssets++;
-    }
-
-    // 3. AMC Calculations via company branch matching
-    const compKey = `${asset.Ref_Code || ''}_${asset.Company_Name || ''}`;
-    const company = companyMap[compKey];
+    const comp = compName.toLowerCase();
+    const loc = locName.toLowerCase();
+    const room = roomName.toLowerCase();
     
-    let isAmcActive = false;
-    let amcEndDate = null;
-    let supportType = "";
+    // Asset Filters
+    if (fCompany && !comp.includes(fCompany)) continue;
+    if (fLocation && !loc.includes(fLocation)) continue;
+    if (fBrand && !brand.toLowerCase().includes(fBrand)) continue;
+    if (fRoom && !room.includes(fRoom)) continue;
 
-    if (company) {
-      supportType = company.Support_Type || "";
-      amcEndDate = parseDateValue(company.AMC_End_Date);
-      if (amcEndDate && amcEndDate >= today) {
-        isAmcActive = true;
-      }
-    }
+    metrics.totalAssets++;
 
-    if (isAmcActive) {
-      if (supportType.indexOf("Comprehensive") !== -1 && supportType.indexOf("Non-") === -1) {
-        comprehensiveAmcAssets++;
-      } else {
-        nonComprehensiveAmcAssets++;
+    // Resolve Support Type
+    let dlpStart = aDlpStartIdx !== -1 ? aData[i][aDlpStartIdx] : "";
+    let dlpEnd = aDlpEndIdx !== -1 ? aData[i][aDlpEndIdx] : "";
+    const warrantyStart = aWarrantyStartIdx !== -1 ? aData[i][aWarrantyStartIdx] : "";
+    const warrantyEnd = aWarrantyEndIdx !== -1 ? aData[i][aWarrantyEndIdx] : "";
+    
+    let amcStart = "";
+    let amcEnd = "";
+    let nonAmcStart = "";
+    let nonAmcEnd = "";
+    
+    const ref = String(aData[i][aHeaders.indexOf('Ref_Code')] || "");
+    const name = String(aData[i][aHeaders.indexOf('Company_Name')] || "");
+    const locVal = String(aData[i][aHeaders.indexOf('Location')] || "");
+    const branch = String(aData[i][aHeaders.indexOf('Branch')] || "");
+    const key = `${ref.toLowerCase()}_${name.toLowerCase()}_${locVal.toLowerCase()}_${branch.toLowerCase()}`;
+    
+    if (companyMap[key]) {
+      const branchDates = companyMap[key];
+      if (!dlpStart) {
+        dlpStart = branchDates.dlpStart;
+        dlpEnd = branchDates.dlpEnd;
       }
+      amcStart = branchDates.amcStart;
+      amcEnd = branchDates.amcEnd;
+      nonAmcStart = branchDates.nonAmcStart;
+      nonAmcEnd = branchDates.nonAmcEnd;
     } else {
-      expiredAssets++;
+      // Fallback Ref code mapping
+      const companyKeys = Object.keys(companyMap);
+      const refMatchKey = companyKeys.find(k => k.startsWith(ref.toLowerCase() + "_"));
+      if (refMatchKey) {
+        const branchDates = companyMap[refMatchKey];
+        if (!dlpStart) {
+          dlpStart = branchDates.dlpStart;
+          dlpEnd = branchDates.dlpEnd;
+        }
+        amcStart = branchDates.amcStart;
+        amcEnd = branchDates.amcEnd;
+        nonAmcStart = branchDates.nonAmcStart;
+        nonAmcEnd = branchDates.nonAmcEnd;
+      }
     }
+    
+    const support = calculateActiveSupportStatus(dlpStart, dlpEnd, warrantyStart, warrantyEnd, amcStart, amcEnd, nonAmcStart, nonAmcEnd);
+    const amcEndDate = amcEnd ? parseDateValue(amcEnd) : null;
 
-    // 4. Expiring Soon Calculations (within 30 days)
-    const warrantyDays = getDaysRemaining(asset.Warranty_End_Date);
+    if (support === 'Comprehensive AMC') metrics.comprehensiveAmcAssets++;
+    else if (support === 'Non-Comprehensive AMC' || support === 'DLP') metrics.activeWarrantyAssets++;
+    else metrics.expiredAssets++;
+
+    if (support === 'DLP') metrics.dlpAssets++;
+
+    // Aggregate Pie Chart (Brands)
+    brandDistribution[brand] = (brandDistribution[brand] || 0) + 1;
+
+    // Expiring Soon Calculations (within 30 days)
+    const warrantyEndVal = aWarrantyEndIdx !== -1 ? aData[i][aWarrantyEndIdx] : null;
+    const warrantyDays = getDaysRemaining(warrantyEndVal);
     const amcDays = amcEndDate ? getDaysRemaining(amcEndDate) : null;
 
     let minDays = null;
@@ -1495,76 +1823,71 @@ function handleGetDashboardKPIs(params) {
 
     if (minDays !== null) {
       expiringSoon.push({
-        assetId: asset.Unique_Product_Id,
-        productMake: asset.ProductMake || "",
-        productModel: asset.ProductModel || "",
-        companyName: asset.Company_Name || "",
+        assetId: String(aData[i][aUniqueProductIdx] || ""),
+        productMake: brand,
+        productModel: aProductModelIdx !== -1 ? String(aData[i][aProductModelIdx] || "") : "",
+        companyName: String(aData[i][aCompanyIdx] || ""),
         daysRemaining: minDays
       });
     }
-  });
+  }
 
   // Sort expiring assets by days remaining (most urgent first)
   expiringSoon.sort((a, b) => a.daysRemaining - b.daysRemaining);
 
-  // 5. Process Tickets (MTTR & Heatmap)
-  let branchHeatmap = {};
-  let totalResolvedTime = 0;
-  let resolvedCount = 0;
-  let slaBreaches = 0;
-  let openComplaints = 0;
+  // 3. Process Tickets (Apply Dates, Company, Location, Room filters)
+  for (let i = 1; i < tData.length; i++) {
+    const compName = String(tData[i][tCompanyIdx] || "").trim();
+    const locName = String(tData[i][tLocationIdx] || "").trim();
+    const roomName = String(tData[i][tRoomIdx] || "").trim();
 
-  filteredTickets.forEach(t => {
-    const status = String(t.Status || "").toLowerCase();
-    const branch = String(t.Branch || "Unknown");
-    const created = parseDateValue(t.Open_Date || t.Timestamp || t.Created_At);
-    const resolved = parseDateValue(t.Close_Date || t.Updated_At);
+    if (compName) uniqueCompanies.add(compName);
+    if (locName) uniqueLocations.add(locName);
+    if (roomName) uniqueRooms.add(roomName);
 
-    // Branch Heatmap (Where are tickets coming from?)
-    branchHeatmap[branch] = (branchHeatmap[branch] || 0) + 1;
+    const status = String(tData[i][tStatusIdx] || "").toLowerCase();
+    const category = String(tData[i][tCategoryIdx] || "Uncategorized").trim();
+    const createdDate = tCreatedIdx !== -1 ? new Date(tData[i][tCreatedIdx]) : new Date();
+    
+    const comp = compName.toLowerCase();
+    const loc = locName.toLowerCase();
+    const room = roomName.toLowerCase();
+
+    // Ticket Filters
+    if (filterStart && createdDate < filterStart) continue;
+    if (filterEnd && createdDate > filterEnd) continue;
+    if (fCompany && !comp.includes(fCompany)) continue;
+    if (fLocation && !loc.includes(fLocation)) continue;
+    if (fRoom && !room.includes(fRoom)) continue;
 
     if (status.includes('open') || status.includes('progress') || status.includes('pending')) {
-      openComplaints++;
-    } else if (status.includes('close') || status.includes('resolve')) {
-      resolvedCount++;
-      if (created && resolved) {
-        const hoursDiff = (resolved.getTime() - created.getTime()) / (1000 * 60 * 60);
-        totalResolvedTime += hoursDiff;
-        // Assume SLA is 48 hours for this metric
-        if (hoursDiff > 48) slaBreaches++;
-      }
+      metrics.openComplaints++;
     }
-  });
 
-  let avgResolutionTimeHours = 0;
-  let slaComplianceRate = 100;
-  if (resolvedCount > 0) {
-    avgResolutionTimeHours = (totalResolvedTime / resolvedCount).toFixed(1);
-    slaComplianceRate = (((resolvedCount - slaBreaches) / resolvedCount) * 100).toFixed(1);
+    // Aggregate Bar Chart (Incident Categories)
+    categoryFailures[category] = (categoryFailures[category] || 0) + 1;
   }
 
-  // Sort branch heatmap highest to lowest
-  const sortedBranches = Object.keys(branchHeatmap)
-    .map(b => ({ branch: b, count: branchHeatmap[b] }))
-    .sort((a, b) => b.count - a.count)
-    .slice(0, 5); // Top 5 worst branches
+  // Format for Recharts { name: 'X', count: Y }
+  const barChartData = Object.keys(categoryFailures)
+    .map(cat => ({ name: cat, count: categoryFailures[cat] }))
+    .sort((a, b) => b.count - a.count);
+
+  const pieChartData = Object.keys(brandDistribution)
+    .map(brand => ({ name: brand, value: brandDistribution[brand] }))
+    .sort((a, b) => b.value - a.value);
 
   return {
-    metrics: {
-      totalAssets: filteredAssets.length,
-      activeWarrantyAssets: activeWarrantyAssets,
-      comprehensiveAmcAssets: comprehensiveAmcAssets,
-      nonComprehensiveAmcAssets: nonComprehensiveAmcAssets,
-      expiredWarrantyAssets: expiredWarrantyAssets,
-      dlpAssets: dlpAssets,
-      expiredAssets: expiredAssets,
-      openComplaints: openComplaints,
-      avgResolutionTimeHours: avgResolutionTimeHours,
-      slaComplianceRate: slaComplianceRate
-    },
-    branchHeatmap: sortedBranches,
+    metrics: metrics,
+    categoryFailures: barChartData,
+    brandDistribution: pieChartData,
     expiringSoon: expiringSoon,
-    filterOptions: filterOptions
+    filterOptions: {
+      brands: Array.from(uniqueBrands).sort(),
+      companies: Array.from(uniqueCompanies).sort(),
+      locations: Array.from(uniqueLocations).sort(),
+      rooms: Array.from(uniqueRooms).sort()
+    }
   };
 }
 
@@ -1683,6 +2006,8 @@ function handleCreateCompany(payload) {
     if (header === 'DLP_Period') return payload.DLP_Period || payload.dlpPeriod || '';
     if (header === 'DLP_Start_Date') return payload.DLP_Start_Date || payload.dlpStart || '';
     if (header === 'DLP_End_Date') return payload.DLP_End_Date || payload.dlpEnd || '';
+    if (header === 'NON_CAMC_Start_Date') return payload.NON_CAMC_Start_Date || payload.nonAmcStart || '';
+    if (header === 'NON_CAMC_End_Date') return payload.NON_CAMC_End_Date || payload.nonAmcEnd || '';
     
     return payload[header] !== undefined ? payload[header] : '';
   });
@@ -1797,6 +2122,8 @@ function handleUpdateCompany(payload) {
     if (header === 'DLP_Period') return updateData.DLP_Period || updateData.dlpPeriod || '';
     if (header === 'DLP_Start_Date') return updateData.DLP_Start_Date || updateData.dlpStart || '';
     if (header === 'DLP_End_Date') return updateData.DLP_End_Date || updateData.dlpEnd || '';
+    if (header === 'NON_CAMC_Start_Date') return updateData.NON_CAMC_Start_Date || updateData.nonAmcStart || '';
+    if (header === 'NON_CAMC_End_Date') return updateData.NON_CAMC_End_Date || updateData.nonAmcEnd || '';
     
     // Retrieve value from updateData or retain original if undefined
     return updateData[header] !== undefined ? updateData[header] : data[targetRowIndex - 1][headers.indexOf(header)];
@@ -3620,6 +3947,48 @@ function handleGenerateServiceReport(payload) {
 }
 
 /**
+ * Helper to retrieve and index all dates for company branches
+ */
+function getCompanyBranchMap() {
+  const companySheet = ss.getSheetByName("Company_Master");
+  if (!companySheet) return {};
+  
+  const cData = companySheet.getDataRange().getValues();
+  if (cData.length <= 1) return {};
+  
+  const cHeaders = cData[0].map(h => String(h).trim());
+  const cRefIdx = cHeaders.indexOf('Ref_Code');
+  const cCompIdx = cHeaders.indexOf('Company_Name');
+  const cLocIdx = cHeaders.indexOf('Location');
+  const cBranchIdx = cHeaders.indexOf('Branch');
+  const cDlpStartIdx = cHeaders.indexOf('DLP_Start_Date');
+  const cDlpEndIdx = cHeaders.indexOf('DLP_End_Date');
+  const cAmcStartIdx = cHeaders.indexOf('AMC_Start_Date');
+  const cAmcEndIdx = cHeaders.indexOf('AMC_End_Date');
+  const cNonAmcStartIdx = cHeaders.indexOf('NON_CAMC_Start_Date');
+  const cNonAmcEndIdx = cHeaders.indexOf('NON_CAMC_End_Date');
+
+  const companyMap = {};
+  for (let j = 1; j < cData.length; j++) {
+    const ref = String(cData[j][cRefIdx] || "");
+    const name = String(cData[j][cCompIdx] || "");
+    const loc = String(cData[j][cLocIdx] || "");
+    const branch = String(cData[j][cBranchIdx] || "");
+    const key = `${ref.toLowerCase()}_${name.toLowerCase()}_${loc.toLowerCase()}_${branch.toLowerCase()}`;
+    
+    companyMap[key] = {
+      dlpStart: cDlpStartIdx !== -1 ? cData[j][cDlpStartIdx] : "",
+      dlpEnd: cDlpEndIdx !== -1 ? cData[j][cDlpEndIdx] : "",
+      amcStart: cAmcStartIdx !== -1 ? cData[j][cAmcStartIdx] : "",
+      amcEnd: cAmcEndIdx !== -1 ? cData[j][cAmcEndIdx] : "",
+      nonAmcStart: cNonAmcStartIdx !== -1 ? cData[j][cNonAmcStartIdx] : "",
+      nonAmcEnd: cNonAmcEndIdx !== -1 ? cData[j][cNonAmcEndIdx] : ""
+    };
+  }
+  return companyMap;
+}
+
+/**
  * Perform grouping reducer on Company_Master data by Ref_Code
  */
 function getGroupedCompanies(companySheet) {
@@ -3641,11 +4010,17 @@ function getGroupedCompanies(companySheet) {
       const dlpEndIdx = headers.indexOf('DLP_End_Date');
       const amcStartIdx = headers.indexOf('AMC_Start_Date');
       const amcEndIdx = headers.indexOf('AMC_End_Date');
+      const nonAmcStartIdx = headers.indexOf('NON_CAMC_Start_Date');
+      const nonAmcEndIdx = headers.indexOf('NON_CAMC_End_Date');
+      const warrantyStartIdx = headers.indexOf('Warranty_Start_Date');
+      const warrantyEndIdx = headers.indexOf('Warranty_End_Date');
       const contactIdx = headers.indexOf('Primary_Contact');
       const emailIdx = headers.indexOf('Primary_Email');
       const phoneIdx = headers.indexOf('Primary_Phone');
       const statusIdx = headers.indexOf('Status');
       const clientLinkIdx = headers.indexOf('ClientLink');
+
+      const branchLookup = {};
 
       for (let i = 1; i < data.length; i++) {
         const row = data[i];
@@ -3662,23 +4037,127 @@ function getGroupedCompanies(companySheet) {
           };
         }
 
-        // Push specific branch data into the parent's array
-        groupedCompanies[refCode].branches.push({
+        const dlpStart = dlpStartIdx !== -1 ? row[dlpStartIdx] : "";
+        const dlpEnd = dlpEndIdx !== -1 ? row[dlpEndIdx] : "";
+        const amcStart = amcStartIdx !== -1 ? row[amcStartIdx] : "";
+        const amcEnd = amcEndIdx !== -1 ? row[amcEndIdx] : "";
+        const nonAmcStart = nonAmcStartIdx !== -1 ? row[nonAmcStartIdx] : "";
+        const nonAmcEnd = nonAmcEndIdx !== -1 ? row[nonAmcEndIdx] : "";
+ 
+        const calculatedStatus = calculateActiveSupportStatus(dlpStart, dlpEnd, null, null, amcStart, amcEnd, nonAmcStart, nonAmcEnd);
+ 
+        const branchObj = {
           Location: row[locIdx] || "",
           Branch: row[branchIdx] || "",
-          Support_Type: row[supportIdx] || "Standard",
+          Support_Type: calculatedStatus,
+          RealTime_Status: calculatedStatus,
           DLP_Period: dlpIdx !== -1 ? row[dlpIdx] || "" : "",
-          DLP_Start_Date: dlpStartIdx !== -1 ? row[dlpStartIdx] || "" : "",
-          DLP_End_Date: dlpEndIdx !== -1 ? row[dlpEndIdx] || "" : "",
-          AMC_Start_Date: row[amcStartIdx] || "",
-          AMC_End_Date: row[amcEndIdx] || "",
+          DLP_Start_Date: dlpStart,
+          DLP_End_Date: dlpEnd,
+          AMC_Start_Date: amcStart,
+          AMC_End_Date: amcEnd,
+          NON_CAMC_Start_Date: nonAmcStart,
+          NON_CAMC_End_Date: nonAmcEnd,
           Primary_Contact: row[contactIdx] || "",
           Primary_Email: row[emailIdx] || "",
           Primary_Phone: row[phoneIdx] || "",
           Status: row[statusIdx] || "Active",
-          rowIndex: i + 1 // Save sheet row index in case we need to update it later
-        });
+          rowIndex: i + 1, // Save sheet row index in case we need to update it later
+          salesOrdersMap: {} // Temporary mapping object for grouping
+        };
+
+        // Push specific branch data into the parent's array
+        groupedCompanies[refCode].branches.push(branchObj);
+
+        // Build composite key: refCode + "|" + branchName
+        const lookupKey = (refCode + "|" + branchObj.Branch).toLowerCase();
+        branchLookup[lookupKey] = branchObj;
       }
+
+      // --- PHASE 1: backend virtual join with Asset_Master ---
+      const ss = SpreadsheetApp.getActiveSpreadsheet();
+      const assetSheet = ss.getSheetByName("Asset_Master");
+      if (assetSheet) {
+        const assetData = assetSheet.getDataRange().getValues();
+        if (assetData.length > 1) {
+          const assetHeaders = assetData[0].map(h => String(h).trim());
+          const aRefIdx = assetHeaders.indexOf('Ref_Code');
+          const aBranchIdx = assetHeaders.indexOf('Branch');
+          const aSoIdx = assetHeaders.indexOf('Sales_Order');
+          
+          const aDlpStartIdx = assetHeaders.indexOf('DLP_Start_Date');
+          const aDlpEndIdx = assetHeaders.indexOf('DLP_End_Date');
+          const aWarrantyStartIdx = assetHeaders.indexOf('Warranty_Start_Date');
+          const aWarrantyEndIdx = assetHeaders.indexOf('Warranty_End_Date');
+          const aAmcStartIdx = assetHeaders.indexOf('AMC_Start_Date');
+          const aAmcEndIdx = assetHeaders.indexOf('AMC_End_Date');
+          const aNonAmcStartIdx = assetHeaders.indexOf('NON_CAMC_Start_Date');
+          const aNonAmcEndIdx = assetHeaders.indexOf('NON_CAMC_End_Date');
+
+          for (let j = 1; j < assetData.length; j++) {
+            const aRow = assetData[j];
+            const salesOrder = aSoIdx !== -1 ? String(aRow[aSoIdx]).trim() : "";
+            if (!salesOrder) continue;
+
+            const ref = aRefIdx !== -1 ? String(aRow[aRefIdx]).trim() : "";
+            const branch = aBranchIdx !== -1 ? String(aRow[aBranchIdx]).trim() : "";
+            const key = (ref + "|" + branch).toLowerCase();
+
+            const branchObj = branchLookup[key];
+            if (!branchObj) continue;
+
+            if (!branchObj.salesOrdersMap[salesOrder]) {
+              const dlpStart = aDlpStartIdx !== -1 ? aRow[aDlpStartIdx] : "";
+              const dlpEnd = aDlpEndIdx !== -1 ? aRow[aDlpEndIdx] : "";
+              const warrantyStart = aWarrantyStartIdx !== -1 ? aRow[aWarrantyStartIdx] : "";
+              const warrantyEnd = aWarrantyEndIdx !== -1 ? aRow[aWarrantyEndIdx] : "";
+              const amcStart = aAmcStartIdx !== -1 ? aRow[aAmcStartIdx] : "";
+              const amcEnd = aAmcEndIdx !== -1 ? aRow[aAmcEndIdx] : "";
+              const nonAmcStart = aNonAmcStartIdx !== -1 ? aRow[aNonAmcStartIdx] : "";
+              const nonAmcEnd = aNonAmcEndIdx !== -1 ? aRow[aNonAmcEndIdx] : "";
+
+              const status = calculateActiveSupportStatus(
+                dlpStart, dlpEnd,
+                warrantyStart, warrantyEnd,
+                amcStart, amcEnd,
+                nonAmcStart, nonAmcEnd
+              );
+
+              branchObj.salesOrdersMap[salesOrder] = {
+                soId: salesOrder,
+                Sales_Order: salesOrder,
+                salesOrder: salesOrder,
+                dlpStart: dlpStart,
+                DLP_Start_Date: dlpStart,
+                dlpEnd: dlpEnd,
+                DLP_End_Date: dlpEnd,
+                warrantyStart: warrantyStart,
+                Warranty_Start_Date: warrantyStart,
+                warrantyEnd: warrantyEnd,
+                Warranty_End_Date: warrantyEnd,
+                amcStart: amcStart,
+                AMC_Start_Date: amcStart,
+                amcEnd: amcEnd,
+                AMC_End_Date: amcEnd,
+                nonAmcStart: nonAmcStart,
+                NON_CAMC_Start_Date: nonAmcStart,
+                nonAmcEnd: nonAmcEnd,
+                NON_CAMC_End_Date: nonAmcEnd,
+                status: status,
+                RealTime_Status: status
+              };
+            }
+          }
+        }
+      }
+
+      // Convert temporary maps to salesOrders arrays
+      Object.keys(groupedCompanies).forEach(refCode => {
+        groupedCompanies[refCode].branches.forEach(branchObj => {
+          branchObj.salesOrders = Object.values(branchObj.salesOrdersMap);
+          delete branchObj.salesOrdersMap;
+        });
+      });
     }
   }
   
@@ -3732,8 +4211,15 @@ function getCompanyBranchesByCode(code) {
     const locIdx = headers.indexOf('Location');
     const branchIdx = headers.indexOf('Branch');
     const supportIdx = headers.indexOf('Support_Type');
+    const dlpStartIdx = headers.indexOf('DLP_Start_Date');
+    const dlpEndIdx = headers.indexOf('DLP_End_Date');
+    const dlpPeriodIdx = headers.indexOf('DLP_Period');
     const amcStartIdx = headers.indexOf('AMC_Start_Date');
     const amcEndIdx = headers.indexOf('AMC_End_Date');
+    const nonAmcStartIdx = headers.indexOf('NON_CAMC_Start_Date');
+    const nonAmcEndIdx = headers.indexOf('NON_CAMC_End_Date');
+    const warrantyStartIdx = headers.indexOf('Warranty_Start_Date');
+    const warrantyEndIdx = headers.indexOf('Warranty_End_Date');
     const contactIdx = headers.indexOf('Primary_Contact');
     const emailIdx = headers.indexOf('Primary_Email');
     const phoneIdx = headers.indexOf('Primary_Phone');
@@ -3746,12 +4232,28 @@ function getCompanyBranchesByCode(code) {
         if (!companyName) {
           companyName = data[i][nameIdx];
         }
+        
+        const dlpStart = dlpStartIdx !== -1 ? data[i][dlpStartIdx] : "";
+        const dlpEnd = dlpEndIdx !== -1 ? data[i][dlpEndIdx] : "";
+        const amcStart = amcStartIdx !== -1 ? data[i][amcStartIdx] : "";
+        const amcEnd = amcEndIdx !== -1 ? data[i][amcEndIdx] : "";
+        const nonAmcStart = nonAmcStartIdx !== -1 ? data[i][nonAmcStartIdx] : "";
+        const nonAmcEnd = nonAmcEndIdx !== -1 ? data[i][nonAmcEndIdx] : "";
+        
+        const calculatedStatus = calculateActiveSupportStatus(dlpStart, dlpEnd, null, null, amcStart, amcEnd, nonAmcStart, nonAmcEnd);
+
         branches.push({
           Location: data[i][locIdx] || "",
           Branch: data[i][branchIdx] || "",
-          Support_Type: data[i][supportIdx] || "Standard",
-          AMC_Start_Date: data[i][amcStartIdx] || "",
-          AMC_End_Date: data[i][amcEndIdx] || "",
+          Support_Type: calculatedStatus,
+          RealTime_Status: calculatedStatus,
+          DLP_Start_Date: dlpStart,
+          DLP_Period: dlpPeriodIdx !== -1 ? data[i][dlpPeriodIdx] : "",
+          DLP_End_Date: dlpEnd,
+          AMC_Start_Date: amcStart,
+          AMC_End_Date: amcEnd,
+          NON_CAMC_Start_Date: nonAmcStart,
+          NON_CAMC_End_Date: nonAmcEnd,
           Primary_Contact: data[i][contactIdx] || "",
           Primary_Email: data[i][emailIdx] || "",
           Primary_Phone: data[i][phoneIdx] || "",

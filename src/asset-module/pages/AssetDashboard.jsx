@@ -6,6 +6,23 @@ import QRLabel from '../components/QRLabel';
 import html2canvas from 'html2canvas';
 
 export default function AssetDashboard() {
+  // UTILITY: Calculates if a specific date range is currently active
+  const getTimelineBadge = (startDate, endDate) => {
+    if (!startDate && !endDate) return <span className="status-badge na">N/A</span>;
+    
+    const now = new Date().getTime();
+    const start = new Date(startDate).getTime();
+    const end = new Date(endDate).getTime();
+
+    if (now >= start && now <= end) {
+      return <span style={{ background: '#dcfce7', color: '#166534', padding: '2px 6px', borderRadius: '12px', fontSize: '0.65rem', fontWeight: 'bold', marginLeft: '6px' }}>Active</span>;
+    } else if (now > end) {
+      return <span style={{ background: '#fee2e2', color: '#991b1b', padding: '2px 6px', borderRadius: '12px', fontSize: '0.65rem', fontWeight: 'bold', marginLeft: '6px' }}>Expired</span>;
+    } else {
+      return <span style={{ background: '#f1f5f9', color: '#475569', padding: '2px 6px', borderRadius: '12px', fontSize: '0.65rem', fontWeight: 'bold', marginLeft: '6px' }}>Pending</span>;
+    }
+  };
+
   const [assets, setAssets] = useState([]);
   const [companies, setCompanies] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -20,6 +37,12 @@ export default function AssetDashboard() {
   const [printAssetData, setPrintAssetData] = useState(null);
   const [printSignature, setPrintSignature] = useState('');
   const [isGeneratingSig, setIsGeneratingSig] = useState(false);
+
+  // Bulk AMC Update State
+  const [showBulkAmcModal, setShowBulkAmcModal] = useState(false);
+  const [bulkConfig, setBulkConfig] = useState({ salesOrder: '', amcType: 'Comprehensive AMC', startDate: '', endDate: '' });
+
+  const uniqueSalesOrders = [...new Set(assets.map(a => a.Sales_Order || a.salesOrder).filter(Boolean))].sort();
 
   const fetchData = async () => {
     setLoading(true);
@@ -126,9 +149,29 @@ export default function AssetDashboard() {
     }
   };
 
+  const fetchAssets = fetchData;
+
   useEffect(() => {
     fetchData();
   }, []);
+
+  useEffect(() => {
+    let searchParams = new URLSearchParams(window.location.search);
+    let targetSO = searchParams.get('salesOrder');
+
+    if (!targetSO && window.location.hash) {
+      const hashPart = window.location.hash;
+      const questionMarkIdx = hashPart.indexOf('?');
+      if (questionMarkIdx !== -1) {
+        searchParams = new URLSearchParams(hashPart.substring(questionMarkIdx));
+        targetSO = searchParams.get('salesOrder');
+      }
+    }
+
+    if (targetSO && assets.length > 0) {
+      setSearchTerm(targetSO);
+    }
+  }, [assets]);
 
   const handleSaveAsset = async (formData) => {
     setLoading(true);
@@ -345,6 +388,49 @@ export default function AssetDashboard() {
 
   return (
     <section className="table-card">
+      <style>{`
+        .md3-btn {
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          padding: 8px 16px;
+          border-radius: 20px;
+          font-weight: 600;
+          font-size: 0.875rem;
+          border: none;
+          cursor: pointer;
+          transition: all 0.2s ease;
+        }
+        .md3-btn-primary {
+          background-color: var(--primary-action, #2563eb);
+          color: white;
+        }
+        .md3-btn-primary:hover {
+          opacity: 0.9;
+          transform: translateY(-1px);
+        }
+        .md3-btn-primary:disabled {
+          background-color: #cbd5e1;
+          color: #94a3b8;
+          cursor: not-allowed;
+          transform: none;
+        }
+        .md3-btn-secondary {
+          background-color: #f1f5f9;
+          color: #334155;
+          border: 1px solid #cbd5e1;
+        }
+        .md3-btn-secondary:hover {
+          background-color: #e2e8f0;
+        }
+        .md3-btn-text {
+          background: transparent;
+          color: #64748b;
+        }
+        .md3-btn-text:hover {
+          background-color: #f1f5f9;
+        }
+      `}</style>
       <div className="table-actions" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <div className="filter-bar">
           <input 
@@ -356,16 +442,22 @@ export default function AssetDashboard() {
             onChange={(e) => setSearchTerm(e.target.value)}
           />
         </div>
-        <button 
-          className="btn-filled" 
-          style={{ borderRadius: '20px' }}
-          onClick={() => {
-            setEditingAsset(null);
-            setIsModalOpen(true);
-          }}
-        >
-          + Add Asset
-        </button>
+        <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+          <button onClick={() => setShowBulkAmcModal(true)} className="md3-btn md3-btn-secondary" style={{ marginLeft: '12px' }}>
+            <span className="material-symbols-outlined" style={{ fontSize: '18px', marginRight: '6px', verticalAlign: 'middle' }}>autorenew</span>
+            Bulk Renew AMC
+          </button>
+          <button 
+            className="btn-filled" 
+            style={{ borderRadius: '20px' }}
+            onClick={() => {
+              setEditingAsset(null);
+              setIsModalOpen(true);
+            }}
+          >
+            + Add Asset
+          </button>
+        </div>
       </div>
 
       {error && <div className="error-banner">{error}</div>}
@@ -406,6 +498,19 @@ export default function AssetDashboard() {
                   const daysLeft = asset.Warranty_Days_Left || asset.WARRANTY_DAYS_LEFT || asset.warrantyDaysLeft || '-';
                   const status = asset.Asset_Status || asset.ASSET_STATUS || asset.assetStatus || 'Active';
 
+                  // Calculate if DLP period is over
+                  const dlpEndVal = asset.DLP_End_Date || asset.DLP_END_DATE || asset.dlpEndDate;
+                  let isDlpOver = false;
+                  if (dlpEndVal) {
+                    const dlpEndDateObj = new Date(dlpEndVal);
+                    if (!isNaN(dlpEndDateObj.getTime())) {
+                      const today = new Date();
+                      today.setHours(0, 0, 0, 0);
+                      dlpEndDateObj.setHours(0, 0, 0, 0);
+                      isDlpOver = dlpEndDateObj < today;
+                    }
+                  }
+
                   return (
                     <tr key={asset.uuid || asset.id || idx}>
                       {/* Asset ID & Reference */}
@@ -432,13 +537,55 @@ export default function AssetDashboard() {
                         <div style={{ fontSize: '0.85rem', color: '#334155' }}><span style={{color:'#94a3b8', fontWeight:'bold'}}>S/N:</span> {serial}</div>
                         <div style={{ fontSize: '0.8rem', color: '#64748b' }}><span style={{color:'#94a3b8', fontWeight:'bold'}}>IP:</span> {ip}</div>
                         <div style={{ fontSize: '0.8rem', color: '#64748b' }}><span style={{color:'#94a3b8', fontWeight:'bold'}}>MAC:</span> {mac}</div>
+                        {/* --- FINANCIAL TRACKING --- */}
+                        <div style={{ marginTop: '8px', paddingTop: '8px', borderTop: '1px dashed #e2e8f0', fontSize: '0.75rem', color: '#64748b' }}>
+                          <div><span style={{ fontWeight: 'bold' }}>Sales Order:</span> {asset.Sales_Order || asset.salesOrder || 'N/A'}</div>
+                          <div><span style={{ fontWeight: 'bold' }}>Invoice No:</span> {asset.Invoice_No || asset.invoiceNo || 'N/A'}</div>
+                        </div>
                       </td>
 
                       {/* SLA & Warranty Stack */}
                       <td>
-                        <div style={{ fontSize: '0.8rem', color: '#334155' }}><span style={{color:'#94a3b8'}}>Start:</span> {warrantyStart}</div>
-                        <div style={{ fontSize: '0.8rem', color: '#334155' }}><span style={{color:'#94a3b8'}}>End:</span> {warrantyEnd}</div>
-                        <div style={{ fontSize: '0.8rem', color: daysLeft < 30 ? '#ef4444' : '#10b981', fontWeight: 'bold' }}>{daysLeft} Days Left</div>
+                        {/* --- 4-TIER SLA TIMELINE VIEW --- */}
+                        <div style={{ fontSize: '0.75rem', lineHeight: '1.5', minWidth: '220px' }}>
+                          
+                          {/* 1. DLP Timeline */}
+                          <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px dashed #e2e8f0', paddingBottom: '4px', marginBottom: '4px' }}>
+                            <span style={{ fontWeight: 'bold', color: '#0369a1' }}>DLP:</span>
+                            <div style={{ textAlign: 'right' }}>
+                              <div style={{ color: '#64748b' }}>{asset.DLP_Start_Date ? new Date(asset.DLP_Start_Date).toLocaleDateString('en-GB') : '-'} to {asset.DLP_End_Date ? new Date(asset.DLP_End_Date).toLocaleDateString('en-GB') : '-'}</div>
+                              {getTimelineBadge(asset.DLP_Start_Date, asset.DLP_End_Date)}
+                            </div>
+                          </div>
+
+                          {/* 2. OEM Warranty */}
+                          <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px dashed #e2e8f0', paddingBottom: '4px', marginBottom: '4px' }}>
+                            <span style={{ fontWeight: 'bold', color: '#4f46e5' }}>Warranty:</span>
+                            <div style={{ textAlign: 'right' }}>
+                              <div style={{ color: '#64748b' }}>{asset.Warranty_Start_Date ? new Date(asset.Warranty_Start_Date).toLocaleDateString('en-GB') : '-'} to {asset.Warranty_End_Date ? new Date(asset.Warranty_End_Date).toLocaleDateString('en-GB') : '-'}</div>
+                              {getTimelineBadge(asset.Warranty_Start_Date, asset.Warranty_End_Date)}
+                            </div>
+                          </div>
+
+                          {/* 3. Comprehensive AMC (Inherited or Direct) */}
+                          <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px dashed #e2e8f0', paddingBottom: '4px', marginBottom: '4px' }}>
+                            <span style={{ fontWeight: 'bold', color: '#15803d' }}>Comp. AMC:</span>
+                            <div style={{ textAlign: 'right' }}>
+                              <div style={{ color: '#64748b' }}>{asset.AMC_Start_Date ? new Date(asset.AMC_Start_Date).toLocaleDateString('en-GB') : '-'} to {asset.AMC_End_Date ? new Date(asset.AMC_End_Date).toLocaleDateString('en-GB') : '-'}</div>
+                              {getTimelineBadge(asset.AMC_Start_Date, asset.AMC_End_Date)}
+                            </div>
+                          </div>
+
+                          {/* 4. Non-Comprehensive AMC (Inherited or Direct) */}
+                          <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                            <span style={{ fontWeight: 'bold', color: '#b45309' }}>Non-Comp AMC:</span>
+                            <div style={{ textAlign: 'right' }}>
+                              <div style={{ color: '#64748b' }}>{asset.NON_CAMC_Start_Date ? new Date(asset.NON_CAMC_Start_Date).toLocaleDateString('en-GB') : '-'} to {asset.NON_CAMC_End_Date ? new Date(asset.NON_CAMC_End_Date).toLocaleDateString('en-GB') : '-'}</div>
+                              {getTimelineBadge(asset.NON_CAMC_Start_Date, asset.NON_CAMC_End_Date)}
+                            </div>
+                          </div>
+
+                        </div>
                       </td>
 
                       {/* Status Badge */}
@@ -518,6 +665,79 @@ export default function AssetDashboard() {
             <div className="modal-actions" style={{ justifyContent: 'center', gap: '8px', display: 'flex', flexWrap: 'wrap' }}>
               <button className="btn-filled" onClick={handleDownloadPNG}>⬇️ Download PNG</button>
               <button className="btn-filled" onClick={handlePrintPDFLabel}>🖨️ Print Label</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* --- BULK AMC UPDATE MODAL --- */}
+      {showBulkAmcModal && (
+        <div className="modal-overlay">
+          <div className="modal-content" style={{ maxWidth: '500px' }}>
+            <h3>Bulk AMC Renewal by Sales Order</h3>
+            <p style={{ fontSize: '0.85rem', color: '#64748b', marginBottom: '16px' }}>
+              Select a Sales Order. All linked assets will have their AMC dates updated instantly.
+            </p>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+              <div>
+                <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 'bold', marginBottom: '6px' }}>Target Sales Order *</label>
+                <select 
+                  value={bulkConfig.salesOrder} 
+                  onChange={(e) => setBulkConfig({...bulkConfig, salesOrder: e.target.value})}
+                  style={{ width: '100%', padding: '8px', borderRadius: '4px', border: '1px solid #cbd5e1' }}
+                >
+                  <option value="">-- Select Sales Order --</option>
+                  {uniqueSalesOrders.map(so => <option key={so} value={so}>{so}</option>)}
+                </select>
+              </div>
+
+              <div>
+                <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 'bold', marginBottom: '6px' }}>Renewal Contract Type *</label>
+                <select 
+                  value={bulkConfig.amcType} 
+                  onChange={(e) => setBulkConfig({...bulkConfig, amcType: e.target.value})}
+                  style={{ width: '100%', padding: '8px', borderRadius: '4px', border: '1px solid #cbd5e1' }}
+                >
+                  <option value="Comprehensive AMC">Comprehensive AMC</option>
+                  <option value="Non-Comprehensive AMC">Non-Comprehensive AMC</option>
+                </select>
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                <div>
+                  <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 'bold', marginBottom: '6px' }}>New Start Date *</label>
+                  <input type="date" value={bulkConfig.startDate} onChange={(e) => setBulkConfig({...bulkConfig, startDate: e.target.value})} style={{ width: '100%', padding: '8px', borderRadius: '4px', border: '1px solid #cbd5e1' }} />
+                </div>
+                <div>
+                  <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 'bold', marginBottom: '6px' }}>New End Date *</label>
+                  <input type="date" value={bulkConfig.endDate} onChange={(e) => setBulkConfig({...bulkConfig, endDate: e.target.value})} style={{ width: '100%', padding: '8px', borderRadius: '4px', border: '1px solid #cbd5e1' }} />
+                </div>
+              </div>
+            </div>
+
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px', marginTop: '24px' }}>
+              <button className="md3-btn md3-btn-text" onClick={() => setShowBulkAmcModal(false)}>Cancel</button>
+              <button 
+                className="md3-btn md3-btn-primary" 
+                disabled={!bulkConfig.salesOrder || !bulkConfig.startDate || !bulkConfig.endDate}
+                onClick={async () => {
+                  try {
+                    const res = await assetApi('bulkUpdateAmcBySalesOrder', bulkConfig);
+                    if(res.success) {
+                      alert(`Success! ${res.updatedCount || res.data?.updatedCount || 0} assets were updated.`);
+                      setShowBulkAmcModal(false);
+                      fetchAssets(); // Refresh the table via the alias
+                    } else {
+                      alert('Update failed: ' + (res.message || 'Unknown error'));
+                    }
+                  } catch (err) {
+                    alert('Error executing bulk update: ' + err.message);
+                  }
+                }}
+              >
+                Execute Bulk Update
+              </button>
             </div>
           </div>
         </div>

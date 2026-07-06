@@ -1,235 +1,135 @@
-// sync_service.gs
-
-// The ProSupport Ticket System endpoint
-const PROSUPPORT_API_URL = "https://script.google.com/macros/s/AKfycbxMHiISb7-mnHbpr96ojPUJbeWHkX7EQpwJeCVAW-XyiPExTKSxpUOhCFPQICyXAdGb/exec";
-
 /**
- * Syncs a single intake complaint to the external ProSupport Ticket System.
+ * Time-Driven Trigger Sync Service
  * 
- * @param {string} intakeId - The ID of the intake queue record to sync
+ * Instructions on attaching Time-Driven triggers:
+ * 1. Open your Google Apps Script editor.
+ * 2. Click on the Triggers icon (the clock icon on the left sidebar).
+ * 3. Click "+ Add Trigger" in the bottom-right corner.
+ * 4. Choose function: dailySlaDatabaseSync
+ * 5. Choose deployment: Head
+ * 6. Select event source: Time-driven
+ * 7. Select type of time-based trigger: Day timer
+ * 8. Select time of day: Midnight to 1 AM
+ * 9. Click "Save".
  */
-function pushComplaintToProSupport(intakeId) {
-  try {
-    const queueSheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName('Intake_Queue');
-    if (!queueSheet) {
-      Logger.log("Sync Error: Intake_Queue sheet not found.");
-      return false;
-    }
-    
-    const data = queueSheet.getDataRange().getValues();
-    const headers = getHeaders(queueSheet);
-    
-    const idIdx = headers.indexOf('Intake_ID');
-    const payloadIdx = headers.indexOf('Payload');
-    const timestampIdx = headers.indexOf('Timestamp');
-    const syncStatusIdx = headers.indexOf('Sync_Status');
-    const requestIdIdx = headers.indexOf('Request_ID');
-    
-    if (idIdx === -1 || payloadIdx === -1 || syncStatusIdx === -1 || requestIdIdx === -1) {
-      Logger.log("Sync Error: Intake_Queue schema mismatch.");
-      return false;
-    }
 
-    let foundRowIndex = -1;
-    let intakeRow = null;
-    
-    for (let i = 1; i < data.length; i++) {
-      if (String(data[i][idIdx]).trim() === String(intakeId).trim()) {
-        foundRowIndex = i + 1;
-        intakeRow = data[i];
-        break;
+function dailySlaDatabaseSync() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  
+  // 1. Build branchContractMap from Company_Master for Asset SLA inheritance
+  const companySheet = ss.getSheetByName("Company_Master");
+  const branchContractMap = {};
+  if (companySheet) {
+    const cData = companySheet.getDataRange().getValues();
+    if (cData.length > 1) {
+      const cHeaders = cData[0].map(h => String(h).trim());
+      const cRefIdx = cHeaders.indexOf('Ref_Code');
+      const cBranchIdx = cHeaders.indexOf('Branch');
+      const cAmcStartIdx = cHeaders.indexOf('AMC_Start_Date');
+      const cAmcEndIdx = cHeaders.indexOf('AMC_End_Date');
+      const cNonAmcStartIdx = cHeaders.indexOf('NON_CAMC_Start_Date');
+      const cNonAmcEndIdx = cHeaders.indexOf('NON_CAMC_End_Date');
+
+      for (let j = 1; j < cData.length; j++) {
+        const ref = String(cData[j][cRefIdx] || "").trim();
+        const branch = String(cData[j][cBranchIdx] || "").trim();
+        const key = (ref + "|" + branch).toLowerCase();
+        branchContractMap[key] = {
+          amcStart: cAmcStartIdx !== -1 ? cData[j][cAmcStartIdx] : "",
+          amcEnd: cAmcEndIdx !== -1 ? cData[j][cAmcEndIdx] : "",
+          nonAmcStart: cNonAmcStartIdx !== -1 ? cData[j][cNonAmcStartIdx] : "",
+          nonAmcEnd: cNonAmcEndIdx !== -1 ? cData[j][cNonAmcEndIdx] : ""
+        };
       }
     }
+  }
+
+  // 2. Helper routine to sync a single sheet
+  const syncSheetSla = (sheetName) => {
+    const sheet = ss.getSheetByName(sheetName);
+    if (!sheet) return;
     
-    if (foundRowIndex === -1) {
-      Logger.log(`Sync Error: Intake ID ${intakeId} not found.`);
-      return false;
-    }
+    const range = sheet.getDataRange();
+    const data = range.getValues();
+    if (data.length <= 1) return;
     
-    if (String(intakeRow[syncStatusIdx]).trim() === 'Success') {
-      return true; // Already synced
+    const headers = data[0].map(h => String(h).trim());
+    
+    // Dynamically check/add Support_Type column if missing
+    let supportIdx = headers.indexOf('Support_Type');
+    if (supportIdx === -1) {
+      supportIdx = headers.length;
+      sheet.getRange(1, supportIdx + 1).setValue('Support_Type');
+      headers.push('Support_Type');
+      data.forEach((row, rIdx) => {
+        if (rIdx === 0) row.push('Support_Type');
+        else row.push('');
+      });
     }
 
-    let payloadObj = {};
-    try {
-      payloadObj = JSON.parse(intakeRow[payloadIdx] || '{}');
-    } catch(e) {
-      Logger.log("Sync Error: Failed to parse payload JSON.");
-    }
-    
-    // Fetch Asset details to determine AMC support status
-    const assetId = payloadObj.Unique_Product_Id || payloadObj.unique_product_id || payloadObj.assetId || "";
-    let isChargeable = false;
-    let companyName = "Unknown";
-    
-    if (assetId) {
-      const assetSheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName('Asset_Master');
-      if (assetSheet) {
-        const assetData = assetSheet.getDataRange().getValues();
-        const assetHeaders = getHeaders(assetSheet);
-        const aIdIdx = assetHeaders.indexOf('Unique_Product_Id');
-        const aCompRefIdx = assetHeaders.indexOf('Ref_Code');
-        const aCompNameIdx = assetHeaders.indexOf('Company_Name');
+    const refIdx = headers.indexOf('Ref_Code');
+    const branchIdx = headers.indexOf('Branch');
+    const dlpStartIdx = headers.indexOf('DLP_Start_Date');
+    const dlpEndIdx = headers.indexOf('DLP_End_Date');
+    const warrantyStartIdx = headers.indexOf('Warranty_Start_Date');
+    const warrantyEndIdx = headers.indexOf('Warranty_End_Date');
+    const amcStartIdx = headers.indexOf('AMC_Start_Date');
+    const amcEndIdx = headers.indexOf('AMC_End_Date');
+    const nonAmcStartIdx = headers.indexOf('NON_CAMC_Start_Date');
+    const nonAmcEndIdx = headers.indexOf('NON_CAMC_End_Date');
+
+    let modified = false;
+
+    for (let i = 1; i < data.length; i++) {
+      const row = data[i];
+      
+      let dlpStart = dlpStartIdx !== -1 ? row[dlpStartIdx] : "";
+      let dlpEnd = dlpEndIdx !== -1 ? row[dlpEndIdx] : "";
+      let warrantyStart = warrantyStartIdx !== -1 ? row[warrantyStartIdx] : "";
+      let warrantyEnd = warrantyEndIdx !== -1 ? row[warrantyEndIdx] : "";
+      
+      let amcStart = "";
+      let amcEnd = "";
+      let nonAmcStart = "";
+      let nonAmcEnd = "";
+
+      if (sheetName === 'Asset_Master') {
+        // Inherit from Company_Master branch mapping
+        const ref = refIdx !== -1 ? String(row[refIdx]).trim() : "";
+        const branch = branchIdx !== -1 ? String(row[branchIdx]).trim() : "";
+        const key = (ref + "|" + branch).toLowerCase();
         
-        if (aIdIdx !== -1) {
-          for (let i = 1; i < assetData.length; i++) {
-            if (String(assetData[i][aIdIdx]).trim() === String(assetId).trim()) {
-              companyName = assetData[i][aCompNameIdx] || companyName;
-              const refCode = assetData[i][aCompRefIdx];
-              
-              if (refCode) {
-                const companySheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName('Company_Master');
-                if (companySheet) {
-                  const compData = companySheet.getDataRange().getValues();
-                  const compHeaders = getHeaders(companySheet);
-                  const cRefIdx = compHeaders.indexOf('Ref_Code');
-                  const cSupportIdx = compHeaders.indexOf('Support_Type');
-                  const cEndIdx = compHeaders.indexOf('AMC_End_Date');
-                  
-                  if (cRefIdx !== -1) {
-                    for (let j = 1; j < compData.length; j++) {
-                      if (String(compData[j][cRefIdx]).trim() === String(refCode).trim()) {
-                        companyName = compData[j][compHeaders.indexOf('Company_Name')] || companyName;
-                        const supportType = compData[j][cSupportIdx] || '';
-                        const amcEnd = compData[j][cEndIdx];
-                        
-                        if (supportType.toLowerCase().includes('out of support') || (amcEnd && new Date(amcEnd) < new Date())) {
-                          isChargeable = true;
-                        }
-                        break;
-                      }
-                    }
-                  }
-                }
-              }
-              break;
-            }
-          }
+        if (branchContractMap[key]) {
+          const contract = branchContractMap[key];
+          amcStart = contract.amcStart;
+          amcEnd = contract.amcEnd;
+          nonAmcStart = contract.nonAmcStart;
+          nonAmcEnd = contract.nonAmcEnd;
         }
+      } else {
+        // Retrieve directly from Company_Master row
+        amcStart = amcStartIdx !== -1 ? row[amcStartIdx] : "";
+        amcEnd = amcEndIdx !== -1 ? row[amcEnd] : "";
+        nonAmcStart = nonAmcStartIdx !== -1 ? row[nonAmcStartIdx] : "";
+        nonAmcEnd = nonAmcEndIdx !== -1 ? row[nonAmcEndIdx] : "";
+      }
+
+      const calculated = calculateActiveSupportStatus(dlpStart, dlpEnd, warrantyStart, warrantyEnd, amcStart, amcEnd, nonAmcStart, nonAmcEnd);
+      const existing = String(row[supportIdx] || "").trim();
+
+      if (calculated !== existing) {
+        row[supportIdx] = calculated;
+        modified = true;
       }
     }
 
-    const finalPayload = {
-      action: "createServiceRequest",
-      source: "AssetSystem",
-      complaintId: intakeId,
-      assetId: assetId,
-      companyName: companyName,
-      requestedBy: payloadObj.requestedBy || payloadObj.requesterName || "Client Portal User",
-      clientEmail: payloadObj.clientEmail || payloadObj.email || "",
-      phoneNumber: payloadObj.phoneNumber || "",
-      description: payloadObj.description || payloadObj.issueDescription || "",
-      timestamp: intakeRow[timestampIdx] || new Date().toISOString(),
-      isChargeable: isChargeable
-    };
+    if (modified) {
+      // Overwrite the entire range to database in a single batch-write
+      sheet.getRange(1, 1, data.length, headers.length).setValues(data);
+    }
+  };
 
-    const options = {
-      method: 'post',
-      contentType: 'application/json',
-      payload: JSON.stringify(finalPayload),
-      muteHttpExceptions: true
-    };
-
-    if (PROSUPPORT_API_URL.includes('YOUR_PROSUPPORT_API_URL')) {
-      Logger.log(`Mock Sync: ${intakeId} (URL not configured)`);
-      queueSheet.getRange(foundRowIndex, syncStatusIdx + 1).setValue("Failed");
-      return false;
-    }
-
-    const response = UrlFetchApp.fetch(PROSUPPORT_API_URL, options);
-    const responseCode = response.getResponseCode();
-    
-    if (responseCode === 200 || responseCode === 201) {
-      let responseBody = {};
-      try {
-        responseBody = JSON.parse(response.getContentText());
-      } catch (e) {
-        // Ignore JSON parse errors
-      }
-      
-      const generatedSrNo = responseBody.requestId || responseBody.data?.requestId || 'SR-GENERATED';
-      
-      queueSheet.getRange(foundRowIndex, syncStatusIdx + 1).setValue("Success");
-      queueSheet.getRange(foundRowIndex, requestIdIdx + 1).setValue(generatedSrNo);
-      
-      logSystemAction("SYSTEM", `Successfully synced intake ${intakeId} to external ProSupport as ${generatedSrNo}`);
-      return true;
-    } else {
-      throw new Error(`Non-200 Response: ${responseCode} - ${response.getContentText()}`);
-    }
-  } catch (error) {
-    Logger.log(`Sync Failure [${intakeId}]: ${error.message}`);
-    try {
-      const queueSheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName('Intake_Queue');
-      if (queueSheet) {
-        const data = queueSheet.getDataRange().getValues();
-        const headers = getHeaders(queueSheet);
-        const idIdx = headers.indexOf('Intake_ID');
-        const syncStatusIdx = headers.indexOf('Sync_Status');
-        if (idIdx !== -1 && syncStatusIdx !== -1) {
-          for (let i = 1; i < data.length; i++) {
-            if (String(data[i][idIdx]).trim() === String(intakeId).trim()) {
-              queueSheet.getRange(i + 1, syncStatusIdx + 1).setValue("Failed");
-              break;
-            }
-          }
-        }
-      }
-    } catch (e) {
-      Logger.log(`Critical Database Failure: Could not update Sync_Status to Failed.`);
-    }
-    return false;
-  }
-}
-
-/**
- * Sweep and sync pending or failed dispatches.
- */
-function processPendingSyncs() {
-  try {
-    const queueSheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName('Intake_Queue');
-    if (!queueSheet) {
-      Logger.log("processPendingSyncs: Intake_Queue sheet not found.");
-      return;
-    }
-    
-    const data = queueSheet.getDataRange().getValues();
-    const headers = getHeaders(queueSheet);
-    
-    const idIdx = headers.indexOf('Intake_ID');
-    const syncStatusIdx = headers.indexOf('Sync_Status');
-    
-    if (idIdx === -1 || syncStatusIdx === -1) {
-      Logger.log("processPendingSyncs: Missing Intake_Queue schemas.");
-      return;
-    }
-    
-    const pendingIntakes = [];
-    for (let i = 1; i < data.length; i++) {
-      const syncStatus = String(data[i][syncStatusIdx]).trim();
-      if (syncStatus === 'Pending' || syncStatus === 'Failed' || syncStatus === '') {
-        pendingIntakes.push(data[i][idIdx]);
-      }
-    }
-    
-    if (pendingIntakes.length === 0) {
-      Logger.log("processPendingSyncs: No pending syncs found.");
-      return;
-    }
-    
-    Logger.log(`processPendingSyncs: Found ${pendingIntakes.length} tickets to sync.`);
-    
-    let successCount = 0;
-    for (const intakeId of pendingIntakes) {
-      const success = pushComplaintToProSupport(intakeId);
-      if (success) {
-        successCount++;
-      }
-    }
-    
-    Logger.log(`processPendingSyncs: Successfully synced ${successCount} out of ${pendingIntakes.length}.`);
-    
-  } catch (error) {
-    Logger.log(`processPendingSyncs Error: ${error.message}`);
-  }
+  // Run updates on both database tables
+  syncSheetSla('Company_Master');
+  syncSheetSla('Asset_Master');
 }

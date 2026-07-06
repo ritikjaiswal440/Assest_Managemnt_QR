@@ -97,7 +97,17 @@
   margin-top: 24px;
 }
 
-.chart-panel, .deep-dive-panel {
+.chart-panel {
+  background: var(--md-sys-color-surface, #ffffff);
+  border-radius: 16px;
+  padding: 24px;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.08);
+  display: flex;
+  flex-direction: column;
+  min-height: 420px;
+}
+
+.deep-dive-panel {
   background: var(--md-sys-color-surface, #ffffff);
   border-radius: 16px;
   padding: 24px;
@@ -115,83 +125,16 @@
   margin: 0 0 24px 0;
 }
 
-/* Custom CSS Flexbox Chart */
-.custom-bar-chart {
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-}
-
-.bar-row {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-}
-
-.bar-label {
-  width: 140px;
-  font-size: 0.85rem;
-  font-weight: 500;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  text-align: right;
-  color: #49454f;
-}
-
-.bar-track {
-  flex: 1;
-  background: #f1f3f4;
-  height: 12px;
-  border-radius: 6px;
-  overflow: hidden;
-}
-
-.bar-fill {
-  height: 100%;
-  border-radius: 6px;
-  transition: width 0.8s cubic-bezier(0.4, 0, 0.2, 1);
-}
-
-.bar-value {
-  width: 80px;
-  font-size: 0.85rem;
-  font-weight: bold;
-}
-
-/* Deep Dive Panel Urgency Badges */
-.urgency-badge {
-  padding: 4px 8px;
-  border-radius: 12px;
-  font-size: 0.75rem;
-  font-weight: bold;
-}
-
-.urgency-badge.critical {
-  background: #fce8e6;
-  color: #c62828;
-}
-
-.urgency-badge.warning {
-  background: #fff8e1;
-  color: #f57f17;
+/* Recharts Wrapper Box to prevent overflow */
+.recharts-container-box {
+  flex: 1 1 auto;
+  min-height: 0;
+  width: 100%;
 }
 
 @media (max-width: 1024px) {
   .analytics-layout-grid {
     grid-template-columns: 1fr;
-  }
-}
-
-@media (max-width: 600px) {
-  .bar-row {
-    flex-direction: column;
-    align-items: flex-start;
-    gap: 4px;
-  }
-  .bar-label {
-    width: 100%;
-    text-align: left;
   }
 }
 

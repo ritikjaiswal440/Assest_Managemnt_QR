@@ -91,6 +91,8 @@ function handleImportCompanies(params) {
       supportTier: normalizeString(row.supportTier || row.Support_Type || ""),
       amcStart: normalizeDate(row.amcStart || row.AMC_Start_Date || ""),
       amcEnd: normalizeDate(row.amcEnd || row.AMC_End_Date || ""),
+      nonAmcStart: normalizeDate(row.nonAmcStart || row.NON_CAMC_Start_Date || ""),
+      nonAmcEnd: normalizeDate(row.nonAmcEnd || row.NON_CAMC_End_Date || ""),
       status: normalizeString(row.status || row.Status || "Active")
     };
     

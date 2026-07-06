@@ -3,54 +3,6 @@ import { useState, useEffect } from 'react';
 import { assetApi } from '../../services/apiClient';
 import './CompanyFormModal.css';
 
-// UTILITY: Safely converts any valid date string into HTML input format (YYYY-MM-DD)
-const formatDateForInput = (dateString) => {
-  if (!dateString) return "";
-  
-  const str = String(dateString).trim();
-  const parts = str.split(/[\/\-]/);
-  
-  if (parts.length === 3) {
-    // Case 1: DD/MM/YYYY or D/M/YYYY
-    if (parts[2].length === 4) {
-      const day = parseInt(parts[0], 10);
-      const month = parseInt(parts[1], 10) - 1; // 0-indexed
-      const year = parseInt(parts[2], 10);
-      const d = new Date(year, month, day);
-      if (!isNaN(d.getTime())) {
-        const y = d.getFullYear();
-        const m = String(d.getMonth() + 1).padStart(2, '0');
-        const dayStr = String(d.getDate()).padStart(2, '0');
-        return `${y}-${m}-${dayStr}`;
-      }
-    }
-    // Case 2: YYYY-MM-DD or YYYY/MM/DD
-    if (parts[0].length === 4) {
-      const year = parseInt(parts[0], 10);
-      const month = parseInt(parts[1], 10) - 1; // 0-indexed
-      const day = parseInt(parts[2], 10);
-      const d = new Date(year, month, day);
-      if (!isNaN(d.getTime())) {
-        const y = d.getFullYear();
-        const m = String(d.getMonth() + 1).padStart(2, '0');
-        const dayStr = String(d.getDate()).padStart(2, '0');
-        return `${y}-${m}-${dayStr}`;
-      }
-    }
-  }
-
-  // Fallback to standard parsing for ISO strings, etc.
-  const d = new Date(str);
-  if (isNaN(d.getTime())) return ""; 
-  
-  const year = d.getFullYear();
-  const month = String(d.getMonth() + 1).padStart(2, '0');
-  const day = String(d.getDate()).padStart(2, '0');
-  
-  return `${year}-${month}-${day}`;
-};
-
-
 export default function CompanyFormModal({ isOpen, onClose, onSave, initialData, companies = [] }) {
   const [formData, setFormData] = useState({
     refCode: '',
@@ -58,19 +10,12 @@ export default function CompanyFormModal({ isOpen, onClose, onSave, initialData,
     clientLink: '',
     location: '',
     branch: '',
-    supportType: 'Comprehensive AMC',
-    dlpPeriod: '',
-    dlpStart: '',
-    dlpEnd: '',
-    amcStart: '',
-    amcEnd: '',
     primaryContact: '',
     primaryPhone: '',
     primaryEmail: '',
     status: 'Active'
   });
 
-  const [amcDuration, setAmcDuration] = useState('1 Year');
   const [isExistingParent, setIsExistingParent] = useState(false);
 
   useEffect(() => {
@@ -81,19 +26,12 @@ export default function CompanyFormModal({ isOpen, onClose, onSave, initialData,
         clientLink: initialData.ClientLink || '',
         location: initialData.Location || '',
         branch: initialData.Branch || '',
-        supportType: initialData.Support_Type || 'Comprehensive AMC',
-        dlpPeriod: initialData.DLP_Period || '',
-        dlpStart: formatDateForInput(initialData.DLP_Start_Date),
-        dlpEnd: formatDateForInput(initialData.DLP_End_Date),
-        amcStart: formatDateForInput(initialData.AMC_Start_Date),
-        amcEnd: formatDateForInput(initialData.AMC_End_Date),
         primaryContact: initialData.Primary_Contact || '',
         primaryPhone: initialData.Primary_Phone || '',
         primaryEmail: initialData.Primary_Email || '',
         status: initialData.Status || 'Active'
       });
       setIsExistingParent(true);
-      setAmcDuration('Custom'); // Default to Custom for existing entries
     } else {
       setFormData({
         refCode: '',
@@ -101,81 +39,24 @@ export default function CompanyFormModal({ isOpen, onClose, onSave, initialData,
         clientLink: '',
         location: '',
         branch: '',
-        supportType: 'Comprehensive AMC',
-        dlpPeriod: '',
-        dlpStart: '',
-        dlpEnd: '',
-        amcStart: '',
-        amcEnd: '',
         primaryContact: '',
         primaryPhone: '',
         primaryEmail: '',
         status: 'Active'
       });
       setIsExistingParent(false);
-      setAmcDuration('1 Year'); // Default to 1 Year for new entries
     }
   }, [initialData, isOpen]);
 
-  // Smart AMC Contract Math
-  useEffect(() => {
-    if (amcDuration !== 'Custom' && formData.amcStart) {
-      const years = parseInt(amcDuration, 10);
-      if (!isNaN(years)) {
-        const startDate = new Date(formData.amcStart);
-        startDate.setFullYear(startDate.getFullYear() + years);
-        startDate.setDate(startDate.getDate() - 1); // Subtract 1 day
-        setFormData(prev => ({
-          ...prev,
-          amcEnd: formatDateForInput(startDate)
-        }));
-      }
-    }
-  }, [formData.amcStart, amcDuration]);
-
   if (!isOpen) return null;
-
-  // UTILITY: Adds X months to a given date and returns YYYY-MM-DD
-  const calculateDLPEndDate = (startDateString, monthsToAdd) => {
-    if (!startDateString || !monthsToAdd) return "";
-    
-    const date = new Date(startDateString);
-    if (isNaN(date.getTime())) return ""; // Invalid date protection
-    
-    // Add the exact number of months
-    date.setMonth(date.getMonth() + parseInt(monthsToAdd, 10));
-    
-    // Format back to strict HTML YYYY-MM-DD
-    const year = date.getFullYear();
-    const month = String(date.getMonth() + 1).padStart(2, '0');
-    const day = String(date.getDate()).padStart(2, '0');
-    
-    return `${year}-${month}-${day}`;
-  };
 
   const handleChange = (e) => {
     const { name, value } = e.target;
-    
-    setFormData(prev => {
-      const updatedData = { ...prev, [name]: value };
-      
-      // --- SMART DLP AUTO-CALCULATOR ---
-      if (name === 'dlpPeriod' || name === 'dlpStart') {
-        const startDate = name === 'dlpStart' ? value : prev.dlpStart;
-        const months = name === 'dlpPeriod' ? value : prev.dlpPeriod;
-        
-        // Auto-fill the end date in the background
-        updatedData.dlpEnd = calculateDLPEndDate(startDate, months);
-      }
-      
-      return updatedData;
-    });
+    setFormData(prev => ({ ...prev, [name]: value }));
   };
 
   const handleRefCodeChange = (e) => {
     const code = e.target.value.toUpperCase();
-    
-    // Check if this Ref_Code already exists in our grouped companies data
     const existingCompany = companies.find(c => String(c.Ref_Code || '').trim().toUpperCase() === code);
     
     if (existingCompany) {
@@ -203,12 +84,6 @@ export default function CompanyFormModal({ isOpen, onClose, onSave, initialData,
       Company_Name: formData.companyName,
       Location: formData.location,
       Branch: formData.branch,
-      Support_Type: formData.supportType || "Standard AMC",
-      DLP_Start_Date: formData.dlpStart || "",
-      DLP_Period: formData.dlpPeriod || "",
-      DLP_End_Date: formData.dlpEnd || "",
-      AMC_Start_Date: formData.amcStart || "",
-      AMC_End_Date: formData.amcEnd || "",
       Primary_Contact: formData.primaryContact || "",
       Primary_Email: formData.primaryEmail || "",
       Primary_Phone: formData.primaryPhone || "",
@@ -329,80 +204,10 @@ export default function CompanyFormModal({ isOpen, onClose, onSave, initialData,
               </div>
             </div>
 
-            {/* SECTION 3: Contract & Contact */}
+            {/* SECTION 3: Local Contact Details */}
             <div style={{ padding: '16px', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
-              <h4 style={{ margin: '0 0 12px 0', fontSize: '0.85rem', color: '#64748b', textTransform: 'uppercase' }}>3. SLA & Local Contact</h4>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
-                <div>
-                  <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 'bold', marginBottom: '6px' }}>Support Tier</label>
-                  <select 
-                    name="supportType" 
-                    value={formData.supportType || 'Comprehensive AMC'} 
-                    onChange={handleChange} 
-                    style={{ width: '100%', padding: '8px', borderRadius: '4px', border: '1px solid #cbd5e1' }}
-                  >
-                    <option value="Comprehensive AMC">Comprehensive AMC</option>
-                    <option value="DLP">DLP</option>
-                    <option value="Non-Comprehensive AMC">Non-Comprehensive AMC</option>
-                    <option value="Warranty">Warranty</option>
-                    <option value="Out Of Support">Out Of Support</option>
-                  </select>
-                </div>
-                <div style={{ gridColumn: '1 / -1', borderTop: '1px dashed #cbd5e1', paddingTop: '12px', marginTop: '4px' }}>
-                  <h5 style={{ margin: '0 0 12px 0', fontSize: '0.8rem', color: '#475569' }}>Defect Liability Period (DLP) Timeline</h5>
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '12px' }}>
-                    
-                    <div>
-                      <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 'bold', marginBottom: '6px' }}>Start Date</label>
-                      <input 
-                        type="date" 
-                        name="dlpStart" 
-                        value={formData.dlpStart || ''} 
-                        onChange={handleChange} 
-                        style={{ width: '100%', padding: '8px', borderRadius: '4px', border: '1px solid #cbd5e1' }} 
-                      />
-                    </div>
-
-                    <div>
-                      <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 'bold', marginBottom: '6px' }}>Duration (Months)</label>
-                      <input 
-                        type="number" 
-                        name="dlpPeriod" 
-                        value={formData.dlpPeriod || ''} 
-                        onChange={handleChange} 
-                        placeholder="e.g., 12"
-                        style={{ width: '100%', padding: '8px', borderRadius: '4px', border: '1px solid #cbd5e1' }} 
-                      />
-                    </div>
-
-                    <div>
-                      <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 'bold', marginBottom: '6px', color: '#0f172a' }}>Calculated End Date</label>
-                      <input 
-                        type="date" 
-                        name="dlpEnd" 
-                        value={formData.dlpEnd || ''} 
-                        readOnly
-                        style={{ width: '100%', padding: '8px', borderRadius: '4px', border: '1px solid #94a3b8', background: '#e2e8f0', color: '#475569', cursor: 'not-allowed' }} 
-                        title="This date is calculated automatically"
-                      />
-                    </div>
-
-                  </div>
-                </div>
-                <div>
-                  <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 'bold', marginBottom: '6px' }}>AMC Duration</label>
-                  <select 
-                    value={amcDuration} 
-                    onChange={(e) => setAmcDuration(e.target.value)} 
-                    style={{ width: '100%', padding: '8px', borderRadius: '4px', border: '1px solid #cbd5e1' }}
-                  >
-                    <option value="1 Year">1 Year</option>
-                    <option value="2 Years">2 Years</option>
-                    <option value="3 Years">3 Years</option>
-                    <option value="5 Years">5 Years</option>
-                    <option value="Custom">Custom</option>
-                  </select>
-                </div>
+              <h4 style={{ margin: '0 0 12px 0', fontSize: '0.85rem', color: '#64748b', textTransform: 'uppercase' }}>3. Local IT Contact & Status</h4>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: '16px' }}>
                 <div>
                   <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 'bold', marginBottom: '6px' }}>Branch Status</label>
                   <select 
@@ -414,27 +219,6 @@ export default function CompanyFormModal({ isOpen, onClose, onSave, initialData,
                     <option value="Active">Active</option>
                     <option value="Inactive">Inactive</option>
                   </select>
-                </div>
-                <div>
-                  <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 'bold', marginBottom: '6px' }}>AMC Start Date</label>
-                  <input 
-                    type="date" 
-                    name="amcStart" 
-                    value={formData.amcStart || ''} 
-                    onChange={handleChange} 
-                    style={{ width: '100%', padding: '8px', borderRadius: '4px', border: '1px solid #cbd5e1' }} 
-                  />
-                </div>
-                <div>
-                  <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 'bold', marginBottom: '6px' }}>AMC End Date</label>
-                  <input 
-                    type="date" 
-                    name="amcEnd" 
-                    value={formData.amcEnd || ''} 
-                    onChange={handleChange} 
-                    readOnly={amcDuration !== 'Custom'}
-                    style={{ width: '100%', padding: '8px', borderRadius: '4px', border: '1px solid #cbd5e1', background: amcDuration !== 'Custom' ? '#f1f5f9' : '#fff' }} 
-                  />
                 </div>
                 <div style={{ gridColumn: '1 / -1', borderTop: '1px dashed #cbd5e1', paddingTop: '12px', marginTop: '4px' }}>
                   <h5 style={{ margin: '0 0 12px 0', fontSize: '0.8rem', color: '#475569' }}>Local IT Contact Details</h5>

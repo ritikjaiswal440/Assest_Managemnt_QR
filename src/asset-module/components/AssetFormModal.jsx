@@ -3,7 +3,7 @@ import { useState, useEffect, useMemo } from 'react';
 import { assetApi } from '../../services/apiClient';
 import './AssetFormModal.css';
 
-const formatDateToYYYYMMDD = (dateVal) => {
+const formatDateForInput = (dateVal) => {
   if (!dateVal) return '';
   
   if (typeof dateVal === 'string') {
@@ -44,6 +44,8 @@ const formatDateToYYYYMMDD = (dateVal) => {
   
   return '';
 };
+
+const formatDateToYYYYMMDD = formatDateForInput;
 
 const getDurationInMonths = (startDateStr, endDateStr) => {
   if (!startDateStr || !endDateStr) return 'Custom';
@@ -125,7 +127,13 @@ export default function AssetFormModal({ isOpen, onClose, onSave, initialData, c
     dlpStart: '',
     dlpEnd: '',
     warrantyEndDate: '',
-    warrantyDaysLeft: ''
+    warrantyDaysLeft: '',
+    warrantyStart: '',
+    warrantyEnd: '',
+    amcStart: '',
+    amcEnd: '',
+    nonAmcStart: '',
+    nonAmcEnd: ''
   };
 
   const [formData, setFormData] = useState(defaultState);
@@ -197,13 +205,19 @@ export default function AssetFormModal({ isOpen, onClose, onSave, initialData, c
         assetStatus: initialData.Asset_Status || initialData.ASSET_STATUS || initialData.assetStatus || 'Active',
         warrantyStartDate: formatDateToYYYYMMDD(initialData.Warranty_Start_Date || initialData.WARRANTY_START_DATE || initialData.warrantyStartDate),
         dlpPeriod: initialData.DLP_Period || initialData.dlpPeriod || '',
-        dlpStart: formatDateToYYYYMMDD(initialData.DLP_Start_Date),
-        dlpEnd: formatDateToYYYYMMDD(initialData.DLP_End_Date),
+        dlpStart: formatDateForInput(initialData.DLP_Start_Date),
+        dlpEnd: formatDateForInput(initialData.DLP_End_Date),
         warrantyEndDate: formatDateToYYYYMMDD(initialData.Warranty_End_Date || initialData.WARRANTY_END_DATE || initialData.warrantyEndDate),
-        warrantyDaysLeft: initialData.Warranty_Days_Left || initialData.WARRANTY_DAYS_LEFT || initialData.warrantyDaysLeft || ''
+        warrantyDaysLeft: initialData.Warranty_Days_Left || initialData.WARRANTY_DAYS_LEFT || initialData.warrantyDaysLeft || '',
+        warrantyStart: formatDateForInput(initialData.Warranty_Start_Date),
+        warrantyEnd: formatDateForInput(initialData.Warranty_End_Date),
+        amcStart: formatDateForInput(initialData.AMC_Start_Date),
+        amcEnd: formatDateForInput(initialData.AMC_End_Date),
+        nonAmcStart: formatDateForInput(initialData.NON_CAMC_Start_Date),
+        nonAmcEnd: formatDateForInput(initialData.NON_CAMC_End_Date)
       };
       setFormData(mappedData);
-      const inferredDuration = getDurationInMonths(mappedData.warrantyStartDate, mappedData.warrantyEndDate);
+      const inferredDuration = getDurationInMonths(mappedData.warrantyStart || mappedData.warrantyStartDate, mappedData.warrantyEnd || mappedData.warrantyEndDate);
       setWarrantyDuration(inferredDuration);
     } else {
       setFormData({
@@ -296,6 +310,13 @@ export default function AssetFormModal({ isOpen, onClose, onSave, initialData, c
     setFormData(prev => {
       const updatedData = { ...prev, [name]: value };
       
+      if (name === 'warrantyStart') {
+        updatedData.warrantyStartDate = value;
+      }
+      if (name === 'warrantyEnd') {
+        updatedData.warrantyEndDate = value;
+      }
+      
       // --- SMART DLP AUTO-CALCULATOR ---
       if (name === 'dlpPeriod' || name === 'dlpStart') {
         const startDate = name === 'dlpStart' ? value : prev.dlpStart;
@@ -318,8 +339,14 @@ export default function AssetFormModal({ isOpen, onClose, onSave, initialData, c
     const payload = {
       ...formData,
       DLP_Start_Date: formData.dlpStart || "",
-      DLP_Period: formData.dlpPeriod || "",
       DLP_End_Date: formData.dlpEnd || "",
+      Warranty_Start_Date: formData.warrantyStart || "",
+      Warranty_End_Date: formData.warrantyEnd || "",
+      AMC_Start_Date: formData.amcStart || "",
+      AMC_End_Date: formData.amcEnd || "",
+      NON_CAMC_Start_Date: formData.nonAmcStart || "",
+      NON_CAMC_End_Date: formData.nonAmcEnd || "",
+      DLP_Period: formData.dlpPeriod || "",
       Created_At: new Date().toISOString(),
       Updated_At: new Date().toISOString()
     };
@@ -467,75 +494,49 @@ export default function AssetFormModal({ isOpen, onClose, onSave, initialData, c
                     <option value="Replaced">Replaced</option>
                   </select>
                 </div>
-                <div style={{ gridColumn: '1 / -1', borderTop: '1px dashed #cbd5e1', paddingTop: '12px', marginTop: '4px' }}>
-                  <h5 style={{ margin: '0 0 12px 0', fontSize: '0.8rem', color: '#475569' }}>Defect Liability Period (DLP) Timeline</h5>
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '12px' }}>
-                    
-                    <div>
-                      <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 'bold', marginBottom: '6px' }}>Start Date</label>
-                      <input 
-                        type="date" 
-                        name="dlpStart" 
-                        value={formData.dlpStart || ''} 
-                        onChange={handleChange} 
-                        style={{ width: '100%', padding: '8px', borderRadius: '4px', border: '1px solid #cbd5e1' }} 
-                      />
+                {/* --- 4-TIER CONTRACT TIMELINES --- */}
+                <div style={{ gridColumn: '1 / -1', borderTop: '1px solid #e2e8f0', paddingTop: '16px', marginTop: '8px' }}>
+                  <h5 style={{ margin: '0 0 16px 0', fontSize: '0.9rem', color: '#0f172a' }}>Contract & SLA Timelines</h5>
+                  
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+
+                    {/* 1. DLP */}
+                    <div style={{ background: '#f8fafc', padding: '12px', borderRadius: '6px', border: '1px solid #cbd5e1' }}>
+                      <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 'bold', color: '#0369a1', marginBottom: '8px' }}>DLP Period</label>
+                      <div style={{ display: 'flex', gap: '8px' }}>
+                        <input type="date" name="dlpStart" value={formData.dlpStart || ''} onChange={handleChange} style={{ width: '100%', padding: '8px', borderRadius: '4px', border: '1px solid #94a3b8' }} title="DLP Start" />
+                        <input type="date" name="dlpEnd" value={formData.dlpEnd || ''} onChange={handleChange} style={{ width: '100%', padding: '8px', borderRadius: '4px', border: '1px solid #94a3b8' }} title="DLP End" />
+                      </div>
                     </div>
 
-                    <div>
-                      <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 'bold', marginBottom: '6px' }}>Duration (Months)</label>
-                      <input 
-                        type="number" 
-                        name="dlpPeriod" 
-                        value={formData.dlpPeriod || ''} 
-                        onChange={handleChange} 
-                        placeholder="e.g., 12"
-                        style={{ width: '100%', padding: '8px', borderRadius: '4px', border: '1px solid #cbd5e1' }} 
-                      />
+                    {/* 2. Warranty */}
+                    <div style={{ background: '#f8fafc', padding: '12px', borderRadius: '6px', border: '1px solid #cbd5e1' }}>
+                      <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 'bold', color: '#4f46e5', marginBottom: '8px' }}>OEM Warranty</label>
+                      <div style={{ display: 'flex', gap: '8px' }}>
+                        <input type="date" name="warrantyStart" value={formData.warrantyStart || ''} onChange={handleChange} style={{ width: '100%', padding: '8px', borderRadius: '4px', border: '1px solid #94a3b8' }} title="Warranty Start" />
+                        <input type="date" name="warrantyEnd" value={formData.warrantyEnd || ''} onChange={handleChange} style={{ width: '100%', padding: '8px', borderRadius: '4px', border: '1px solid #94a3b8' }} title="Warranty End" />
+                      </div>
                     </div>
 
-                    <div>
-                      <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 'bold', marginBottom: '6px', color: '#0f172a' }}>Calculated End Date</label>
-                      <input 
-                        type="date" 
-                        name="dlpEnd" 
-                        value={formData.dlpEnd || ''} 
-                        readOnly
-                        style={{ width: '100%', padding: '8px', borderRadius: '4px', border: '1px solid #94a3b8', background: '#e2e8f0', color: '#475569', cursor: 'not-allowed' }} 
-                        title="This date is calculated automatically"
-                      />
+                    {/* 3. Comprehensive AMC */}
+                    <div style={{ background: '#f8fafc', padding: '12px', borderRadius: '6px', border: '1px solid #cbd5e1' }}>
+                      <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 'bold', color: '#15803d', marginBottom: '8px' }}>Comprehensive AMC</label>
+                      <div style={{ display: 'flex', gap: '8px' }}>
+                        <input type="date" name="amcStart" value={formData.amcStart || ''} onChange={handleChange} style={{ width: '100%', padding: '8px', borderRadius: '4px', border: '1px solid #94a3b8' }} title="AMC Start" />
+                        <input type="date" name="amcEnd" value={formData.amcEnd || ''} onChange={handleChange} style={{ width: '100%', padding: '8px', borderRadius: '4px', border: '1px solid #94a3b8' }} title="AMC End" />
+                      </div>
+                    </div>
+
+                    {/* 4. Non-Comprehensive AMC */}
+                    <div style={{ background: '#f8fafc', padding: '12px', borderRadius: '6px', border: '1px solid #cbd5e1' }}>
+                      <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 'bold', color: '#b45309', marginBottom: '8px' }}>Non-Comprehensive AMC</label>
+                      <div style={{ display: 'flex', gap: '8px' }}>
+                        <input type="date" name="nonAmcStart" value={formData.nonAmcStart || ''} onChange={handleChange} style={{ width: '100%', padding: '8px', borderRadius: '4px', border: '1px solid #94a3b8' }} title="Non-Comp AMC Start" />
+                        <input type="date" name="nonAmcEnd" value={formData.nonAmcEnd || ''} onChange={handleChange} style={{ width: '100%', padding: '8px', borderRadius: '4px', border: '1px solid #94a3b8' }} title="Non-Comp AMC End" />
+                      </div>
                     </div>
 
                   </div>
-                </div>
-                <div className="form-group">
-                  <label>Warranty Start Date</label>
-                  <input type="date" name="warrantyStartDate" value={formData.warrantyStartDate || ''} onChange={handleChange} className="md3-input" required />
-                </div>
-                <div className="form-group">
-                  <label>Warranty Duration</label>
-                  <select value={warrantyDuration} onChange={handleDurationChange} className="md3-input">
-                    <option value="12 Months">12 Months (1 Year)</option>
-                    <option value="24 Months">24 Months (2 Years)</option>
-                    <option value="36 Months">36 Months (3 Years)</option>
-                    <option value="60 Months">60 Months (5 Years)</option>
-                    <option value="Custom">Custom</option>
-                  </select>
-                </div>
-                <div className="form-group">
-                  <label>Warranty End Date</label>
-                  <input 
-                    type="date" 
-                    name="warrantyEndDate" 
-                    value={formData.warrantyEndDate || ''} 
-                    onChange={handleChange}
-                    className={`md3-input ${warrantyDuration !== 'Custom' ? 'read-only-input' : ''}`} 
-                    readOnly={warrantyDuration !== 'Custom'} 
-                  />
-                </div>
-                <div className="form-group">
-                  <label>Days Left</label>
-                  <input type="number" name="warrantyDaysLeft" value={formData.warrantyDaysLeft || ''} className="md3-input read-only-input" readOnly />
                 </div>
               </div>
             </div>

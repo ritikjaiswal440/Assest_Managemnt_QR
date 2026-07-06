@@ -12,7 +12,7 @@ function setupMasterDatabase() {
     },
     {
       name: "Company_Master",
-      headers: ['Ref_Code', 'Company_Name', 'Location', 'Branch', 'Support_Type', 'DLP_Start_Date', 'DLP_Period', 'DLP_End_Date', 'AMC_Start_Date', 'AMC_End_Date', 'Primary_Contact', 'Primary_Email', 'Primary_Phone', 'Status', 'Created_At', 'ClientLink']
+      headers: ['Ref_Code', 'Company_Name', 'Location', 'Branch', 'Support_Type', 'DLP_Start_Date', 'DLP_Period', 'DLP_End_Date', 'AMC_Start_Date', 'AMC_End_Date', 'NON_CAMC_Start_Date', 'NON_CAMC_End_Date', 'Primary_Contact', 'Primary_Email', 'Primary_Phone', 'Status', 'Created_At', 'ClientLink']
     },
     {
       name: "Asset_Master",

@@ -123,6 +123,12 @@ export const getPublicAssetDetails = (payload) => genericPost('getPublicAssetDet
 export const updateCompany = (originalKeys, updatedData) => genericPost('updateCompany', { originalKeys, newData: updatedData });
 export const exportBulkData = (sheetName) => genericPost('exportData', { sheetName });
 export const importBulkData = (sheetName, dataMatrix) => genericPost('importBulkData', { sheetName, dataMatrix });
+export const bulkUpdateAmcBySalesOrder = (payload) => genericPost('bulkUpdateAmcBySalesOrder', payload);
+export const updateSalesOrderContracts = (payload) => genericPost('updateSalesOrderContracts', payload);
+export const getAssetInventory = () => genericPost('getAssets');
+
+
+
 
 // --- ANALYTICS ---
 export const fetchAnalytics = () => genericPost('fetchAnalytics');
