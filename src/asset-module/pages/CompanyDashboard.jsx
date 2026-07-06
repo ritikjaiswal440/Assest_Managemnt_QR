@@ -419,24 +419,69 @@ export default function CompanyDashboard() {
               </div>
             ) : (
               <div style={{ maxHeight: '450px', overflowY: 'auto', border: '1px solid #e2e8f0', borderRadius: '8px' }}>
-                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.85rem' }}>
+                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.80rem' }}>
                   <thead style={{ position: 'sticky', top: 0, background: '#f8fafc', zIndex: 1 }}>
                     <tr style={{ borderBottom: '2px solid #e2e8f0', textAlign: 'left' }}>
-                      <th style={{ padding: '12px 16px', color: '#475569', fontWeight: 'bold' }}>ASSET ID</th>
-                      <th style={{ padding: '12px 16px', color: '#475569', fontWeight: 'bold' }}>PRODUCT MAKE</th>
-                      <th style={{ padding: '12px 16px', color: '#475569', fontWeight: 'bold' }}>PRODUCT MODEL</th>
-                      <th style={{ padding: '12px 16px', color: '#475569', fontWeight: 'bold' }}>SERIAL NUMBER</th>
+                      <th style={{ padding: '12px', color: '#475569', fontWeight: 'bold' }}>ASSET ID</th>
+                      <th style={{ padding: '12px', color: '#475569', fontWeight: 'bold' }}>PRODUCT INFO</th>
+                      <th style={{ padding: '12px', color: '#475569', fontWeight: 'bold' }}>OEM WARRANTY</th>
+                      <th style={{ padding: '12px', color: '#475569', fontWeight: 'bold' }}>SUPPORT TIER</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {projectAssets.map((asset, i) => (
-                      <tr key={i} style={{ borderBottom: '1px solid #e2e8f0', background: i % 2 === 0 ? '#ffffff' : '#f8fafc' }}>
-                        <td style={{ padding: '12px 16px', color: '#2563eb', fontWeight: 'bold' }}>{asset.Unique_Product_Id || asset.id || asset.Ref_Code || '-'}</td>
-                        <td style={{ padding: '12px 16px', color: '#334155' }}>{asset.ProductMake || asset.Make || '-'}</td>
-                        <td style={{ padding: '12px 16px', color: '#334155' }}>{asset.ProductModel || asset.Model || '-'}</td>
-                        <td style={{ padding: '12px 16px', color: '#334155' }}>{asset.ProductSerial || asset.Serial_No || '-'}</td>
-                      </tr>
-                    ))}
+                    {projectAssets.map((asset, i) => {
+                      const assetId = asset.Unique_Product_Id || asset.id || asset.Ref_Code || '-';
+                      const make = asset.ProductMake || asset.Make || '-';
+                      const model = asset.ProductModel || asset.Model || '';
+                      const serial = asset.ProductSerial || asset.Serial_No || '-';
+                      const wStart = asset.Warranty_Start_Date || asset.warrantyStartDate;
+                      const wEnd = asset.Warranty_End_Date || asset.warrantyEndDate;
+                      const supportType = asset.Support_Type || asset.SupportType || 'Unknown';
+
+                      return (
+                        <tr key={i} style={{ borderBottom: '1px solid #e2e8f0', background: i % 2 === 0 ? '#ffffff' : '#f8fafc' }}>
+                          
+                          {/* Asset ID */}
+                          <td style={{ padding: '12px', color: '#2563eb', fontWeight: 'bold', verticalAlign: 'top' }}>
+                            {assetId}
+                          </td>
+                          
+                          {/* Product Make, Model & Serial stacked for space */}
+                          <td style={{ padding: '12px', color: '#334155', verticalAlign: 'top' }}>
+                            <div style={{ fontWeight: 'bold' }}>{make} {model}</div>
+                            <div style={{ color: '#64748b', fontSize: '0.75rem', marginTop: '2px' }}>SN: {serial}</div>
+                          </td>
+                          
+                          {/* OEM Warranty Timeline */}
+                          <td style={{ padding: '12px', color: '#334155', verticalAlign: 'top' }}>
+                            {wStart || wEnd ? (
+                              <>
+                                <div>{wStart ? new Date(wStart).toLocaleDateString('en-GB') : '-'}</div>
+                                <div style={{ color: '#64748b' }}>to {wEnd ? new Date(wEnd).toLocaleDateString('en-GB') : '-'}</div>
+                              </>
+                            ) : (
+                              <span style={{ color: '#94a3b8', fontStyle: 'italic' }}>N/A</span>
+                            )}
+                          </td>
+
+                          {/* Live Support Type */}
+                          <td style={{ padding: '12px', verticalAlign: 'top' }}>
+                            <span style={{
+                              padding: '4px 8px',
+                              borderRadius: '12px',
+                              fontSize: '0.70rem',
+                              fontWeight: 'bold',
+                              whiteSpace: 'nowrap',
+                              background: supportType === 'Out Of Support' ? '#fee2e2' : supportType === 'Comprehensive AMC' ? '#dcfce7' : '#f0f9ff',
+                              color: supportType === 'Out Of Support' ? '#991b1b' : supportType === 'Comprehensive AMC' ? '#166534' : '#0369a1'
+                            }}>
+                              {supportType}
+                            </span>
+                          </td>
+
+                        </tr>
+                      );
+                    })}
                   </tbody>
                 </table>
               </div>
