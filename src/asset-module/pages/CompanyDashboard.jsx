@@ -1,5 +1,5 @@
 /* eslint-disable react-hooks/set-state-in-effect */
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import CompanyFormModal from '../components/CompanyFormModal';
 import { getCompanies, updateSalesOrderContracts, getAssetInventory, assetApi } from '../../services/apiClient';
 
@@ -38,6 +38,7 @@ export default function CompanyDashboard() {
   const [drillDownSO, setDrillDownSO] = useState(null);
   const [projectAssets, setProjectAssets] = useState([]);
   const [isFetchingAssets, setIsFetchingAssets] = useState(false);
+  const [modalSearchQuery, setModalSearchQuery] = useState('');
 
   const toggleCompany = (refCode) => {
     if (expandedCompany === refCode) {
@@ -50,6 +51,7 @@ export default function CompanyDashboard() {
   // Triggered when a Sales Order is clicked
   const openProjectHardware = async (salesOrder) => {
     setDrillDownSO(salesOrder);
+    setModalSearchQuery('');
     setIsFetchingAssets(true);
     
     try {
@@ -105,6 +107,50 @@ export default function CompanyDashboard() {
     );
   });
 
+  // UTILITY: Calculate days between now and a future date
+  const getDaysLeft = (endDateStr) => {
+    if (!endDateStr) return null;
+    const end = new Date(endDateStr).getTime();
+    const now = new Date().getTime();
+    const diff = end - now;
+    return diff > 0 ? Math.ceil(diff / (1000 * 60 * 60 * 24)) : -1; // -1 means already expired
+  };
+
+  // ENGINE: Extract all SOs expiring in <= 90 days
+  const expiringContracts = useMemo(() => {
+    if (!companies) return [];
+    let alerts = [];
+
+    companies.forEach(company => {
+      company.branches?.forEach(branch => {
+        branch.salesOrders?.forEach(so => {
+          
+          // Check DLP
+          const dlpDays = getDaysLeft(so.DLP_End_Date);
+          if (dlpDays !== null && dlpDays >= 0 && dlpDays <= 90) {
+            alerts.push({ company: company.Company_Name, branch: branch.Branch, so: so.Sales_Order, tier: 'DLP', daysLeft: dlpDays, date: so.DLP_End_Date });
+          }
+          
+          // Check Comp AMC
+          const amcDays = getDaysLeft(so.AMC_End_Date);
+          if (amcDays !== null && amcDays >= 0 && amcDays <= 90) {
+            alerts.push({ company: company.Company_Name, branch: branch.Branch, so: so.Sales_Order, tier: 'Comprehensive AMC', daysLeft: amcDays, date: so.AMC_End_Date });
+          }
+          
+          // Check Non-Comp AMC
+          const nonAmcDays = getDaysLeft(so.NON_CAMC_End_Date);
+          if (nonAmcDays !== null && nonAmcDays >= 0 && nonAmcDays <= 90) {
+            alerts.push({ company: company.Company_Name, branch: branch.Branch, so: so.Sales_Order, tier: 'Non-Comprehensive AMC', daysLeft: nonAmcDays, date: so.NON_CAMC_End_Date });
+          }
+
+        });
+      });
+    });
+
+    // Sort alerts by urgency (fewest days left at the top)
+    return alerts.sort((a, b) => a.daysLeft - b.daysLeft);
+  }, [companies]);
+
   return (
     <section className="table-card">
       <style>{`
@@ -149,6 +195,53 @@ export default function CompanyDashboard() {
         .stat-label { color: #64748b; font-weight: 600; }
         .stat-value { color: #334155; font-weight: 500; text-align: right; }
       `}</style>
+
+      {/* --- 90-DAY EXPIRY WATCHLIST --- */}
+      {expiringContracts.length > 0 && (
+        <div style={{ background: '#fffbeb', border: '1px solid #fef3c7', borderRadius: '8px', padding: '16px', marginBottom: '24px', boxShadow: '0 2px 4px rgba(0,0,0,0.05)' }}>
+          <div style={{ display: 'flex', alignItems: 'center', marginBottom: '12px' }}>
+            <span className="material-symbols-outlined" style={{ color: '#d97706', marginRight: '8px', fontSize: '20px' }}>warning</span>
+            <h3 style={{ margin: 0, color: '#92400e', fontSize: '1.1rem' }}>Action Required: Upcoming Expirations ({expiringContracts.length})</h3>
+          </div>
+          
+          <div style={{ display: 'flex', gap: '16px', overflowX: 'auto', paddingBottom: '8px' }}>
+            {expiringContracts.map((alert, idx) => (
+              <div key={idx} style={{ minWidth: '280px', background: '#ffffff', border: '1px solid #fcd34d', borderRadius: '6px', padding: '12px', flexShrink: 0 }}>
+                
+                {/* Days Left Badge */}
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '8px' }}>
+                  <span style={{ 
+                    background: alert.daysLeft <= 30 ? '#fee2e2' : '#fef3c7', 
+                    color: alert.daysLeft <= 30 ? '#991b1b' : '#92400e', 
+                    padding: '4px 8px', borderRadius: '12px', fontSize: '0.75rem', fontWeight: 'bold' 
+                  }}>
+                    {alert.daysLeft === 0 ? 'Expires Today!' : `${alert.daysLeft} Days Left`}
+                  </span>
+                  <span style={{ fontSize: '0.7rem', color: '#64748b', fontWeight: 'bold' }}>{alert.tier}</span>
+                </div>
+
+                {/* Location & Clickable SO */}
+                <div style={{ fontSize: '0.85rem', color: '#334155', fontWeight: 'bold', marginBottom: '4px' }}>
+                  {alert.company} <span style={{ color: '#94a3b8' }}>›</span> {alert.branch}
+                </div>
+                
+                {/* Re-using the drill-down function! */}
+                <div 
+                  onClick={() => openProjectHardware(alert.so)}
+                  style={{ color: '#2563eb', fontWeight: 'bold', fontSize: '0.9rem', cursor: 'pointer', textDecoration: 'underline' }}
+                  title="View Hardware Inventory"
+                >
+                  📦 {alert.so}
+                </div>
+                
+                <div style={{ fontSize: '0.75rem', color: '#64748b', marginTop: '8px' }}>
+                  Ends: {new Date(alert.date).toLocaleDateString('en-GB')}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       <div className="table-actions" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <div className="filter-bar">
@@ -397,96 +490,179 @@ export default function CompanyDashboard() {
       {drillDownSO && (
         <div className="modal-overlay" style={{ zIndex: 1000 }}>
           <div className="modal-content" style={{ maxWidth: '800px', width: '95%', padding: '24px' }}>
-            
-            {/* Header */}
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', borderBottom: '1px solid #e2e8f0', paddingBottom: '16px' }}>
-              <div>
-                <h3 style={{ margin: 0, color: '#0f172a', fontSize: '1.25rem' }}>Project Hardware Inventory</h3>
-                <p style={{ margin: '4px 0 0 0', fontSize: '0.85rem', color: '#64748b' }}>Sales Order: {drillDownSO}</p>
-              </div>
-              <button onClick={() => setDrillDownSO(null)} style={{ background: 'transparent', border: 'none', fontSize: '24px', cursor: 'pointer', color: '#94a3b8' }}>✕</button>
-            </div>
+              {/* UTILITY: Filter assets based on the modal search query */}
+            {(() => {
+              const filteredModalAssets = projectAssets.filter(asset => {
+                if (!modalSearchQuery) return true;
+                const query = modalSearchQuery.toLowerCase();
+                const assetId = asset.Unique_Product_Id || asset.id || asset.Ref_Code || '';
+                const make = asset.ProductMake || asset.Make || '';
+                const model = asset.ProductModel || asset.Model || '';
+                const serial = asset.ProductSerial || asset.Serial_No || '';
+                return (
+                  String(assetId).toLowerCase().includes(query) ||
+                  String(make).toLowerCase().includes(query) ||
+                  String(model).toLowerCase().includes(query) ||
+                  String(serial).toLowerCase().includes(query)
+                );
+              });
 
-            {/* Body: Loading, Empty, or Table */}
-            {isFetchingAssets ? (
-              <div style={{ padding: '40px', textAlign: 'center', color: '#64748b', fontSize: '0.9rem' }}>
-                <span className="material-symbols-outlined" style={{ animation: 'spin 1s linear infinite', verticalAlign: 'middle', marginRight: '8px' }}>sync</span>
-                Loading project hardware...
-              </div>
-            ) : projectAssets.length === 0 ? (
-              <div style={{ padding: '40px', textAlign: 'center', color: '#64748b', fontSize: '0.9rem', background: '#f8fafc', borderRadius: '8px' }}>
-                No hardware found linked to this Sales Order in the Asset Master.
-              </div>
-            ) : (
-              <div style={{ maxHeight: '450px', overflowY: 'auto', border: '1px solid #e2e8f0', borderRadius: '8px' }}>
-                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.80rem' }}>
-                  <thead style={{ position: 'sticky', top: 0, background: '#f8fafc', zIndex: 1 }}>
-                    <tr style={{ borderBottom: '2px solid #e2e8f0', textAlign: 'left' }}>
-                      <th style={{ padding: '12px', color: '#475569', fontWeight: 'bold' }}>ASSET ID</th>
-                      <th style={{ padding: '12px', color: '#475569', fontWeight: 'bold' }}>PRODUCT INFO</th>
-                      <th style={{ padding: '12px', color: '#475569', fontWeight: 'bold' }}>OEM WARRANTY</th>
-                      <th style={{ padding: '12px', color: '#475569', fontWeight: 'bold' }}>SUPPORT TIER</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {projectAssets.map((asset, i) => {
-                      const assetId = asset.Unique_Product_Id || asset.id || asset.Ref_Code || '-';
-                      const make = asset.ProductMake || asset.Make || '-';
-                      const model = asset.ProductModel || asset.Model || '';
-                      const serial = asset.ProductSerial || asset.Serial_No || '-';
-                      const wStart = asset.Warranty_Start_Date || asset.warrantyStartDate;
-                      const wEnd = asset.Warranty_End_Date || asset.warrantyEndDate;
-                      const supportType = asset.Support_Type || asset.SupportType || 'Unknown';
+              return (
+                <>
+                  {/* --- MODAL HEADER WITH SEARCH --- */}
+                  <div style={{ marginBottom: '20px', borderBottom: '1px solid #e2e8f0', paddingBottom: '16px' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                      <div>
+                        <h3 style={{ margin: 0, color: '#0f172a', fontSize: '1.25rem' }}>Project Hardware Inventory</h3>
+                        <p style={{ margin: '4px 0 12px 0', fontSize: '0.85rem', color: '#64748b' }}>Sales Order: {drillDownSO}</p>
+                      </div>
+                      <button onClick={() => setDrillDownSO(null)} style={{ background: 'transparent', border: 'none', fontSize: '24px', cursor: 'pointer', color: '#94a3b8' }}>✕</button>
+                    </div>
+                    
+                    {/* The Real-Time Search Bar */}
+                    {!isFetchingAssets && projectAssets.length > 0 && (
+                      <div style={{ position: 'relative', width: '100%', maxWidth: '400px' }}>
+                        <span className="material-symbols-outlined" style={{ position: 'absolute', left: '10px', top: '50%', transform: 'translateY(-50%)', color: '#94a3b8', fontSize: '18px' }}>search</span>
+                        <input 
+                          type="text" 
+                          placeholder="Search by Asset ID, Make, Model, or Serial Number..." 
+                          value={modalSearchQuery}
+                          onChange={(e) => setModalSearchQuery(e.target.value)}
+                          style={{ width: '100%', padding: '8px 12px 8px 36px', borderRadius: '6px', border: '1px solid #cbd5e1', fontSize: '0.85rem' }}
+                        />
+                      </div>
+                    )}
+                  </div>
 
-                      return (
-                        <tr key={i} style={{ borderBottom: '1px solid #e2e8f0', background: i % 2 === 0 ? '#ffffff' : '#f8fafc' }}>
-                          
-                          {/* Asset ID */}
-                          <td style={{ padding: '12px', color: '#2563eb', fontWeight: 'bold', verticalAlign: 'top' }}>
-                            {assetId}
-                          </td>
-                          
-                          {/* Product Make, Model & Serial stacked for space */}
-                          <td style={{ padding: '12px', color: '#334155', verticalAlign: 'top' }}>
-                            <div style={{ fontWeight: 'bold' }}>{make} {model}</div>
-                            <div style={{ color: '#64748b', fontSize: '0.75rem', marginTop: '2px' }}>SN: {serial}</div>
-                          </td>
-                          
-                          {/* OEM Warranty Timeline */}
-                          <td style={{ padding: '12px', color: '#334155', verticalAlign: 'top' }}>
-                            {wStart || wEnd ? (
-                              <>
-                                <div>{wStart ? new Date(wStart).toLocaleDateString('en-GB') : '-'}</div>
-                                <div style={{ color: '#64748b' }}>to {wEnd ? new Date(wEnd).toLocaleDateString('en-GB') : '-'}</div>
-                              </>
-                            ) : (
-                              <span style={{ color: '#94a3b8', fontStyle: 'italic' }}>N/A</span>
-                            )}
-                          </td>
+                  {/* Body: Loading, Empty, or Table */}
+                  {isFetchingAssets ? (
+                    <div style={{ padding: '40px', textAlign: 'center', color: '#64748b', fontSize: '0.9rem' }}>
+                      <span className="material-symbols-outlined" style={{ animation: 'spin 1s linear infinite', verticalAlign: 'middle', marginRight: '8px' }}>sync</span>
+                      Loading project hardware...
+                    </div>
+                  ) : projectAssets.length === 0 ? (
+                    <div style={{ padding: '40px', textAlign: 'center', color: '#64748b', fontSize: '0.9rem', background: '#f8fafc', borderRadius: '8px' }}>
+                      No hardware found linked to this Sales Order in the Asset Master.
+                    </div>
+                  ) : (
+                    <div style={{ maxHeight: '450px', overflowY: 'auto', border: '1px solid #e2e8f0', borderRadius: '8px' }}>
+                      <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.80rem' }}>
+                        <thead style={{ position: 'sticky', top: 0, background: '#f8fafc', zIndex: 1 }}>
+                          <tr style={{ borderBottom: '2px solid #e2e8f0', textAlign: 'left' }}>
+                            <th style={{ padding: '12px', color: '#475569', fontWeight: 'bold' }}>ASSET ID</th>
+                            <th style={{ padding: '12px', color: '#475569', fontWeight: 'bold' }}>PRODUCT INFO</th>
+                            <th style={{ padding: '12px', color: '#475569', fontWeight: 'bold' }}>OEM WARRANTY</th>
+                            <th style={{ padding: '12px', color: '#475569', fontWeight: 'bold' }}>SUPPORT TIER</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {filteredModalAssets.length === 0 ? (
+                            <tr>
+                              <td colSpan="4" style={{ padding: '32px', textAlign: 'center', color: '#64748b', fontStyle: 'italic' }}>
+                                No hardware matches your search query "{modalSearchQuery}".
+                              </td>
+                            </tr>
+                          ) : (
+                            filteredModalAssets.map((asset, i) => {
+                               const assetId = asset.Unique_Product_Id || asset.id || asset.Ref_Code || '-';
+                               const make = asset.ProductMake || asset.Make || '-';
+                               const model = asset.ProductModel || asset.Model || '';
+                               const serial = asset.ProductSerial || asset.Serial_No || '-';
+                               const wStart = asset.Warranty_Start_Date || asset.warrantyStartDate;
+                               const wEnd = asset.Warranty_End_Date || asset.warrantyEndDate;
+                               const supportType = asset.Support_Type || asset.SupportType || 'Unknown';
 
-                          {/* Live Support Type */}
-                          <td style={{ padding: '12px', verticalAlign: 'top' }}>
-                            <span style={{
-                              padding: '4px 8px',
-                              borderRadius: '12px',
-                              fontSize: '0.70rem',
-                              fontWeight: 'bold',
-                              whiteSpace: 'nowrap',
-                              background: supportType === 'Out Of Support' ? '#fee2e2' : supportType === 'Comprehensive AMC' ? '#dcfce7' : '#f0f9ff',
-                              color: supportType === 'Out Of Support' ? '#991b1b' : supportType === 'Comprehensive AMC' ? '#166534' : '#0369a1'
-                            }}>
-                              {supportType}
-                            </span>
-                          </td>
+                               // DYNAMIC CONTRACT CALCULATOR (Ignores backend Support_Type text)
+                               const now = new Date().getTime();
+                               let calculatedTier = 'Out Of Support';
 
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
-            )}
+                               const amcEnd = asset.AMC_End_Date || asset.amcEnd || asset.amcEndDate ? new Date(asset.AMC_End_Date || asset.amcEnd || asset.amcEndDate).getTime() : 0;
+                               const nonAmcEnd = asset.NON_CAMC_End_Date || asset.nonAmcEnd || asset.nonAmcEndDate ? new Date(asset.NON_CAMC_End_Date || asset.nonAmcEnd || asset.nonAmcEndDate).getTime() : 0;
+                               const dlpEnd = asset.DLP_End_Date || asset.dlpEnd || asset.dlpEndDate ? new Date(asset.DLP_End_Date || asset.dlpEnd || asset.dlpEndDate).getTime() : 0;
 
+                               if (!isNaN(amcEnd) && amcEnd >= now) {
+                                 calculatedTier = 'Comprehensive AMC';
+                               } else if (!isNaN(nonAmcEnd) && nonAmcEnd >= now) {
+                                 calculatedTier = 'Non-Comprehensive AMC';
+                               } else if (!isNaN(dlpEnd) && dlpEnd >= now) {
+                                 calculatedTier = 'DLP';
+                               }
+
+                               return (
+                                 <tr key={i} style={{ borderBottom: '1px solid #e2e8f0', background: i % 2 === 0 ? '#ffffff' : '#f8fafc' }}>
+                                   
+                                   {/* Asset ID */}
+                                   <td style={{ padding: '12px', color: '#2563eb', fontWeight: 'bold', verticalAlign: 'top' }}>
+                                     {assetId}
+                                   </td>
+                                   
+                                   {/* Product Make, Model & Serial stacked for space */}
+                                   <td style={{ padding: '12px', color: '#334155', verticalAlign: 'top' }}>
+                                     <div style={{ fontWeight: 'bold' }}>{make} {model}</div>
+                                     <div style={{ color: '#64748b', fontSize: '0.75rem', marginTop: '2px' }}>SN: {serial}</div>
+                                   </td>
+                                   
+                                   {/* OEM Warranty Timeline */}
+                                   <td style={{ padding: '12px', color: '#334155', verticalAlign: 'top' }}>
+                                     {wStart || wEnd ? (
+                                       <>
+                                         <div>{wStart ? new Date(wStart).toLocaleDateString('en-GB') : '-'}</div>
+                                         <div style={{ color: '#64748b' }}>to {wEnd ? new Date(wEnd).toLocaleDateString('en-GB') : '-'}</div>
+                                       </>
+                                     ) : (
+                                       <span style={{ color: '#94a3b8', fontStyle: 'italic' }}>N/A</span>
+                                     )}
+                                   </td>
+
+                                   {/* --- BULLETPROOF DUAL-BADGE SUPPORT TIER CELL --- */}
+                                   <td style={{ padding: '12px', verticalAlign: 'top' }}>
+                                     <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', alignItems: 'flex-start' }}>
+                                       
+                                       {/* BADGE 1: Dynamically Calculated Service Contract */}
+                                       <span style={{
+                                         padding: '4px 8px', borderRadius: '12px', fontSize: '0.70rem', fontWeight: 'bold', whiteSpace: 'nowrap',
+                                         background: 
+                                           calculatedTier === 'Out Of Support' ? '#fee2e2' : 
+                                           calculatedTier === 'Comprehensive AMC' ? '#dcfce7' : 
+                                           calculatedTier === 'Non-Comprehensive AMC' ? '#fef3c7' : '#e0f2fe',
+                                         color: 
+                                           calculatedTier === 'Out Of Support' ? '#991b1b' : 
+                                           calculatedTier === 'Comprehensive AMC' ? '#166534' : 
+                                           calculatedTier === 'Non-Comprehensive AMC' ? '#92400e' : '#075985'
+                                       }}>
+                                         {calculatedTier}
+                                       </span>
+
+                                       {/* BADGE 2: OEM Warranty (Independent check) */}
+                                       {(() => {
+                                         if (!asset.Warranty_End_Date) return null;
+                                         const endTimestamp = new Date(asset.Warranty_End_Date).getTime();
+                                         if (!isNaN(endTimestamp) && endTimestamp >= now) {
+                                           return (
+                                             <span style={{
+                                               padding: '4px 8px', borderRadius: '12px', fontSize: '0.70rem', fontWeight: 'bold', whiteSpace: 'nowrap',
+                                               background: '#f3e8ff', color: '#6b21a8', border: '1px solid #e9d5ff'
+                                             }}>
+                                               OEM Warranty Active
+                                             </span>
+                                           );
+                                         }
+                                         return null;
+                                       })()}
+
+                                     </div>
+                                   </td>
+                                </tr>
+                              );
+                            })
+                          )}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                </>
+              );
+            })()}
             {/* Footer */}
             <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '20px' }}>
               <button className="md3-btn md3-btn-primary" onClick={() => setDrillDownSO(null)}>Close</button>

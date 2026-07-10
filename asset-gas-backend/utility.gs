@@ -109,40 +109,43 @@ function generateBrandedHtmlEmailTemplate(title, messageBody) {
 
 /**
  * Dynamically calculates Support Type based on current date and contract timelines.
- * Priority: DLP > Warranty > Comprehensive AMC > Non-Comprehensive AMC > Out Of Support
+ * Priority: Comprehensive AMC > Non-Comprehensive AMC > DLP > Out Of Support
+ * Note: OEM Warranty is ignored here (rendered as a separate badge).
  */
 function calculateActiveSupportStatus(dlpStart, dlpEnd, warrantyStart, warrantyEnd, amcStart, amcEnd, nonAmcStart, nonAmcEnd) {
-  const now = new Date().getTime();
-  
-  // Helper to safely check if 'now' falls between two dates
-  const isActive = (startRaw, endRaw) => {
-    if (!startRaw || !endRaw) return false;
-    const s = new Date(startRaw).getTime();
-    const e = new Date(endRaw).getTime();
-    return (!isNaN(s) && !isNaN(e) && now >= s && now <= e);
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const todayTime = today.getTime();
+
+  const isValidDate = (val) => {
+    if (!val) return false;
+    const d = new Date(val);
+    return !isNaN(d.getTime());
   };
 
-  // 1. Check DLP Window
-  if (isActive(dlpStart, dlpEnd)) {
-    return "DLP";
-  }
-  
-  // 2. Check OEM Warranty Window
-  if (isActive(warrantyStart, warrantyEnd)) {
-    return "Warranty";
-  }
-  
-  // 3. Check Comprehensive AMC Window
-  if (isActive(amcStart, amcEnd)) {
+  const isActive = (endRaw) => {
+    if (!isValidDate(endRaw)) return false;
+    const end = new Date(endRaw);
+    end.setHours(0, 0, 0, 0);
+    return end.getTime() >= todayTime;
+  };
+
+  // 1. Check Comprehensive AMC Window
+  if (isActive(amcEnd)) {
     return "Comprehensive AMC";
   }
   
-  // 4. Check Non-Comprehensive AMC Window
-  if (isActive(nonAmcStart, nonAmcEnd)) {
+  // 2. Check Non-Comprehensive AMC Window
+  if (isActive(nonAmcEnd)) {
     return "Non-Comprehensive AMC";
   }
   
-  // 5. Default if all timelines are expired or blank
+  // 3. Check DLP Window
+  if (isActive(dlpEnd)) {
+    return "DLP";
+  }
+  
+  // 4. Default if all timelines are expired or blank
   return "Out Of Support";
 }
 
@@ -222,5 +225,86 @@ function migrateLegacySLAToAssets() {
     Logger.log(`Migration Complete: ${updatedCount} assets updated with legacy branch SLAs.`);
   } else {
     Logger.log("No assets required migration.");
+  }
+}
+
+/**
+ * Daily trigger function to recalculate the Support_Type column in Asset_Master
+ * strictly based on active service contracts, independent of OEM warranty.
+ * Uses dynamic column indexing, time-stripping comparison, and batch write-back.
+ */
+function updateAssetMasterSupportTier() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const sheet = ss.getSheetByName('Asset_Master');
+  if (!sheet) {
+    Logger.log("Error: Sheet 'Asset_Master' not found.");
+    return;
+  }
+
+  const range = sheet.getDataRange();
+  const data = range.getValues();
+  if (data.length <= 1) {
+    Logger.log("No data found in sheet.");
+    return;
+  }
+
+  const headers = data[0].map(h => String(h).trim());
+
+  // 1. Dynamic Column Mapping
+  const amcEndIdx = headers.indexOf('AMC_End_Date');
+  const nonAmcEndIdx = headers.indexOf('NON_CAMC_End_Date');
+  const dlpEndIdx = headers.indexOf('DLP_End_Date');
+  const supportTypeIdx = headers.indexOf('Support_Type');
+
+  if (amcEndIdx === -1 || nonAmcEndIdx === -1 || dlpEndIdx === -1 || supportTypeIdx === -1) {
+    Logger.log("Error: Missing required column headers. Header row must contain AMC_End_Date, NON_CAMC_End_Date, DLP_End_Date, and Support_Type.");
+    return;
+  }
+
+  // 2. Timezone-Agnostic Date Comparison (Strip time)
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const todayTime = today.getTime();
+
+  const isValidDate = (val) => {
+    if (!val) return false;
+    const d = new Date(val);
+    return !isNaN(d.getTime());
+  };
+
+  const isActive = (dateValue) => {
+    if (!isValidDate(dateValue)) return false;
+    const d = new Date(dateValue);
+    d.setHours(0, 0, 0, 0);
+    return d.getTime() >= todayTime;
+  };
+
+  // Prepare batch output array for Support_Type column ONLY.
+  const outputValues = [];
+
+  // 3. Strict Status Hierarchy Loop
+  for (let i = 1; i < data.length; i++) {
+    const row = data[i];
+    const amcEnd = row[amcEndIdx];
+    const nonAmcEnd = row[nonAmcEndIdx];
+    const dlpEnd = row[dlpEndIdx];
+
+    let calculatedStatus = "Out Of Support";
+
+    if (isActive(dlpEnd)) {
+      calculatedStatus = "DLP";
+    } else if (isActive(amcEnd)) {
+      calculatedStatus = "Comprehensive AMC";
+    } else if (isActive(nonAmcEnd)) {
+      calculatedStatus = "Non-Comprehensive AMC";
+    }
+
+    outputValues.push([calculatedStatus]);
+  }
+
+  // 4. Batch Execution Write-Back to the single Support_Type column
+  if (outputValues.length > 0) {
+    sheet.getRange(2, supportTypeIdx + 1, outputValues.length, 1).setValues(outputValues);
+    Logger.log(`Successfully updated ${outputValues.length} rows in 'Asset_Master' with dynamic Support_Type statuses.`);
   }
 }

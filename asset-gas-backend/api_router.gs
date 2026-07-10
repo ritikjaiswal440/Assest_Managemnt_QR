@@ -1639,6 +1639,10 @@ function handleGetDashboardKPIs(payload) {
   const aProductModelIdx = aHeaders.indexOf('ProductModel');
   const aWarrantyEndIdx = aHeaders.indexOf('Warranty_End_Date');
   const aWarrantyStartIdx = aHeaders.indexOf('Warranty_Start_Date');
+  const aAmcStartIdx = aHeaders.indexOf('AMC_Start_Date');
+  const aAmcEndIdx = aHeaders.indexOf('AMC_End_Date');
+  const aNonAmcStartIdx = aHeaders.indexOf('NON_CAMC_Start_Date');
+  const aNonAmcEndIdx = aHeaders.indexOf('NON_CAMC_End_Date');
   
   // Ticket Indices
   const tStatusIdx = tHeaders.indexOf('Status');
@@ -1667,12 +1671,14 @@ function handleGetDashboardKPIs(payload) {
   const fBrand = (payload.brand || "").toLowerCase().trim();
   const fCompany = (payload.companyName || "").toLowerCase().trim();
   const fLocation = (payload.location || "").toLowerCase().trim();
+  const fBranch = (payload.branch || "").toLowerCase().trim();
   const fRoom = (payload.roomName || "").toLowerCase().trim();
   
   let metrics = {
     totalAssets: 0,
     activeWarrantyAssets: 0,
     comprehensiveAmcAssets: 0,
+    nonComprehensiveAmcAssets: 0,
     dlpAssets: 0,
     expiredAssets: 0,
     openComplaints: 0
@@ -1725,6 +1731,7 @@ function handleGetDashboardKPIs(payload) {
   const uniqueBrands = new Set();
   const uniqueCompanies = new Set();
   const uniqueLocations = new Set();
+  const uniqueBranches = new Set();
   const uniqueRooms = new Set();
 
   // 2. Process Assets (Apply Company, Location, Brand filters)
@@ -1732,77 +1739,62 @@ function handleGetDashboardKPIs(payload) {
     const brand = String(aData[i][aMakeIdx] || "Unknown").trim();
     const compName = String(aData[i][aCompanyIdx] || "").trim();
     const locName = String(aData[i][aLocationIdx] || "").trim();
+    const branchName = aBranchIdx !== -1 ? String(aData[i][aBranchIdx] || "").trim() : "";
     const roomName = String(aData[i][aRoomIdx] || "").trim();
 
     if (brand && brand !== "Unknown") uniqueBrands.add(brand);
     if (compName) uniqueCompanies.add(compName);
     if (locName) uniqueLocations.add(locName);
+    if (branchName) uniqueBranches.add(branchName);
     if (roomName) uniqueRooms.add(roomName);
 
     const comp = compName.toLowerCase();
     const loc = locName.toLowerCase();
+    const branchVal = branchName.toLowerCase();
     const room = roomName.toLowerCase();
     
     // Asset Filters
     if (fCompany && !comp.includes(fCompany)) continue;
     if (fLocation && !loc.includes(fLocation)) continue;
+    if (fBranch && !branchVal.includes(fBranch)) continue;
     if (fBrand && !brand.toLowerCase().includes(fBrand)) continue;
     if (fRoom && !room.includes(fRoom)) continue;
 
     metrics.totalAssets++;
 
     // Resolve Support Type
-    let dlpStart = aDlpStartIdx !== -1 ? aData[i][aDlpStartIdx] : "";
-    let dlpEnd = aDlpEndIdx !== -1 ? aData[i][aDlpEndIdx] : "";
+    const dlpStart = aDlpStartIdx !== -1 ? aData[i][aDlpStartIdx] : "";
+    const dlpEnd = aDlpEndIdx !== -1 ? aData[i][aDlpEndIdx] : "";
     const warrantyStart = aWarrantyStartIdx !== -1 ? aData[i][aWarrantyStartIdx] : "";
     const warrantyEnd = aWarrantyEndIdx !== -1 ? aData[i][aWarrantyEndIdx] : "";
-    
-    let amcStart = "";
-    let amcEnd = "";
-    let nonAmcStart = "";
-    let nonAmcEnd = "";
-    
-    const ref = String(aData[i][aHeaders.indexOf('Ref_Code')] || "");
-    const name = String(aData[i][aHeaders.indexOf('Company_Name')] || "");
-    const locVal = String(aData[i][aHeaders.indexOf('Location')] || "");
-    const branch = String(aData[i][aHeaders.indexOf('Branch')] || "");
-    const key = `${ref.toLowerCase()}_${name.toLowerCase()}_${locVal.toLowerCase()}_${branch.toLowerCase()}`;
-    
-    if (companyMap[key]) {
-      const branchDates = companyMap[key];
-      if (!dlpStart) {
-        dlpStart = branchDates.dlpStart;
-        dlpEnd = branchDates.dlpEnd;
-      }
-      amcStart = branchDates.amcStart;
-      amcEnd = branchDates.amcEnd;
-      nonAmcStart = branchDates.nonAmcStart;
-      nonAmcEnd = branchDates.nonAmcEnd;
-    } else {
-      // Fallback Ref code mapping
-      const companyKeys = Object.keys(companyMap);
-      const refMatchKey = companyKeys.find(k => k.startsWith(ref.toLowerCase() + "_"));
-      if (refMatchKey) {
-        const branchDates = companyMap[refMatchKey];
-        if (!dlpStart) {
-          dlpStart = branchDates.dlpStart;
-          dlpEnd = branchDates.dlpEnd;
-        }
-        amcStart = branchDates.amcStart;
-        amcEnd = branchDates.amcEnd;
-        nonAmcStart = branchDates.nonAmcStart;
-        nonAmcEnd = branchDates.nonAmcEnd;
-      }
-    }
+    const amcStart = aAmcStartIdx !== -1 ? aData[i][aAmcStartIdx] : "";
+    const amcEnd = aAmcEndIdx !== -1 ? aData[i][aAmcEndIdx] : "";
+    const nonAmcStart = aNonAmcStartIdx !== -1 ? aData[i][aNonAmcStartIdx] : "";
+    const nonAmcEnd = aNonAmcEndIdx !== -1 ? aData[i][aNonAmcEndIdx] : "";
     
     const support = calculateActiveSupportStatus(dlpStart, dlpEnd, warrantyStart, warrantyEnd, amcStart, amcEnd, nonAmcStart, nonAmcEnd);
     const amcEndDate = amcEnd ? parseDateValue(amcEnd) : null;
 
-    if (support === 'Comprehensive AMC') metrics.comprehensiveAmcAssets++;
-    else if (support === 'Non-Comprehensive AMC' || support === 'DLP') metrics.activeWarrantyAssets++;
-    else metrics.expiredAssets++;
+    // 1. KPI: Active Warranty Count (current time falls within Warranty Start/End)
+    const nowMs = new Date().getTime();
+    if (warrantyStart && warrantyEnd) {
+      const wStartMs = new Date(warrantyStart).getTime();
+      const wEndMs = new Date(warrantyEnd).getTime();
+      if (nowMs >= wStartMs && nowMs <= wEndMs) {
+        metrics.activeWarrantyAssets++;
+      }
+    }
 
-    if (support === 'DLP') metrics.dlpAssets++;
+    // 2. Contract Portfolio Tiers
+    if (support === 'Comprehensive AMC') {
+      metrics.comprehensiveAmcAssets++;
+    } else if (support === 'Non-Comprehensive AMC') {
+      metrics.nonComprehensiveAmcAssets++;
+    } else if (support === 'DLP') {
+      metrics.dlpAssets++;
+    } else {
+      metrics.expiredAssets++;
+    }
 
     // Aggregate Pie Chart (Brands)
     brandDistribution[brand] = (brandDistribution[brand] || 0) + 1;
@@ -1887,6 +1879,7 @@ function handleGetDashboardKPIs(payload) {
       brands: Array.from(uniqueBrands).sort(),
       companies: Array.from(uniqueCompanies).sort(),
       locations: Array.from(uniqueLocations).sort(),
+      branches: Array.from(uniqueBranches).sort(),
       rooms: Array.from(uniqueRooms).sort()
     }
   };
