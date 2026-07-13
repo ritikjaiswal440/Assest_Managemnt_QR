@@ -746,6 +746,30 @@ export default function ReportingDashboard() {
       .filter(item => item.value > 0);
   }, [tickets, filterYear, filterMonth]);
 
+  // 11. Data: Parent Ticket Volume (Sourced from Engineer_Tasks)
+  const parentChildData = useMemo(() => {
+    if (!timeFilteredTasks || timeFilteredTasks.length === 0) return [];
+    
+    const parentMap = {};
+
+    timeFilteredTasks.forEach(task => {
+      // Robustly catch the specific column name, handling potential spaces or underscores
+      const parentId = task['Parent Ticket_ID_Ref'] || task.Parent_Ticket_ID_Ref || task.Parent_Ticket_ID; 
+      
+      if (parentId && parentId.toString().trim() !== '') {
+        if (!parentMap[parentId]) {
+          parentMap[parentId] = { parentId: parentId, childCount: 0 };
+        }
+        parentMap[parentId].childCount += 1;
+      }
+    });
+
+    // Convert to array, sort by highest volume of child tasks, and take the top 10
+    return Object.values(parentMap)
+      .sort((a, b) => b.childCount - a.childCount)
+      .slice(0, 10);
+  }, [timeFilteredTasks]);
+
   // 1. projectAssets: Assets linked to the selected Sales Order for drill-down modal
   const projectAssets = useMemo(() => {
     if (!drillDownSO) return [];
@@ -820,6 +844,13 @@ export default function ReportingDashboard() {
           return false;
         });
       }
+      if (chartType === 'CHART_PARENT') {
+        // Return tasks from Engineer_Tasks where the Parent ID matches the clicked bar
+        return engineerTasks.filter(task => {
+          const parentId = task['Parent Ticket_ID_Ref'] || task.Parent_Ticket_ID_Ref || task.Parent_Ticket_ID;
+          return parentId === clickedValue;
+        });
+      }
     }
 
     // 1.5. COMPLAINTS (Tickets)
@@ -840,7 +871,7 @@ export default function ReportingDashboard() {
     if (kpiDrillDown === 'EXPIRED') return filteredAssets.filter(a => isCompletelyUncovered(a));
     
     return filteredAssets; // Default fallback
-  }, [kpiDrillDown, filteredAssets, activeMasterTickets, assets, filteredTickets, tickets, filterYear, filterMonth]);
+  }, [kpiDrillDown, filteredAssets, activeMasterTickets, assets, filteredTickets, tickets, filterYear, filterMonth, engineerTasks]);
 
   return (
     <div className="reporting-dashboard">
@@ -1370,6 +1401,41 @@ export default function ReportingDashboard() {
           )}
         </div>
 
+        {/* --- Parent/Child Ticket Volume --- */}
+        <div style={{ background: '#ffffff', padding: '20px', borderRadius: '8px', boxShadow: '0 1px 3px rgba(0,0,0,0.1)', gridColumn: '1 / -1', marginTop: '24px' }}>
+          <h3 style={{ marginTop: 0, color: '#334155', marginBottom: '4px' }}>Master Incident Impact</h3>
+          <p style={{ fontSize: '0.75rem', color: '#64748b', marginTop: 0, marginBottom: '16px' }}>
+            Top Parent tickets generating the highest volume of Child tickets.
+          </p>
+          
+          <div style={{ width: '100%', height: '300px' }}>
+            {parentChildData.length === 0 ? (
+               <div style={{ height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#94a3b8', fontSize: '0.9rem' }}>No parent/child links detected.</div>
+            ) : (
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={parentChildData} margin={{ top: 10, right: 10, left: -20, bottom: 5 }}>
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                  <XAxis dataKey="parentId" style={{ fontSize: '0.7rem' }} tick={{ fill: '#64748b' }} />
+                  <YAxis allowDecimals={false} style={{ fontSize: '0.8rem' }} />
+                  <Tooltip 
+                    cursor={{ fill: '#f1f5f9' }} 
+                    contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)' }} 
+                  />
+                  
+                  <Bar 
+                    dataKey="childCount" 
+                    name="Linked Child Tickets" 
+                    fill="#6366f1" 
+                    radius={[4, 4, 0, 0]} 
+                    onClick={(data) => setKpiDrillDown(`CHART_PARENT|${data.parentId}`)}
+                    style={{ cursor: 'pointer' }}
+                  />
+                </BarChart>
+              </ResponsiveContainer>
+            )}
+          </div>
+        </div>
+
 
 
       </div>
@@ -1470,7 +1536,7 @@ export default function ReportingDashboard() {
                 {kpiDrillDown === 'NON_COMP_AMC' && 'Non-Comprehensive AMC'}
                 {kpiDrillDown === 'WARRANTY_NO_AMC' && 'OEM Warranty Only (No AMC)'}
                 {kpiDrillDown === 'EXPIRED' && 'Completely Uncovered / Expired'}
-                {typeof kpiDrillDown === 'string' && kpiDrillDown.startsWith('CHART_') && `Filtered Data: ${kpiDrillDown.split('|')[1]}`}
+                {typeof kpiDrillDown === 'string' && kpiDrillDown.startsWith('CHART_PARENT|') ? `Child Tickets for Master Ticket: ${kpiDrillDown.split('|')[1]}` : (typeof kpiDrillDown === 'string' && kpiDrillDown.startsWith('CHART_') && `Filtered Data: ${kpiDrillDown.split('|')[1]}`)}
               </h3>
               
               <div style={{ display: 'flex', gap: '16px', alignItems: 'center' }}>
@@ -1521,19 +1587,26 @@ export default function ReportingDashboard() {
                     <tr><td colSpan="6" style={{ padding: '32px', textAlign: 'center', color: '#64748b' }}>No data found.</td></tr>
                   ) : (
                     modalData.map((item, i) => {
-                      const isTicket = item.hasOwnProperty('Ticket_ID');
+                      const isTicket = item.hasOwnProperty('Ticket_ID') || item.hasOwnProperty('Task_ID');
                       
-                      // RENDER TICKET ROW
+                      // RENDER TICKET/TASK ROW
                       if (isTicket) {
-                        const linkedAsset = assets?.find(a => a.Ref_Code === item.Asset_Ref_Code) || {};
+                        const ticketRef = item.Ticket_ID_Ref || item.Ticket_ID;
+                        const parentTicket = tickets?.find(t => String(t.Ticket_ID).trim().toLowerCase() === String(ticketRef).trim().toLowerCase()) || {};
+                        const linkedAsset = assets?.find(a => a.Ref_Code === (parentTicket.Asset_Ref_Code || item.Asset_Ref_Code || item.Unique_Product_Id)) || {};
+                        const primaryId = item.Ticket_ID || item.Task_ID;
+                        const company = item.Company_Name || parentTicket.Company_Name || item.Company || parentTicket.Company || '';
+                        const dateVal = item.Open_Date || item.Date || item.Date_Assigned || item.Assigned_Date || parentTicket.Open_Date || '';
+                        const formattedDate = dateVal ? new Date(dateVal).toLocaleDateString('en-GB') : '';
+
                         return (
                           <tr key={i} style={{ borderBottom: '1px solid #e2e8f0', background: i % 2 === 0 ? '#ffffff' : '#f8fafc' }}>
-                            <td style={{ padding: '12px', fontWeight: 'bold', color: '#3b82f6' }}>{item.Ticket_ID}</td>
-                            <td style={{ padding: '12px', color: '#475569' }}>{item.Category}<br/><span style={{fontSize:'0.75rem'}}>{item.Issue_Type || item.Issue}</span></td>
-                            <td style={{ padding: '12px', color: '#475569' }}>{linkedAsset.Make || linkedAsset.ProductMake} {linkedAsset.Model}</td>
-                            <td style={{ padding: '12px', color: '#475569' }}>{item.Company_Name}</td>
-                            <td style={{ padding: '12px', color: '#475569' }}>{item.Open_Date ? new Date(item.Open_Date).toLocaleDateString('en-GB') : ''}</td>
-                            <td style={{ padding: '12px', color: '#475569', fontWeight: 'bold' }}>{item.Status}</td>
+                            <td style={{ padding: '12px', fontWeight: 'bold', color: '#3b82f6' }}>{item.Task_ID || item.Ticket_ID}</td>
+                            <td style={{ padding: '12px', color: '#475569' }}>{item.Category || parentTicket.Category || 'Other'}<br/><span style={{fontSize:'0.75rem'}}>{item.Issue_Type || item.Issue || parentTicket.Issue_Type || parentTicket.Issue || ''}</span></td>
+                            <td style={{ padding: '12px', color: '#475569' }}>{linkedAsset.Make || linkedAsset.ProductMake || ''} {linkedAsset.Model || ''}</td>
+                            <td style={{ padding: '12px', color: '#475569' }}>{company}</td>
+                            <td style={{ padding: '12px', color: '#475569' }}>{formattedDate}</td>
+                            <td style={{ padding: '12px', color: '#475569', fontWeight: 'bold' }}>{item.Status || 'Open'}</td>
                           </tr>
                         );
                       }
