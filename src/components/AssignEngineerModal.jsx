@@ -2,7 +2,7 @@
 import { useState, useEffect } from 'react';
 import { assignTicket, promoteTicket, fetchEngineers } from '../services/apiClient';
 
-const AssignEngineerModal = ({ isOpen, onClose, assignConfig, bundle, currentUser, onSuccess }) => {
+const AssignEngineerModal = ({ isOpen, onClose, assignConfig, bundle, currentUser, onSuccess, tickets = [], systemUsers = [] }) => {
   const [engineerData, setEngineerData] = useState('');
   const [instructions, setInstructions] = useState('');
   const [status, setStatus] = useState({ loading: false, error: null });
@@ -81,11 +81,43 @@ const AssignEngineerModal = ({ isOpen, onClose, assignConfig, bundle, currentUse
         setStatus({ loading: false, error: "Network communication failure during promotion." });
       }
     } else {
+      const selectedTicketId = assignConfig?.parentId || '';
+      const selectedEngineerName = engName;
+      const engineers = bundle?.engineers || engineersList || [];
+
+      // 1. Cross-reference the selected ticket for hardware/issue details
+      const assignedTicket = tickets.find(t => t.Ticket_ID === selectedTicketId);
+
+      // 2. Look up the engineer in the systemUsers state array (with fallback to engineers/engineersList)
+      const lookupList = (systemUsers && systemUsers.length) ? systemUsers : engineers;
+      const matchedUser = lookupList?.find(u => 
+        u.Name?.trim().toLowerCase() === selectedEngineerName?.trim().toLowerCase() ||
+        u.Username?.trim().toLowerCase() === selectedEngineerName?.trim().toLowerCase() ||
+        u.name?.trim().toLowerCase() === selectedEngineerName?.trim().toLowerCase() ||
+        u.email?.trim().toLowerCase() === engEmail?.trim().toLowerCase() ||
+        u.Email?.trim().toLowerCase() === engEmail?.trim().toLowerCase()
+      );
+
+      const userRole = matchedUser?.Role || matchedUser?.role || (selectedEngineerName.toLowerCase().includes('resident') ? 'Resident' : 'Field');
+
+      // 3. Construct the enriched payload for the backend
+      const assignmentPayload = {
+        ticketId: selectedTicketId,
+        assignedTo: selectedEngineerName,
+        assignedBy: currentUser?.name || 'SYSTEM', 
+        dateAssigned: new Date().toISOString(),
+        // --- NEW AUTO-FILLED DATA ---
+        category: assignedTicket?.Category || 'Uncategorized',
+        issue: assignedTicket?.Issue_Type || 'Unknown',
+        engineerRole: userRole
+      };
+
       const payload = {
-        parentId: assignConfig?.parentId || '',
+        ...assignmentPayload,
+        parentId: selectedTicketId,
         engEmail,
-        engName,
-        engRole,
+        engName: selectedEngineerName,
+        engRole: userRole,
         actorEmail: currentUser?.email || '',
         instructions
       };

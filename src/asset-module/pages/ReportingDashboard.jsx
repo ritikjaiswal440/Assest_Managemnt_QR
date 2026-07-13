@@ -1,6 +1,6 @@
 /* eslint-disable react-hooks/set-state-in-effect */
 import { useState, useEffect, useMemo } from 'react';
-import { assetApi, fetchAssets, fetchMasterTickets } from '../../services/apiClient';
+import { assetApi, fetchAssets, fetchMasterTickets, getDashboard } from '../../services/apiClient';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
   PieChart, Pie, Cell, LineChart, Line
@@ -21,12 +21,13 @@ export default function ReportingDashboard() {
   const [filterOptions, setFilterOptions] = useState({ brands: [], companies: [], locations: [], rooms: [] });
   const [assets, setAssets] = useState([]);
   const [tickets, setTickets] = useState([]);
+  const [engineerTasks, setEngineerTasks] = useState([]);
   const [kpiDrillDown, setKpiDrillDown] = useState(null);
   const [drillDownSO, setDrillDownSO] = useState(null);
   const [modalSearchQuery, setModalSearchQuery] = useState('');
   const [healthDrillDownTier, setHealthDrillDownTier] = useState(null);
   const [chartDrillDown, setChartDrillDown] = useState(null);
-  
+
   // Global Time Filters
   const currentYear = new Date().getFullYear().toString();
   const [filterYear, setFilterYear] = useState(currentYear);
@@ -37,6 +38,55 @@ export default function ReportingDashboard() {
     startDate: '', endDate: '', brand: '',
     companyName: '', location: '', roomName: ''
   });
+
+  // UTILITY: Smart CSV Exporter (Handles both Assets and Tickets)
+  const exportToCSV = (data, filename) => {
+    if (!data || data.length === 0) return;
+    
+    const isTicketData = data[0].hasOwnProperty('Ticket_ID');
+    
+    let headers = [];
+    let rows = [];
+
+    if (isTicketData) {
+      headers = ['Ticket ID', 'Category', 'Issue', 'Make', 'Company', 'Open Date', 'Status'];
+      rows = data.map(t => {
+        const linkedAsset = assets?.find(a => a.Ref_Code === t.Asset_Ref_Code) || {};
+        return [
+          t.Ticket_ID || '',
+          t.Category || '',
+          t.Issue_Type || t.Issue || '',
+          linkedAsset.Make || linkedAsset.ProductMake || 'Unknown',
+          t.Company_Name || '',
+          t.Open_Date ? new Date(t.Open_Date).toLocaleDateString('en-GB') : '',
+          t.Status || ''
+        ];
+      });
+    } else {
+      headers = ['Asset ID', 'Company', 'Branch', 'Make', 'Model', 'Serial No', 'Sales Order', 'Support Tier', 'OEM Warranty End'];
+      rows = data.map(a => [
+        a.Ref_Code || '',
+        a.Company_Name || a.Company || '',
+        a.Branch || '',
+        a.Make || a.ProductMake || '',
+        a.Model || a.ProductModel || '',
+        a.Serial_No || a.ProductSerial || '',
+        a.Sales_Order || '',
+        getSupportTier(a), 
+        a.Warranty_End_Date ? new Date(a.Warranty_End_Date).toLocaleDateString('en-GB') : 'N/A'
+      ]);
+    }
+
+    const csvContent = [headers.join(','), ...rows.map(e => `"${e.join('","')}"`)].join('\n');
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.setAttribute("href", url);
+    link.setAttribute("download", `${filename}_${new Date().toLocaleDateString('en-GB').replace(/\//g, '-')}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
 
   const fetchAnalytics = async () => {
     setLoading(true);
@@ -50,9 +100,10 @@ export default function ReportingDashboard() {
         setFilterOptions(res.data.filterOptions || { brands: [], companies: [], locations: [], rooms: [] });
       }
 
-      const [assetsRes, ticketsRes] = await Promise.all([
+      const [assetsRes, ticketsRes, dashboardRes] = await Promise.all([
         fetchAssets(),
-        fetchMasterTickets()
+        fetchMasterTickets(),
+        getDashboard()
       ]);
 
       if (assetsRes && assetsRes.success) {
@@ -60,6 +111,9 @@ export default function ReportingDashboard() {
       }
       if (ticketsRes && ticketsRes.success) {
         setTickets(ticketsRes.data || []);
+      }
+      if (dashboardRes && dashboardRes.success && dashboardRes.data) {
+        setEngineerTasks(dashboardRes.data.children || []);
       }
     } catch (err) {
       console.error(err);
@@ -167,8 +221,8 @@ export default function ReportingDashboard() {
     const dlpEnd = dlpEndVal ? new Date(dlpEndVal).getTime() : 0;
 
     const hasActiveContract = (!isNaN(amcEnd) && amcEnd >= now) ||
-                              (!isNaN(nonAmcEnd) && nonAmcEnd >= now) ||
-                              (!isNaN(dlpEnd) && dlpEnd >= now);
+      (!isNaN(nonAmcEnd) && nonAmcEnd >= now) ||
+      (!isNaN(dlpEnd) && dlpEnd >= now);
 
     // 2. Check OEM Warranty
     const warrantyEndVal = asset.Warranty_End_Date || asset.warrantyEndDate;
@@ -181,7 +235,7 @@ export default function ReportingDashboard() {
 
   const expiringContracts = useMemo(() => {
     if (!filteredAssets || filteredAssets.length === 0) return [];
-    
+
     // Group assets by SO
     const uniqueSOs = new Map();
     filteredAssets.forEach(asset => {
@@ -206,12 +260,12 @@ export default function ReportingDashboard() {
       if (dlpDays !== null && dlpDays >= 0 && dlpDays <= 90) {
         alerts.push({ company: compName, branch: branchName, so: soKey, tier: 'DLP', daysLeft: dlpDays, date: dlpEnd });
       }
-      
+
       const amcDays = getDaysLeft(amcEnd);
       if (amcDays !== null && amcDays >= 0 && amcDays <= 90) {
         alerts.push({ company: compName, branch: branchName, so: soKey, tier: 'Comprehensive AMC', daysLeft: amcDays, date: amcEnd });
       }
-      
+
       const nonAmcDays = getDaysLeft(nonAmcEnd);
       if (nonAmcDays !== null && nonAmcDays >= 0 && nonAmcDays <= 90) {
         alerts.push({ company: compName, branch: branchName, so: soKey, tier: 'Non-Comprehensive AMC', daysLeft: nonAmcDays, date: nonAmcEnd });
@@ -222,22 +276,42 @@ export default function ReportingDashboard() {
   }, [filteredAssets]);
 
   const filteredTickets = useMemo(() => {
-    return tickets.filter(ticket => {
+    return engineerTasks.map(task => {
+      const parentTicket = tickets.find(t => String(t.Ticket_ID).trim().toLowerCase() === String(task.Ticket_ID_Ref).trim().toLowerCase());
+
+      const linkedAsset = assets?.find(a => {
+        const aRef = a.Unique_Product_Id || a.id || a.Ref_Code;
+        const tRef = parentTicket?.Asset_Ref_Code || parentTicket?.Unique_Product_Id || parentTicket?.Asset_ID;
+        return aRef && tRef && String(aRef).trim().toLowerCase() === String(tRef).trim().toLowerCase();
+      });
+
+      return {
+        ...task,
+        Company_Name: parentTicket?.Company_Name || parentTicket?.Company || '',
+        Branch: parentTicket?.Branch || parentTicket?.branch || '',
+        Room_Name: parentTicket?.Room_Name || parentTicket?.roomName || '',
+        Unique_Product_Id: parentTicket?.Unique_Product_Id || parentTicket?.Asset_Ref_Code || '',
+        ProductMake: linkedAsset?.ProductMake || linkedAsset?.Make || parentTicket?.ProductMake || parentTicket?.Make || '',
+        ProductModel: linkedAsset?.ProductModel || linkedAsset?.Model || parentTicket?.ProductModel || parentTicket?.Model || '',
+        Open_Date: task.Assigned_Date || parentTicket?.Open_Date || parentTicket?.Created_At || '',
+        Admin_Remarks: task.Instructions || parentTicket?.Admin_Remarks || parentTicket?.Description || ''
+      };
+    }).filter(task => {
       // 1. Company Filter
-      const comp = (ticket.Company_Name || ticket.companyName || '').trim().toLowerCase();
+      const comp = task.Company_Name.trim().toLowerCase();
       if (filters.companyName && comp !== filters.companyName.trim().toLowerCase()) return false;
 
       // 2. Branch Filter
-      const branch = (ticket.Branch || ticket.branch || '').trim().toLowerCase();
+      const branch = task.Branch.trim().toLowerCase();
       if (filters.branch && branch !== filters.branch.trim().toLowerCase()) return false;
 
       // 3. Room Filter
-      const room = (ticket.Room_Name || ticket.roomName || '').trim().toLowerCase();
+      const room = task.Room_Name.trim().toLowerCase();
       if (filters.roomName && room !== filters.roomName.trim().toLowerCase()) return false;
 
-      // 4. Start/End dates based on Ticket's Open_Date or Created_At
+      // 4. Start/End dates based on Task's Assigned_Date
       if (filters.startDate || filters.endDate) {
-        const createdDate = ticket.Open_Date || ticket.openDate || ticket.Created_At;
+        const createdDate = task.Assigned_Date || task.Closed_Date || task.Open_Date;
         if (createdDate) {
           const dateVal = new Date(createdDate);
           if (filters.startDate && dateVal < new Date(filters.startDate)) return false;
@@ -246,228 +320,431 @@ export default function ReportingDashboard() {
       }
       return true;
     });
-  }, [tickets, filters]);
+  }, [engineerTasks, tickets, assets, filters]);
 
-  // timeFilteredTickets: Tickets filtered by selected Year and Month
-  const timeFilteredTickets = useMemo(() => {
-    return tickets.filter(ticket => {
-      const openDate = ticket.Open_Date || ticket.openDate || ticket.Created_At;
-      if (!openDate) return false;
-      const d = new Date(openDate);
-      if (isNaN(d.getTime())) return false;
-      
-      const tYear = d.getFullYear().toString();
-      const tMonth = (d.getMonth() + 1).toString();
-      
+  // 1. ENGINE: Time-Filtered Engineer Tasks
+  const timeFilteredTasks = useMemo(() => {
+    if (!engineerTasks) return [];
+
+    return engineerTasks.map(task => {
+      const parentTicket = tickets.find(t => String(t.Ticket_ID).trim().toLowerCase() === String(task.Ticket_ID_Ref).trim().toLowerCase());
+
+      const linkedAsset = assets?.find(a => {
+        const aRef = a.Unique_Product_Id || a.id || a.Ref_Code;
+        const tRef = parentTicket?.Asset_Ref_Code || parentTicket?.Unique_Product_Id || parentTicket?.Asset_ID;
+        return aRef && tRef && String(aRef).trim().toLowerCase() === String(tRef).trim().toLowerCase();
+      });
+
+      return {
+        ...task,
+        Company_Name: parentTicket?.Company_Name || parentTicket?.Company || '',
+        Branch: parentTicket?.Branch || parentTicket?.branch || '',
+        Room_Name: parentTicket?.Room_Name || parentTicket?.roomName || '',
+        Unique_Product_Id: parentTicket?.Unique_Product_Id || parentTicket?.Asset_Ref_Code || '',
+        ProductMake: linkedAsset?.ProductMake || linkedAsset?.Make || parentTicket?.ProductMake || parentTicket?.Make || '',
+        ProductModel: linkedAsset?.ProductModel || linkedAsset?.Model || parentTicket?.ProductModel || parentTicket?.Model || '',
+        Open_Date: task.Assigned_Date || parentTicket?.Open_Date || parentTicket?.Created_At || '',
+        Admin_Remarks: task.Instructions || parentTicket?.Admin_Remarks || parentTicket?.Description || ''
+      };
+    }).filter(task => {
+      // PURGE: Explicitly ignore any legacy tasks stuck in 'Resolved' status
+      if (task.Status === 'Resolved') return false;
+
+      // 1. Company Filter
+      const comp = task.Company_Name.trim().toLowerCase();
+      if (filters.companyName && comp !== filters.companyName.trim().toLowerCase()) return false;
+
+      // 2. Branch Filter
+      const branch = task.Branch.trim().toLowerCase();
+      if (filters.branch && branch !== filters.branch.trim().toLowerCase()) return false;
+
+      // 3. Room Filter
+      const room = task.Room_Name.trim().toLowerCase();
+      if (filters.roomName && room !== filters.roomName.trim().toLowerCase()) return false;
+
+      // 4. Start/End dates based on Task's Assigned_Date
+      if (filters.startDate || filters.endDate) {
+        const createdDate = task.Assigned_Date || task.Closed_Date || task.Open_Date;
+        if (createdDate) {
+          const dateVal = new Date(createdDate);
+          if (filters.startDate && dateVal < new Date(filters.startDate)) return false;
+          if (filters.endDate && dateVal > new Date(filters.endDate)) return false;
+        }
+      }
+
+      // Fallback to whichever column name your DB uses for assignment date
+      const dateString = task.Date || task.Date_Assigned || task.Assigned_Date || task.Created_At || task.Open_Date;
+      if (!dateString) return false;
+
+      const tDate = new Date(dateString);
+      const tYear = tDate.getFullYear().toString();
+      const tMonth = (tDate.getMonth() + 1).toString();
+
       if (filterYear !== 'ALL' && tYear !== filterYear) return false;
       if (filterMonth !== 'ALL' && tMonth !== filterMonth) return false;
+
+      return true;
+    });
+  }, [engineerTasks, tickets, assets, filters, filterYear, filterMonth]);
+
+  const timeFilteredTickets = timeFilteredTasks;
+
+  // 2. Data: Pie Chart (Monthly Issues from Tasks)
+  const issuePieData = useMemo(() => {
+    const counts = {};
+    timeFilteredTasks.forEach(task => {
+      const issue = task.Issue || task.Issue_Type || 'Uncategorized';
+      counts[issue] = (counts[issue] || 0) + 1;
+    });
+    return Object.keys(counts).map(key => ({ name: key, value: counts[key] }));
+  }, [timeFilteredTasks]);
+
+  // 3. Data: Volume Bar Graph (Tasks over Time)
+  const volumeBarData = useMemo(() => {
+    const counts = {};
+    timeFilteredTasks.forEach(task => {
+      const d = new Date(task.Date || task.Date_Assigned || task.Assigned_Date || task.Created_At || task.Open_Date);
+      const key = filterMonth === 'ALL'
+        ? d.toLocaleString('default', { month: 'short' })
+        : d.getDate().toString();
+      counts[key] = (counts[key] || 0) + 1;
+    });
+    return Object.keys(counts).map(key => ({ time: key, count: counts[key] }));
+  }, [timeFilteredTasks, filterMonth]);
+
+  // 4. ENGINE: Dispatch Categories & Repeat Failures (Time-Series)
+  const dispatchBreakdownData = useMemo(() => {
+    if (!engineerTasks || !tickets) return [];
+
+    const timeMap = {};
+    const historicalTracker = new Set(); // Tracks "Asset_Ref_Code + Issue"
+
+    // 1. Sort all tasks chronologically so repeats are calculated in the correct order
+    const sortedTasks = [...engineerTasks].sort((a, b) => {
+      const d1 = new Date(a.Date || a.Date_Assigned || a.Assigned_Date || a.Created_At || 0);
+      const d2 = new Date(b.Date || b.Date_Assigned || b.Assigned_Date || b.Created_At || 0);
+      return d1 - d2;
+    });
+
+    sortedTasks.forEach(task => {
+      // Find the linked ticket to get the Asset ID
+      const linkedTicket = tickets.find(t =>
+        String(t.Ticket_ID).trim().toLowerCase() === String(task.Ticket_ID_Ref || task.Ticket_ID).trim().toLowerCase()
+      );
+      const assetId = linkedTicket?.Asset_Ref_Code || 'Unknown_Asset';
+      const issue = task.Issue || task.Issue_Type || 'Unknown_Issue';
+
+      // Calculate Repeat Status
+      const trackingKey = `${assetId}-${issue}`;
+      const isRepeat = historicalTracker.has(trackingKey);
+      historicalTracker.add(trackingKey); // Mark as seen for future iterations
+
+      // 2. Apply Global Time Filters (Only chart the tasks that fall in our selected window)
+      const d = new Date(task.Date || task.Date_Assigned || task.Assigned_Date || task.Created_At);
+      if (isNaN(d.getTime())) return;
+
+      const tYear = d.getFullYear().toString();
+      const tMonth = (d.getMonth() + 1).toString();
+
+      if (filterYear !== 'ALL' && tYear !== filterYear) return;
+      if (filterMonth !== 'ALL' && tMonth !== filterMonth) return;
+
+      // 3. Group by Time (Month or Day)
+      const timeKey = filterMonth === 'ALL'
+        ? d.toLocaleString('default', { month: 'short' })
+        : d.getDate().toString();
+
+      if (!timeMap[timeKey]) {
+        timeMap[timeKey] = { time: timeKey, resident: 0, field: 0, repeated: 0, closed: 0, pending: 0 };
+      }
+
+      // 4. Tally the metrics
+      const role = (task.Engineer_Role || '').toLowerCase();
+      if (role.includes('resident')) timeMap[timeKey].resident += 1;
+      else if (role.includes('field')) timeMap[timeKey].field += 1;
+
+      if (isRepeat) timeMap[timeKey].repeated += 1;
+
+      if (task.Status === 'Closed') timeMap[timeKey].closed += 1;
+      else timeMap[timeKey].pending += 1;
+    });
+
+    return Object.values(timeMap);
+  }, [engineerTasks, tickets, filterYear, filterMonth]);
+
+  // 5. ENGINE: Total Tickets vs. Brand Breakdown (Time-Series)
+  const { brandTrendData, uniqueBrands } = useMemo(() => {
+    if (!tickets || tickets.length === 0) return { brandTrendData: [], uniqueBrands: [] };
+
+    const timeMap = {};
+    const brandSet = new Set();
+
+    tickets.forEach(ticket => {
+      if (!ticket.Open_Date) return;
+
+      // 1. Apply Global Time Filters
+      const d = new Date(ticket.Open_Date);
+      const tYear = d.getFullYear().toString();
+      const tMonth = (d.getMonth() + 1).toString();
+
+      if (filterYear !== 'ALL' && tYear !== filterYear) return;
+      if (filterMonth !== 'ALL' && tMonth !== filterMonth) return;
+
+      const timeKey = filterMonth === 'ALL'
+        ? d.toLocaleString('default', { month: 'short' })
+        : d.getDate().toString();
+
+      // 2. Cross-reference Asset to find the Brand/Make
+      const linkedAsset = assets?.find(a => a.Ref_Code === ticket.Asset_Ref_Code) || ticket;
+      const brand = linkedAsset.Make || linkedAsset.ProductMake || 'Unknown';
+      brandSet.add(brand);
+
+      // 3. Initialize the time period if it doesn't exist
+      if (!timeMap[timeKey]) {
+        timeMap[timeKey] = { time: timeKey, totalTickets: 0 };
+      }
+
+      // 4. Tally the Total Tickets and the specific Brand count
+      timeMap[timeKey].totalTickets += 1;
+      timeMap[timeKey][brand] = (timeMap[timeKey][brand] || 0) + 1;
+    });
+
+    return {
+      brandTrendData: Object.values(timeMap),
+      uniqueBrands: Array.from(brandSet)
+    };
+  }, [tickets, assets, filterYear, filterMonth]);
+
+  // 6. Data: Category Line Graph over Time (Sourced from Tasks)
+  const categoryLineData = useMemo(() => {
+    const timeMap = {};
+    timeFilteredTasks.forEach(task => {
+      const d = new Date(task.Date || task.Date_Assigned || task.Assigned_Date || task.Created_At || task.Open_Date);
+      const timeKey = filterMonth === 'ALL' ? d.toLocaleString('default', { month: 'short' }) : d.getDate().toString();
+
+      // Pull Category directly from the enriched Task row
+      const cat = task.Category || 'Other';
+
+      if (!timeMap[timeKey]) timeMap[timeKey] = { time: timeKey };
+      timeMap[timeKey][cat] = (timeMap[timeKey][cat] || 0) + 1;
+    });
+    return Object.values(timeMap);
+  }, [timeFilteredTasks, filterMonth]);
+
+  const categoryLineCategories = useMemo(() => {
+    const cats = new Set();
+    timeFilteredTasks.forEach(task => {
+      cats.add(task.Category || 'Other');
+    });
+    return Array.from(cats);
+  }, [timeFilteredTasks]);
+
+  // --- BASE ENGINE: Active Master Tickets (Filtered by Time & Open Status) ---
+  const activeMasterTickets = useMemo(() => {
+    if (!tickets) return [];
+    return tickets.filter(ticket => {
+      // 1. Filter out closed tickets (We only want Active/Open)
+      const status = (ticket.Status || '').toLowerCase().replace(/\s+/g, '');
+      if (status.includes('close') || status.includes('resolve')) return false;
+
+      // 2. Apply Global Time Filters
+      if (ticket.Open_Date) {
+        const d = new Date(ticket.Open_Date);
+        const tYear = d.getFullYear().toString();
+        const tMonth = (d.getMonth() + 1).toString();
+        if (filterYear !== 'ALL' && tYear !== filterYear) return false;
+        if (filterMonth !== 'ALL' && tMonth !== filterMonth) return false;
+      }
       return true;
     });
   }, [tickets, filterYear, filterMonth]);
 
-  // 1. Pie Chart Data (Monthly Issue Breakdown)
-  const monthlyIssueBreakdown = useMemo(() => {
+  // 1. Data: Hardware Failure Trends (By Category)
+  const categoryTrendsData = useMemo(() => {
     const counts = {};
-    timeFilteredTickets.forEach(ticket => {
-      const type = ticket.Issue_Type || ticket.issueType || ticket.IssueType || 'Uncategorized';
-      counts[type] = (counts[type] || 0) + 1;
-    });
-    return Object.entries(counts).map(([name, value]) => ({ name, value }));
-  }, [timeFilteredTickets]);
-
-  // 2. Bar Graph (Monthly/Daily Volume)
-  const ticketVolumeData = useMemo(() => {
-    if (filterMonth === 'ALL') {
-      const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-      const counts = Array(12).fill(0);
-      timeFilteredTickets.forEach(ticket => {
-        const openDate = ticket.Open_Date || ticket.openDate || ticket.Created_At;
-        if (!openDate) return;
-        const d = new Date(openDate);
-        if (!isNaN(d.getTime())) {
-          counts[d.getMonth()]++;
-        }
-      });
-      return months.map((name, idx) => ({ name, count: counts[idx] }));
-    } else {
-      const counts = {};
-      const yearInt = parseInt(filterYear, 10) || new Date().getFullYear();
-      const monthInt = parseInt(filterMonth, 10) - 1;
-      const daysInMonth = new Date(yearInt, monthInt + 1, 0).getDate();
-      for (let day = 1; day <= daysInMonth; day++) {
-        counts[day] = 0;
-      }
-      timeFilteredTickets.forEach(ticket => {
-        const openDate = ticket.Open_Date || ticket.openDate || ticket.Created_At;
-        if (!openDate) return;
-        const d = new Date(openDate);
-        if (!isNaN(d.getTime()) && (d.getMonth() + 1).toString() === filterMonth) {
-          const day = d.getDate();
-          counts[day] = (counts[day] || 0) + 1;
-        }
-      });
-      return Object.entries(counts).map(([day, count]) => ({ name: `Day ${day}`, count }));
-    }
-  }, [timeFilteredTickets, filterMonth, filterYear]);
-
-  // 3. Bar Graph (Engineer & Repeated)
-  const engineerAndRepeatedData = useMemo(() => {
-    let residentCount = 0;
-    let fieldCount = 0;
-    let repeatedCount = 0;
-
-    timeFilteredTickets.forEach(ticket => {
-      const engType = String(ticket.Engineer_Type || ticket.engineerType || ticket.EngineerType || ticket.Engineer_Role || ticket.engineerRole || '').toLowerCase();
-      if (engType.includes('resident') || engType === 'resident') {
-        residentCount++;
-      } else if (engType.includes('field') || engType === 'field') {
-        fieldCount++;
-      }
-
-      const repeatedVal = ticket.Repeated || ticket.Is_Repeated || ticket.isRepeated || ticket.repeated || ticket.Repeat || ticket.Is_Repeated_Issue || false;
-      const isRepeated = repeatedVal === true || String(repeatedVal).toLowerCase() === 'true' || String(repeatedVal).toLowerCase() === 'yes' || repeatedVal === 1 || repeatedVal === '1';
-      if (isRepeated) {
-        repeatedCount++;
-      }
-    });
-
-    return [
-      { name: 'Resident Engineer', count: residentCount },
-      { name: 'Field Engineer', count: fieldCount },
-      { name: 'Repeated Issues', count: repeatedCount }
-    ];
-  }, [timeFilteredTickets]);
-
-  // 4. Bar Graph (Product Make)
-  const ticketProductMakeData = useMemo(() => {
-    const counts = {};
-    timeFilteredTickets.forEach(ticket => {
-      const linkedAsset = assets?.find(a => {
-        const aRef = a.Unique_Product_Id || a.id || a.Ref_Code;
-        const tRef = ticket.Asset_Ref_Code || ticket.Unique_Product_Id || ticket.Asset_ID || ticket.productId;
-        return aRef && tRef && String(aRef).trim().toLowerCase() === String(tRef).trim().toLowerCase();
-      }) || ticket;
-      
-      const make = linkedAsset.ProductMake || linkedAsset.Make || ticket.ProductMake || ticket.Make || 'Unknown Brand';
-      counts[make] = (counts[make] || 0) + 1;
-    });
-
-    return Object.entries(counts)
-      .map(([name, count]) => ({ name, count }))
-      .sort((a, b) => b.count - a.count);
-  }, [timeFilteredTickets, assets]);
-
-  // 5. Line Graph (Category Trend)
-  const categoryTrendData = useMemo(() => {
-    const categories = [...new Set(timeFilteredTickets.map(t => t.Category || t.category || 'Uncategorized').filter(Boolean))];
-
-    if (filterMonth === 'ALL') {
-      const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-      const data = months.map((name, idx) => {
-        const item = { name };
-        categories.forEach(cat => {
-          item[cat] = 0;
-        });
-        return item;
-      });
-
-      timeFilteredTickets.forEach(ticket => {
-        const openDate = ticket.Open_Date || ticket.openDate || ticket.Created_At;
-        if (!openDate) return;
-        const d = new Date(openDate);
-        if (!isNaN(d.getTime())) {
-          const monthIdx = d.getMonth();
-          const cat = ticket.Category || ticket.category || 'Uncategorized';
-          if (data[monthIdx] && cat) {
-            data[monthIdx][cat] = (data[monthIdx][cat] || 0) + 1;
-          }
-        }
-      });
-      return { data, categories };
-    } else {
-      const yearInt = parseInt(filterYear, 10) || new Date().getFullYear();
-      const monthInt = parseInt(filterMonth, 10) - 1;
-      const daysInMonth = new Date(yearInt, monthInt + 1, 0).getDate();
-      
-      const data = [];
-      for (let day = 1; day <= daysInMonth; day++) {
-        const item = { name: `Day ${day}` };
-        categories.forEach(cat => {
-          item[cat] = 0;
-        });
-        data.push(item);
-      }
-
-      timeFilteredTickets.forEach(ticket => {
-        const openDate = ticket.Open_Date || ticket.openDate || ticket.Created_At;
-        if (!openDate) return;
-        const d = new Date(openDate);
-        if (!isNaN(d.getTime()) && (d.getMonth() + 1).toString() === filterMonth) {
-          const dayIdx = d.getDate() - 1;
-          const cat = ticket.Category || ticket.category || 'Uncategorized';
-          if (data[dayIdx] && cat) {
-            data[dayIdx][cat] = (data[dayIdx][cat] || 0) + 1;
-          }
-        }
-      });
-      return { data, categories };
-    }
-  }, [timeFilteredTickets, filterMonth, filterYear]);
-
-  // categoryData: Aggregates active tickets by category
-  const categoryData = useMemo(() => {
-    if (!timeFilteredTickets || timeFilteredTickets.length === 0) return [];
-    
-    const counts = {};
-    timeFilteredTickets.forEach(ticket => {
-      const status = String(ticket.Status || ticket.Ticket_Status || '').toLowerCase();
-      if (status.includes('resolved') || status.includes('close')) return;
-      
-      const cat = ticket.Category || ticket.category || 'Uncategorized';
+    activeMasterTickets.forEach(t => {
+      const cat = t.Category || 'Uncategorized';
       counts[cat] = (counts[cat] || 0) + 1;
     });
-    
-    return Object.entries(counts)
-      .map(([category, count]) => ({ category, count }))
-      .sort((a, b) => b.count - a.count);
-  }, [timeFilteredTickets]);
+    const max = Math.max(...Object.values(counts), 1); // For progress bar scaling
+    return Object.keys(counts)
+      .map(key => ({ name: key, value: counts[key], width: (counts[key] / max) * 100 }))
+      .sort((a, b) => b.value - a.value);
+  }, [activeMasterTickets]);
 
-  // engineerPerformanceData: Aggregates resolved tickets by assigned engineer
-  const engineerPerformanceData = useMemo(() => {
-    if (!timeFilteredTickets || timeFilteredTickets.length === 0) return [];
-    
+  // 2. Data: Asset Distribution by Brand (Cross-referenced with Assets)
+  const brandPieData = useMemo(() => {
     const counts = {};
-    timeFilteredTickets.forEach(ticket => {
-      const status = String(ticket.Status || ticket.Ticket_Status || '').toLowerCase();
-      if (status.includes('resolved') || status.includes('close')) {
-        const engName = ticket.Assigned_Engineer || ticket.assignedEngineer || ticket.Engineer_Name || 'Unassigned';
-        counts[engName] = (counts[engName] || 0) + 1;
+    activeMasterTickets.forEach(t => {
+      const linkedAsset = assets?.find(a => a.Ref_Code === t.Asset_Ref_Code) || t;
+      const make = linkedAsset.Make || linkedAsset.ProductMake || 'Unknown';
+      counts[make] = (counts[make] || 0) + 1;
+    });
+    return Object.keys(counts)
+      .map(key => ({ name: key, value: counts[key] }))
+      .filter(item => item.value > 0);
+  }, [activeMasterTickets, assets]);
+
+  // 3. Data: Issue Type Breakdown
+  const issueBreakdownData = useMemo(() => {
+    const counts = {};
+    activeMasterTickets.forEach(t => {
+      const issue = t.Issue_Type || t.Issue || 'Uncategorized';
+      counts[issue] = (counts[issue] || 0) + 1;
+    });
+    const max = Math.max(...Object.values(counts), 1);
+    return Object.keys(counts)
+      .map(key => ({ name: key, value: counts[key], width: (counts[key] / max) * 100 }))
+      .sort((a, b) => b.value - a.value);
+  }, [activeMasterTickets]);
+
+  // 10. Data: Engineer Performance by Workflow Status
+  const engineerPerformanceData = useMemo(() => {
+    if (!timeFilteredTasks || timeFilteredTasks.length === 0) return [];
+    
+    const engMap = {};
+
+    timeFilteredTasks.forEach(task => {
+      // Adjust the key below if your DB uses 'Assigned_To' instead of 'Engineer_Name'
+      const engName = task.Engineer_Name || task.Assigned_To || 'Unassigned';
+      
+      if (!engMap[engName]) {
+        engMap[engName] = { 
+          name: engName, 
+          'Assigned': 0, 
+          'Inprogress': 0, 
+          'Pending Parts': 0, 
+          'Closed': 0, 
+          total: 0 
+        };
+      }
+
+      // Sanitize status string for robust matching
+      const status = (task.Status || '').toLowerCase().replace(/\s+/g, '');
+      
+      if (status.includes('assign')) {
+        engMap[engName]['Assigned'] += 1;
+      } else if (status.includes('progress')) {
+        engMap[engName]['Inprogress'] += 1;
+      } else if (status.includes('part') || status.includes('pending')) {
+        engMap[engName]['Pending Parts'] += 1;
+      } else if (status.includes('close') || status.includes('resolve')) {
+        engMap[engName]['Closed'] += 1;
+      }
+
+      engMap[engName].total += 1;
+    });
+
+    // Convert to array and sort by total volume (descending)
+    return Object.values(engMap).sort((a, b) => b.total - a.total);
+  }, [timeFilteredTasks]);
+
+
+
+  // 7. Data: Issue Types by Engineer Role (Resident vs Field)
+  const engineerIssueData = useMemo(() => {
+    const issueMap = {};
+
+    timeFilteredTasks.forEach(t => {
+      const issue = t.Issue || 'Uncategorized';
+      const engType = (t.Engineer_Role || '').toLowerCase();
+
+      // Initialize the issue category if it doesn't exist yet
+      if (!issueMap[issue]) {
+        issueMap[issue] = { issue: issue, resident: 0, field: 0 };
+      }
+
+      // Route the count to the correct engineer role
+      if (engType.includes('resident')) {
+        issueMap[issue].resident += 1;
+      } else if (engType.includes('field')) {
+        issueMap[issue].field += 1;
       }
     });
-    
-    return Object.entries(counts)
-      .map(([name, count]) => ({ name, count }))
-      .sort((a, b) => b.count - a.count);
-  }, [timeFilteredTickets]);
 
-  // ENGINE: Aggregate Active Tickets by Issue Type
-  const issueTypeData = useMemo(() => {
-    if (!filteredTickets || filteredTickets.length === 0) return [];
+    // Convert the object to an array and sort by total volume (highest to lowest)
+    return Object.values(issueMap).sort((a, b) => (b.resident + b.field) - (a.resident + a.field));
+  }, [timeFilteredTasks]);
 
-    const counts = {};
-    filteredTickets.forEach(ticket => {
-      // Aggregate active tickets
-      const status = String(ticket.Status || ticket.Ticket_Status || '').toLowerCase();
-      if (status.includes('resolved') || status.includes('close')) return;
+  // 8. Data: Failure Trends by Product Make (Sourced from Master_Tickets)
+  const { makeTrendData, uniqueMakes } = useMemo(() => {
+    if (!tickets || tickets.length === 0) return { makeTrendData: [], uniqueMakes: [] };
 
-      const type = ticket.Issue_Type || ticket.issueType || 'Uncategorized';
-      counts[type] = (counts[type] || 0) + 1;
+    const timeMap = {};
+    const makesSet = new Set();
+
+    tickets.forEach(ticket => {
+      // 1. Apply Global Time Filters to Master Tickets
+      if (!ticket.Open_Date) return;
+      const d = new Date(ticket.Open_Date);
+      const tYear = d.getFullYear().toString();
+      const tMonth = (d.getMonth() + 1).toString();
+
+      if (filterYear !== 'ALL' && tYear !== filterYear) return;
+      if (filterMonth !== 'ALL' && tMonth !== filterMonth) return;
+
+      // 2. Cross-reference Asset to find the Make
+      const linkedAsset = assets?.find(a => a.Ref_Code === ticket.Asset_Ref_Code) || ticket;
+      const make = linkedAsset.Make || linkedAsset.ProductMake || 'Unknown';
+      makesSet.add(make);
+
+      // 3. Group by Time (Month or Day)
+      const timeKey = filterMonth === 'ALL'
+        ? d.toLocaleString('default', { month: 'short' })
+        : d.getDate().toString();
+
+      if (!timeMap[timeKey]) timeMap[timeKey] = { time: timeKey };
+      timeMap[timeKey][make] = (timeMap[timeKey][make] || 0) + 1;
     });
 
-    return Object.entries(counts)
-      .map(([type, count]) => ({ type, count }))
-      .sort((a, b) => b.count - a.count);
-  }, [filteredTickets]);
+    return {
+      makeTrendData: Object.values(timeMap),
+      uniqueMakes: Array.from(makesSet)
+    };
+  }, [tickets, assets, filterYear, filterMonth]);
+
+  // 9. Data: Ticket Status Distribution (Master Tickets)
+  const statusDistributionData = useMemo(() => {
+    if (!tickets || tickets.length === 0) return [];
+
+    // Initialize our buckets
+    const counts = {
+      'Open': 0,
+      'In Progress': 0,
+      'Ready To Close': 0,
+      'Resolved / Closed': 0
+    };
+
+    tickets.forEach(ticket => {
+      // 1. Apply Global Time Filters
+      if (ticket.Open_Date) {
+        const d = new Date(ticket.Open_Date);
+        const tYear = d.getFullYear().toString();
+        const tMonth = (d.getMonth() + 1).toString();
+        if (filterYear !== 'ALL' && tYear !== filterYear) return;
+        if (filterMonth !== 'ALL' && tMonth !== filterMonth) return;
+      }
+
+      // 2. Sanitize and group the statuses safely
+      const status = (ticket.Status || '').toLowerCase().replace(/\s+/g, '');
+
+      if (status.includes('open')) {
+        counts['Open'] += 1;
+      } else if (status.includes('inprogress') || status.includes('progress')) {
+        counts['In Progress'] += 1;
+      } else if (status.includes('ready')) {
+        counts['Ready To Close'] += 1;
+      } else if (status.includes('resolve') || status.includes('close')) {
+        // Safely catches both "Resolved" and "Closed" 
+        counts['Resolved / Closed'] += 1;
+      }
+    });
+
+    // 3. Convert to array and filter out empty buckets for a cleaner chart
+    return Object.keys(counts)
+      .map(key => ({ name: key, value: counts[key] }))
+      .filter(item => item.value > 0);
+  }, [tickets, filterYear, filterMonth]);
 
   // 1. projectAssets: Assets linked to the selected Sales Order for drill-down modal
   const projectAssets = useMemo(() => {
@@ -512,39 +789,58 @@ export default function ReportingDashboard() {
     };
   }, [filteredAssets]);
 
-  // 5. kpiDrillDownData: Resolved data to render inside the drill-down KPI modals
-  const kpiDrillDownData = useMemo(() => {
-    if (!kpiDrillDown || kpiDrillDown === 'COMPLAINTS') return [];
+  // --- Centralized MODAL DATA ENGINE ---
+  const modalData = useMemo(() => {
+    if (!kpiDrillDown) return [];
+    
+    // 1. CHART DRILL-DOWNS (Tickets)
+    if (typeof kpiDrillDown === 'string' && kpiDrillDown.startsWith('CHART_')) {
+      const [chartType, clickedValue] = kpiDrillDown.split('|');
+      
+      if (chartType === 'CHART_BRAND') {
+        return activeMasterTickets.filter(t => {
+          const linkedAsset = assets?.find(a => a.Ref_Code === t.Asset_Ref_Code) || t;
+          const make = linkedAsset.Make || linkedAsset.ProductMake || 'Unknown';
+          return make === clickedValue;
+        });
+      }
+      if (chartType === 'CHART_ISSUE') {
+        return activeMasterTickets.filter(t => (t.Issue_Type || 'Uncategorized') === clickedValue);
+      }
+      if (chartType === 'CHART_CATEGORY') {
+        return activeMasterTickets.filter(t => (t.Category || 'Uncategorized') === clickedValue);
+      }
+      if (chartType === 'CHART_STATUS') {
+        return activeMasterTickets.filter(t => {
+          const status = (t.Status || '').toLowerCase().replace(/\s+/g, '');
+          if (clickedValue === 'Open') return status.includes('open');
+          if (clickedValue === 'In Progress') return status.includes('progress');
+          if (clickedValue === 'Ready To Close') return status.includes('ready');
+          if (clickedValue === 'Resolved / Closed') return status.includes('close') || status.includes('resolve');
+          return false;
+        });
+      }
+    }
 
-    // 1. Top KPI Card Filters
-    if (kpiDrillDown === 'TOTAL') {
-      return filteredAssets;
-    }
-    if (kpiDrillDown === 'WARRANTY') {
-      return filteredAssets.filter(a => isWarrantyActive(a.Warranty_End_Date || a.warrantyEndDate));
-    }
-    if (kpiDrillDown === 'WARRANTY_EXPIRED') {
-      return filteredAssets.filter(a => isWarrantyExpired(a.Warranty_End_Date || a.warrantyEndDate));
+    // 1.5. COMPLAINTS (Tickets)
+    if (kpiDrillDown === 'COMPLAINTS') {
+      return filteredTickets.filter(t => {
+        const s = String(t.Status || '').toLowerCase();
+        return !s.includes('close');
+      });
     }
 
-    // 2. Contract Health Portfolio Filters
-    if (kpiDrillDown === 'DLP') {
-      return filteredAssets.filter(a => getSupportTier(a) === 'DLP');
-    }
-    if (kpiDrillDown === 'COMP_AMC') {
-      return filteredAssets.filter(a => getSupportTier(a) === 'Comprehensive AMC');
-    }
-    if (kpiDrillDown === 'NON_COMP_AMC') {
-      return filteredAssets.filter(a => getSupportTier(a) === 'Non-Comprehensive AMC');
-    }
-    if (kpiDrillDown === 'WARRANTY_NO_AMC') {
-      return filteredAssets.filter(a => getSupportTier(a) === 'Out Of Support' && !isCompletelyUncovered(a));
-    }
-    if (kpiDrillDown === 'EXPIRED') {
-      return filteredAssets.filter(a => isCompletelyUncovered(a));
-    }
-    return [];
-  }, [kpiDrillDown, filteredAssets]);
+    // 2. STANDARD KPI DRILL-DOWNS (Assets)
+    if (kpiDrillDown === 'WARRANTY') return filteredAssets.filter(a => isWarrantyActive(a.Warranty_End_Date || a.warrantyEndDate));
+    if (kpiDrillDown === 'WARRANTY_EXPIRED') return filteredAssets.filter(a => isWarrantyExpired(a.Warranty_End_Date || a.warrantyEndDate));
+    if (kpiDrillDown === 'DLP') return filteredAssets.filter(a => getSupportTier(a) === 'DLP');
+    if (kpiDrillDown === 'COMP_AMC') return filteredAssets.filter(a => getSupportTier(a) === 'Comprehensive AMC');
+    if (kpiDrillDown === 'NON_COMP_AMC') return filteredAssets.filter(a => getSupportTier(a) === 'Non-Comprehensive AMC');
+    if (kpiDrillDown === 'WARRANTY_NO_AMC') return filteredAssets.filter(a => getSupportTier(a) === 'Out Of Support' && !isCompletelyUncovered(a));
+    if (kpiDrillDown === 'EXPIRED') return filteredAssets.filter(a => isCompletelyUncovered(a));
+    
+    return filteredAssets; // Default fallback
+  }, [kpiDrillDown, filteredAssets, activeMasterTickets, assets, filteredTickets, tickets, filterYear, filterMonth]);
 
   return (
     <div className="reporting-dashboard">
@@ -619,234 +915,201 @@ export default function ReportingDashboard() {
           </select>
         </div>
       </div>
-        {/* --- CONTRACT HEALTH PORTFOLIO --- */}
-        <div style={{ background: '#ffffff', padding: '20px', borderRadius: '8px', boxShadow: '0 1px 3px rgba(0,0,0,0.1)', flex: 1 }}>
-          <h4 style={{ margin: '0 0 4px 0', color: '#0f172a' }}>Contract Health Portfolio</h4>
-          <p style={{ margin: '0 0 20px 0', fontSize: '0.85rem', color: '#64748b' }}>Overall status of managed infrastructure</p>
+      {/* --- CONTRACT HEALTH PORTFOLIO --- */}
+      <div style={{ background: '#ffffff', padding: '20px', borderRadius: '8px', boxShadow: '0 1px 3px rgba(0,0,0,0.1)', flex: 1 }}>
+        <h4 style={{ margin: '0 0 4px 0', color: '#0f172a' }}>Contract Health Portfolio</h4>
+        <p style={{ margin: '0 0 20px 0', fontSize: '0.85rem', color: '#64748b' }}>Overall status of managed infrastructure</p>
 
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
 
-            {/* 1. Active DLP */}
-            <div
-              onClick={() => setKpiDrillDown('DLP')}
-              style={{ display: 'flex', justifyContent: 'space-between', padding: '12px 16px', background: '#f0f9ff', borderLeft: '4px solid #0369a1', borderRadius: '4px', cursor: 'pointer', transition: 'transform 0.2s' }}
-              onMouseOver={(e) => e.currentTarget.style.transform = 'scale(1.02)'}
-              onMouseOut={(e) => e.currentTarget.style.transform = 'scale(1)'}
-            >
-              <span style={{ fontWeight: 'bold', color: '#0c4a6e', fontSize: '0.9rem' }}>Active DLP (New Projects)</span>
-              <span style={{ fontWeight: '900', color: '#0369a1', fontSize: '1.1rem' }}>{contractHealth.dlp}</span>
-            </div>
+          {/* 1. Active DLP */}
+          <div
+            onClick={() => setKpiDrillDown('DLP')}
+            style={{ display: 'flex', justifyContent: 'space-between', padding: '12px 16px', background: '#f0f9ff', borderLeft: '4px solid #0369a1', borderRadius: '4px', cursor: 'pointer', transition: 'transform 0.2s' }}
+            onMouseOver={(e) => e.currentTarget.style.transform = 'scale(1.02)'}
+            onMouseOut={(e) => e.currentTarget.style.transform = 'scale(1)'}
+          >
+            <span style={{ fontWeight: 'bold', color: '#0c4a6e', fontSize: '0.9rem' }}>Active DLP (New Projects)</span>
+            <span style={{ fontWeight: '900', color: '#0369a1', fontSize: '1.1rem' }}>{contractHealth.dlp}</span>
+          </div>
 
-            {/* 2. Comprehensive AMC */}
-            <div
-              onClick={() => setKpiDrillDown('COMP_AMC')}
-              style={{ display: 'flex', justifyContent: 'space-between', padding: '12px 16px', background: '#f0fdf4', borderLeft: '4px solid #166534', borderRadius: '4px', cursor: 'pointer', transition: 'transform 0.2s' }}
-              onMouseOver={(e) => e.currentTarget.style.transform = 'scale(1.02)'}
-              onMouseOut={(e) => e.currentTarget.style.transform = 'scale(1)'}
-            >
-              <span style={{ fontWeight: 'bold', color: '#14532d', fontSize: '0.9rem' }}>Comprehensive AMC</span>
-              <span style={{ fontWeight: '900', color: '#15803d', fontSize: '1.1rem' }}>{contractHealth.compAmc}</span>
-            </div>
+          {/* 2. Comprehensive AMC */}
+          <div
+            onClick={() => setKpiDrillDown('COMP_AMC')}
+            style={{ display: 'flex', justifyContent: 'space-between', padding: '12px 16px', background: '#f0fdf4', borderLeft: '4px solid #166534', borderRadius: '4px', cursor: 'pointer', transition: 'transform 0.2s' }}
+            onMouseOver={(e) => e.currentTarget.style.transform = 'scale(1.02)'}
+            onMouseOut={(e) => e.currentTarget.style.transform = 'scale(1)'}
+          >
+            <span style={{ fontWeight: 'bold', color: '#14532d', fontSize: '0.9rem' }}>Comprehensive AMC</span>
+            <span style={{ fontWeight: '900', color: '#15803d', fontSize: '1.1rem' }}>{contractHealth.compAmc}</span>
+          </div>
 
-            {/* 3. Non-Comprehensive AMC */}
-            <div
-              onClick={() => setKpiDrillDown('NON_COMP_AMC')}
-              style={{ display: 'flex', justifyContent: 'space-between', padding: '12px 16px', background: '#fffbeb', borderLeft: '4px solid #b45309', borderRadius: '4px', cursor: 'pointer', transition: 'transform 0.2s' }}
-              onMouseOver={(e) => e.currentTarget.style.transform = 'scale(1.02)'}
-              onMouseOut={(e) => e.currentTarget.style.transform = 'scale(1)'}
-            >
-              <span style={{ fontWeight: 'bold', color: '#78350f', fontSize: '0.9rem' }}>Non-Comprehensive AMC</span>
-              <span style={{ fontWeight: '900', color: '#b45309', fontSize: '1.1rem' }}>{contractHealth.nonCompAmc}</span>
-            </div>
+          {/* 3. Non-Comprehensive AMC */}
+          <div
+            onClick={() => setKpiDrillDown('NON_COMP_AMC')}
+            style={{ display: 'flex', justifyContent: 'space-between', padding: '12px 16px', background: '#fffbeb', borderLeft: '4px solid #b45309', borderRadius: '4px', cursor: 'pointer', transition: 'transform 0.2s' }}
+            onMouseOver={(e) => e.currentTarget.style.transform = 'scale(1.02)'}
+            onMouseOut={(e) => e.currentTarget.style.transform = 'scale(1)'}
+          >
+            <span style={{ fontWeight: 'bold', color: '#78350f', fontSize: '0.9rem' }}>Non-Comprehensive AMC</span>
+            <span style={{ fontWeight: '900', color: '#b45309', fontSize: '1.1rem' }}>{contractHealth.nonCompAmc}</span>
+          </div>
 
-            {/* 4. OEM Warranty Only (No AMC) */}
-            <div
-              onClick={() => setKpiDrillDown('WARRANTY_NO_AMC')}
-              style={{ display: 'flex', justifyContent: 'space-between', padding: '12px 16px', background: '#f5f3ff', borderLeft: '4px solid #7c3aed', borderRadius: '4px', cursor: 'pointer', transition: 'transform 0.2s' }}
-              onMouseOver={(e) => e.currentTarget.style.transform = 'scale(1.02)'}
-              onMouseOut={(e) => e.currentTarget.style.transform = 'scale(1)'}
-            >
-              <span style={{ fontWeight: 'bold', color: '#4c1d95', fontSize: '0.9rem' }}>OEM Warranty Only (No AMC)</span>
-              <span style={{ fontWeight: '900', color: '#7c3aed', fontSize: '1.1rem' }}>{contractHealth.oemOnly}</span>
-            </div>
+          {/* 4. OEM Warranty Only (No AMC) */}
+          <div
+            onClick={() => setKpiDrillDown('WARRANTY_NO_AMC')}
+            style={{ display: 'flex', justifyContent: 'space-between', padding: '12px 16px', background: '#f5f3ff', borderLeft: '4px solid #7c3aed', borderRadius: '4px', cursor: 'pointer', transition: 'transform 0.2s' }}
+            onMouseOver={(e) => e.currentTarget.style.transform = 'scale(1.02)'}
+            onMouseOut={(e) => e.currentTarget.style.transform = 'scale(1)'}
+          >
+            <span style={{ fontWeight: 'bold', color: '#4c1d95', fontSize: '0.9rem' }}>OEM Warranty Only (No AMC)</span>
+            <span style={{ fontWeight: '900', color: '#7c3aed', fontSize: '1.1rem' }}>{contractHealth.oemOnly}</span>
+          </div>
 
-            {/* 5. Expired / Uncovered */}
-            <div
-              onClick={() => setKpiDrillDown('EXPIRED')}
-              style={{ display: 'flex', justifyContent: 'space-between', padding: '12px 16px', background: '#fef2f2', borderLeft: '4px solid #dc2626', borderRadius: '4px', cursor: 'pointer', transition: 'transform 0.2s', marginTop: '12px' }}
-              onMouseOver={(e) => e.currentTarget.style.transform = 'scale(1.02)'}
-              onMouseOut={(e) => e.currentTarget.style.transform = 'scale(1)'}
-            >
-              <span style={{ fontWeight: 'bold', color: '#7f1d1d', fontSize: '0.9rem' }}>Completely Uncovered</span>
-              <span style={{ fontWeight: '900', color: '#dc2626', fontSize: '1.1rem' }}>{contractHealth.expired}</span>
-            </div>
+          {/* 5. Expired / Uncovered */}
+          <div
+            onClick={() => setKpiDrillDown('EXPIRED')}
+            style={{ display: 'flex', justifyContent: 'space-between', padding: '12px 16px', background: '#fef2f2', borderLeft: '4px solid #dc2626', borderRadius: '4px', cursor: 'pointer', transition: 'transform 0.2s', marginTop: '12px' }}
+            onMouseOver={(e) => e.currentTarget.style.transform = 'scale(1.02)'}
+            onMouseOut={(e) => e.currentTarget.style.transform = 'scale(1)'}
+          >
+            <span style={{ fontWeight: 'bold', color: '#7f1d1d', fontSize: '0.9rem' }}>Completely Uncovered</span>
+            <span style={{ fontWeight: '900', color: '#dc2626', fontSize: '1.1rem' }}>{contractHealth.expired}</span>
+          </div>
 
+        </div>
+      </div>
+
+      {/* --- TOP SUMMARY CARDS (Active Master Tickets) --- */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '24px', marginBottom: '24px' }}>
+        
+        {/* Card 1: Hardware Failure Trends */}
+        <div style={{ background: '#ffffff', padding: '20px', borderRadius: '8px', boxShadow: '0 1px 3px rgba(0,0,0,0.1)' }}>
+          <h3 style={{ marginTop: 0, color: '#0f172a', fontSize: '1.1rem', marginBottom: '4px' }}>Hardware Failure Trends</h3>
+          <p style={{ fontSize: '0.8rem', color: '#64748b', marginTop: 0, marginBottom: '20px' }}>Volume of active tickets by category</p>
+          
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', maxHeight: '200px', overflowY: 'auto', paddingRight: '8px' }}>
+            {categoryTrendsData.length === 0 && <span style={{ color: '#94a3b8', fontSize: '0.9rem' }}>No active tickets.</span>}
+            {categoryTrendsData.map((item, i) => (
+              <div 
+                key={i}
+                onClick={() => setKpiDrillDown(`CHART_CATEGORY|${item.name}`)}
+                style={{ cursor: 'pointer', transition: 'opacity 0.2s' }}
+                onMouseOver={(e) => e.currentTarget.style.opacity = 0.7}
+                onMouseOut={(e) => e.currentTarget.style.opacity = 1}
+              >
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.85rem', fontWeight: 'bold', color: '#334155', marginBottom: '4px' }}>
+                  <span>{item.name}</span>
+                  <span style={{ color: '#8b5cf6' }}>{item.value}</span>
+                </div>
+                <div style={{ width: '100%', background: '#f1f5f9', borderRadius: '4px', height: '8px' }}>
+                  <div style={{ width: `${item.width}%`, background: '#8b5cf6', height: '100%', borderRadius: '4px' }}></div>
+                </div>
+              </div>
+            ))}
           </div>
         </div>
 
-      <div className="analytics-layout-grid">
-
-        {/* CATEGORY FAILURE TRENDS GRAPH */}
-        <div style={{ background: '#ffffff', padding: '20px', borderRadius: '8px', boxShadow: '0 1px 3px rgba(0,0,0,0.1)', flex: 1 }}>
-          <h4 style={{ margin: '0 0 4px 0', color: '#0f172a' }}>Hardware Failure Trends</h4>
-          <p style={{ margin: '0 0 20px 0', fontSize: '0.85rem', color: '#64748b' }}>Volume of active tickets by category</p>
-
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', maxHeight: '250px', overflowY: 'auto', paddingRight: '8px' }}>
-            {loading ? (
-              <div style={{ fontSize: '0.85rem', color: '#94a3b8', fontStyle: 'italic' }}>Loading...</div>
-            ) : categoryData.length === 0 ? (
-              <div style={{ fontSize: '0.85rem', color: '#94a3b8', fontStyle: 'italic' }}>No active tickets.</div>
-            ) : (
-              categoryData.map((item, idx) => {
-                const maxCount = categoryData[0].count;
-                const barWidth = `${(item.count / maxCount) * 100}%`;
-
-                return (
-                  <div
-                    key={idx}
-                    onClick={() => setChartDrillDown({ filterType: 'CATEGORY', value: item.category })}
-                    style={{ cursor: 'pointer', padding: '6px', borderRadius: '6px', transition: 'background 0.2s', margin: '0 -6px' }}
-                    onMouseOver={(e) => e.currentTarget.style.background = '#f8fafc'}
-                    onMouseOut={(e) => e.currentTarget.style.background = 'transparent'}
-                    title={`Click to view all ${item.count} ${item.category} tickets`}
-                  >
-                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.75rem', fontWeight: 'bold', color: '#475569', marginBottom: '4px' }}>
-                      <span>{item.category}</span>
-                      <span style={{ color: '#8b5cf6' }}>{item.count}</span>
-                    </div>
-                    <div style={{ width: '100%', background: '#f1f5f9', borderRadius: '4px', height: '8px', overflow: 'hidden' }}>
-                      <div style={{ width: barWidth, background: '#8b5cf6', height: '100%', borderRadius: '4px' }}></div>
-                    </div>
-                  </div>
-                )
-              })
-            )}
-          </div>
-        </div>
-
-        {/* RECHARTS: PIE CHART (Asset Distribution by Brand) */}
-        <div className="chart-panel md3-surface" style={{ flex: 1, minWidth: '300px' }}>
-          <h4 style={{ margin: '0 0 4px 0', color: '#0f172a' }}>Asset Distribution by Brand</h4>
-          <p style={{ margin: '0 0 20px 0', fontSize: '0.85rem', color: '#64748b' }}>Proportion of managed hardware makes</p>
-          <div className="recharts-container-box" style={{ marginTop: '10px', height: '250px', position: 'relative' }}>
-            {loading ? (
-              <div style={{ fontSize: '0.85rem', color: '#94a3b8', fontStyle: 'italic', display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%' }}>Loading...</div>
-            ) : brandData.length === 0 ? (
-              <div style={{ fontSize: '0.85rem', color: '#94a3b8', fontStyle: 'italic', display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%' }}>No brand data available.</div>
+        {/* Card 2: Asset Distribution by Brand (Fixed Pie Chart) */}
+        <div style={{ background: '#ffffff', padding: '20px', borderRadius: '8px', boxShadow: '0 1px 3px rgba(0,0,0,0.1)' }}>
+          <h3 style={{ marginTop: 0, color: '#0f172a', fontSize: '1.1rem', marginBottom: '4px' }}>Asset Distribution by Brand</h3>
+          <p style={{ fontSize: '0.8rem', color: '#64748b', marginTop: 0, marginBottom: '0px' }}>Proportion of managed hardware makes</p>
+          
+          <div style={{ width: '100%', height: '220px' }}>
+            {brandPieData.length === 0 ? (
+               <div style={{ height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#94a3b8', fontSize: '0.9rem' }}>No data available.</div>
             ) : (
               <ResponsiveContainer width="100%" height="100%">
                 <PieChart>
-                  <Pie
-                    data={brandData.map(item => ({
-                      name: item.make || item.brand || 'Unknown',
-                      value: item.count || 0
-                    }))}
-                    cx="50%"
-                    cy="50%"
-                    innerRadius={60}
-                    outerRadius={85}
-                    paddingAngle={3}
-                    dataKey="value"
+                  <Pie 
+                    data={brandPieData} 
+                    cx="50%" cy="50%" innerRadius={50} outerRadius={80} paddingAngle={2} dataKey="value"
+                    onClick={(data) => setKpiDrillDown(`CHART_BRAND|${data.name}`)}
+                    style={{ cursor: 'pointer' }}
                   >
-                    {brandData.map((entry, index) => {
-                      const colors = ['#3b82f6', '#10b981', '#f59e0b', '#8b5cf6', '#ef4444', '#06b6d4', '#ec4899'];
-                      return <Cell key={`cell-${index}`} fill={colors[index % colors.length]} />;
-                    })}
+                    {brandPieData.map((entry, index) => <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />)}
                   </Pie>
-                  <Tooltip 
-                    contentStyle={{ background: '#ffffff', border: '1px solid #cbd5e1', borderRadius: '8px', fontSize: '0.75rem' }}
-                  />
-                  <Legend 
-                    layout="horizontal" 
-                    verticalAlign="bottom" 
-                    align="center"
-                    iconSize={10}
-                    iconType="circle"
-                    wrapperStyle={{ fontSize: '0.75rem', color: '#475569' }}
-                  />
+                  <Tooltip contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)' }} />
+                  <Legend verticalAlign="bottom" height={36} wrapperStyle={{ fontSize: '0.75rem' }} />
                 </PieChart>
               </ResponsiveContainer>
             )}
           </div>
         </div>
 
-        {/* --- TICKET ISSUE TYPE DISTRIBUTION --- */}
-        <div style={{ background: '#ffffff', padding: '20px', borderRadius: '8px', boxShadow: '0 1px 3px rgba(0,0,0,0.1)', flex: 1 }}>
-          <h4 style={{ margin: '0 0 4px 0', color: '#0f172a' }}>Issue Type Breakdown</h4>
-          <p style={{ margin: '0 0 20px 0', fontSize: '0.85rem', color: '#64748b' }}>Volume of open tickets by category</p>
-
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', maxHeight: '250px', overflowY: 'auto', paddingRight: '8px' }}>
-            {issueTypeData.length === 0 ? (
-              <div style={{ fontSize: '0.85rem', color: '#94a3b8', fontStyle: 'italic' }}>No active complaints.</div>
-            ) : (
-              issueTypeData.map((item, idx) => {
-                const maxCount = issueTypeData[0].count;
-                const barWidth = `${(item.count / maxCount) * 100}%`;
-
-                return (
-                  <div
-                    key={idx}
-                    onClick={() => setChartDrillDown({ filterType: 'ISSUE', value: item.type })}
-                    style={{ cursor: 'pointer', padding: '6px', borderRadius: '6px', transition: 'background 0.2s', margin: '0 -6px' }}
-                    onMouseOver={(e) => e.currentTarget.style.background = '#f8fafc'}
-                    onMouseOut={(e) => e.currentTarget.style.background = 'transparent'}
-                    title={`Click to view all ${item.count} ${item.type} tickets`}
-                  >
-                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.75rem', fontWeight: 'bold', color: '#475569', marginBottom: '4px' }}>
-                      <span>{item.type}</span>
-                      <span>{item.count}</span>
-                    </div>
-                    <div style={{ width: '100%', background: '#f1f5f9', borderRadius: '4px', height: '8px', overflow: 'hidden' }}>
-                      <div style={{ width: barWidth, background: '#ef4444', height: '100%', borderRadius: '4px' }}></div>
-                    </div>
-                  </div>
-                )
-              })
-            )}
-          </div>
-        </div>
-
-        {/* --- ENGINEER PERFORMANCE GRAPH (RESOLVED TICKETS) --- */}
+        {/* Card 3: Issue Type Breakdown */}
         <div style={{ background: '#ffffff', padding: '20px', borderRadius: '8px', boxShadow: '0 1px 3px rgba(0,0,0,0.1)' }}>
-          <h4 style={{ margin: '0 0 4px 0', color: '#0f172a' }}>Engineer Performance</h4>
-          <p style={{ margin: '0 0 20px 0', fontSize: '0.85rem', color: '#64748b' }}>Volume of resolved tickets by engineer</p>
+          <h3 style={{ marginTop: 0, color: '#0f172a', fontSize: '1.1rem', marginBottom: '4px' }}>Issue Type Breakdown</h3>
+          <p style={{ fontSize: '0.8rem', color: '#64748b', marginTop: 0, marginBottom: '20px' }}>Volume of open tickets by category</p>
+          
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', maxHeight: '200px', overflowY: 'auto', paddingRight: '8px' }}>
+            {issueBreakdownData.length === 0 && <span style={{ color: '#94a3b8', fontSize: '0.9rem' }}>No open issues.</span>}
+            {issueBreakdownData.map((item, i) => (
+              <div 
+                key={i} 
+                onClick={() => setKpiDrillDown(`CHART_ISSUE|${item.name}`)}
+                style={{ cursor: 'pointer', transition: 'opacity 0.2s' }}
+                onMouseOver={(e) => e.currentTarget.style.opacity = 0.7}
+                onMouseOut={(e) => e.currentTarget.style.opacity = 1}
+              >
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.85rem', fontWeight: 'bold', color: '#334155', marginBottom: '4px' }}>
+                  <span>{item.name}</span>
+                  <span style={{ color: '#ef4444' }}>{item.value}</span>
+                </div>
+                <div style={{ width: '100%', background: '#f1f5f9', borderRadius: '4px', height: '8px' }}>
+                  <div style={{ width: `${item.width}%`, background: '#ef4444', height: '100%', borderRadius: '4px' }}></div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
 
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', maxHeight: '250px', overflowY: 'auto', paddingRight: '8px' }}>
-            {engineerPerformanceData.length === 0 ? (
-              <div style={{ fontSize: '0.85rem', color: '#94a3b8', fontStyle: 'italic' }}>No resolved tickets found.</div>
+      </div>  {/* --- Engineer Performance (Full Workflow Stack) --- */}
+        <div style={{ background: '#ffffff', padding: '20px', borderRadius: '8px', boxShadow: '0 1px 3px rgba(0,0,0,0.1)', gridColumn: '1 / -1' }}>
+          <h3 style={{ marginTop: 0, color: '#334155', marginBottom: '4px' }}>Engineer Performance</h3>
+          <p style={{ fontSize: '0.75rem', color: '#64748b', marginTop: 0, marginBottom: '16px' }}>
+            Task volume broken down by current workflow status.
+          </p>
+          
+          <div style={{ height: '380px', width: '100%' }}>
+            {loading ? (
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', fontSize: '0.85rem', color: '#94a3b8', fontStyle: 'italic' }}>Loading...</div>
+            ) : engineerPerformanceData.length === 0 ? (
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', fontSize: '0.85rem', color: '#94a3b8', fontStyle: 'italic' }}>No data available.</div>
             ) : (
-              engineerPerformanceData.map((item, idx) => {
-                const maxCount = engineerPerformanceData[0].count;
-                const barWidth = `${(item.count / maxCount) * 100}%`;
-
-                return (
-                  <div
-                    key={idx}
-                    onClick={() => setChartDrillDown({ filterType: 'ENGINEER', value: item.name })}
-                    style={{ cursor: 'pointer', padding: '6px', borderRadius: '6px', transition: 'background 0.2s', margin: '0 -6px' }}
-                    onMouseOver={(e) => e.currentTarget.style.background = '#f8fafc'}
-                    onMouseOut={(e) => e.currentTarget.style.background = 'transparent'}
-                    title={`Click to view resolved tickets by ${item.name}`}
-                  >
-                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.75rem', fontWeight: 'bold', color: '#475569', marginBottom: '4px' }}>
-                      <span>{item.name}</span>
-                      <span style={{ color: '#0369a1' }}>{item.count}</span>
-                    </div>
-                    <div style={{ width: '100%', background: '#f1f5f9', borderRadius: '4px', height: '8px', overflow: 'hidden' }}>
-                      <div style={{ width: barWidth, background: '#3b82f6', height: '100%', borderRadius: '4px' }}></div>
-                    </div>
-                  </div>
-                )
-              })
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart 
+                  data={engineerPerformanceData} 
+                  layout="vertical" 
+                  margin={{ top: 10, right: 30, left: 40, bottom: 5 }}
+                >
+                  <CartesianGrid strokeDasharray="3 3" horizontal={false} />
+                  
+                  {/* X and Y axes are swapped for horizontal bars */}
+                  <XAxis type="number" allowDecimals={false} style={{ fontSize: '0.8rem' }} />
+                  <YAxis type="category" dataKey="name" width={110} style={{ fontSize: '0.8rem', fontWeight: '500' }} />
+                  
+                  <Tooltip 
+                    cursor={{ fill: '#f1f5f9' }} 
+                    contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)', fontSize: '0.85rem' }} 
+                  />
+                  <Legend wrapperStyle={{ paddingTop: '10px', fontSize: '0.8rem' }} />
+                  
+                  {/* Stacked Bars representing the workflow progression */}
+                  <Bar dataKey="Assigned" stackId="a" fill="#94a3b8" /> {/* Slate/Grey - Just assigned */}
+                  <Bar dataKey="Inprogress" name="In Progress" stackId="a" fill="#f59e0b" /> {/* Amber/Orange - Actively working */}
+                  <Bar dataKey="Pending Parts" stackId="a" fill="#ef4444" /> {/* Red - Blocked */}
+                  <Bar dataKey="Closed" stackId="a" fill="#10b981" radius={[0, 4, 4, 0]} /> {/* Green - Completed */}
+                </BarChart>
+              </ResponsiveContainer>
             )}
           </div>
         </div>
 
-      </div>
 
       <h3 style={{ margin: '32px 0 16px 0', color: '#0f172a' }}>Advanced Time-Filtered Analytics</h3>
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(450px, 1fr))', gap: '24px', marginBottom: '32px' }}>
-        
+
         {/* CHART 1: Volume Trend (Bar Chart) */}
         <div className="chart-panel md3-surface" style={{ background: '#ffffff', padding: '20px', borderRadius: '8px', boxShadow: '0 1px 3px rgba(0,0,0,0.1)' }}>
           <h4 style={{ margin: '0 0 4px 0', color: '#0f172a' }}>Ticket Volume Trend</h4>
@@ -856,13 +1119,13 @@ export default function ReportingDashboard() {
           <div style={{ height: '300px', width: '100%' }}>
             {loading ? (
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', fontSize: '0.85rem', color: '#94a3b8', fontStyle: 'italic' }}>Loading...</div>
-            ) : ticketVolumeData.length === 0 ? (
+            ) : volumeBarData.length === 0 ? (
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', fontSize: '0.85rem', color: '#94a3b8', fontStyle: 'italic' }}>No data available.</div>
             ) : (
               <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={ticketVolumeData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                <BarChart data={volumeBarData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
                   <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
-                  <XAxis dataKey="name" stroke="#64748b" style={{ fontSize: '11px' }} />
+                  <XAxis dataKey="time" stroke="#64748b" style={{ fontSize: '11px' }} />
                   <YAxis stroke="#64748b" style={{ fontSize: '11px' }} />
                   <Tooltip contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.1)' }} />
                   <Bar dataKey="count" fill="#3b82f6" radius={[4, 4, 0, 0]} />
@@ -871,7 +1134,52 @@ export default function ReportingDashboard() {
             )}
           </div>
         </div>
+        {/* --- Current Ticket Status Distribution (Donut Chart) --- */}
+        <div style={{ background: '#ffffff', padding: '20px', borderRadius: '8px', boxShadow: '0 1px 3px rgba(0,0,0,0.1)', marginTop: '24px' }}>
+          <h3 style={{ marginTop: 0, color: '#334155', marginBottom: '4px' }}>Queue Status Lifecycle</h3>
+          <p style={{ fontSize: '0.75rem', color: '#64748b', marginTop: 0, marginBottom: '16px' }}>
+            Real-time snapshot of master ticket progression.
+          </p>
+          <div style={{ height: '300px', width: '100%' }}>
+            {loading ? (
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', fontSize: '0.85rem', color: '#94a3b8', fontStyle: 'italic' }}>Loading...</div>
+            ) : statusDistributionData.length === 0 ? (
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', fontSize: '0.85rem', color: '#94a3b8', fontStyle: 'italic' }}>No data available.</div>
+            ) : (
+              <ResponsiveContainer width="100%" height="100%">
+                <PieChart>
+                  <Pie
+                    data={statusDistributionData}
+                    cx="50%" cy="50%"
+                    innerRadius={60}
+                    outerRadius={100}
+                    paddingAngle={4}
+                    dataKey="value"
+                    label
+                    onClick={(data) => setKpiDrillDown(`CHART_STATUS|${data.name}`)}
+                    style={{ cursor: 'pointer' }}
+                  >
+                    {statusDistributionData.map((entry, index) => {
+                      // Contextual coloring for lifecycle urgency
+                      let color = '#94a3b8'; // Default grey
+                      if (entry.name === 'Open') color = '#ef4444'; // Red
+                      else if (entry.name === 'In Progress') color = '#f59e0b'; // Amber/Orange
+                      else if (entry.name === 'Ready To Close') color = '#3b82f6'; // Blue
+                      else if (entry.name === 'Resolved / Closed') color = '#10b981'; // Green
 
+                      return <Cell key={`cell-${index}`} fill={color} />;
+                    })}
+                  </Pie>
+                  <Tooltip
+                    contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)' }}
+                    itemStyle={{ fontWeight: 'bold' }}
+                  />
+                  <Legend verticalAlign="bottom" height={36} wrapperStyle={{ fontSize: '0.8rem' }} />
+                </PieChart>
+              </ResponsiveContainer>
+            )}
+          </div>
+        </div>
         {/* CHART 2: Issue Type Proportions (Pie Chart) */}
         <div className="chart-panel md3-surface" style={{ background: '#ffffff', padding: '20px', borderRadius: '8px', boxShadow: '0 1px 3px rgba(0,0,0,0.1)' }}>
           <h4 style={{ margin: '0 0 4px 0', color: '#0f172a' }}>Issue Type Proportions</h4>
@@ -879,13 +1187,13 @@ export default function ReportingDashboard() {
           <div style={{ height: '300px', width: '100%' }}>
             {loading ? (
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', fontSize: '0.85rem', color: '#94a3b8', fontStyle: 'italic' }}>Loading...</div>
-            ) : monthlyIssueBreakdown.length === 0 ? (
+            ) : issuePieData.length === 0 ? (
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', fontSize: '0.85rem', color: '#94a3b8', fontStyle: 'italic' }}>No data available.</div>
             ) : (
               <ResponsiveContainer width="100%" height="100%">
                 <PieChart>
-                  <Pie data={monthlyIssueBreakdown} cx="50%" cy="45%" innerRadius={60} outerRadius={100} paddingAngle={2} dataKey="value" nameKey="name">
-                    {monthlyIssueBreakdown.map((entry, index) => (
+                  <Pie data={issuePieData} cx="50%" cy="45%" innerRadius={60} outerRadius={100} paddingAngle={2} dataKey="value" nameKey="name">
+                    {issuePieData.map((entry, index) => (
                       <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
                     ))}
                   </Pie>
@@ -904,17 +1212,17 @@ export default function ReportingDashboard() {
           <div style={{ height: '300px', width: '100%' }}>
             {loading ? (
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', fontSize: '0.85rem', color: '#94a3b8', fontStyle: 'italic' }}>Loading...</div>
-            ) : categoryTrendData.data.length === 0 ? (
+            ) : categoryLineData.length === 0 ? (
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', fontSize: '0.85rem', color: '#94a3b8', fontStyle: 'italic' }}>No data available.</div>
             ) : (
               <ResponsiveContainer width="100%" height="100%">
-                <LineChart data={categoryTrendData.data} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                <LineChart data={categoryLineData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
                   <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
-                  <XAxis dataKey="name" stroke="#64748b" style={{ fontSize: '11px' }} />
+                  <XAxis dataKey="time" stroke="#64748b" style={{ fontSize: '11px' }} />
                   <YAxis stroke="#64748b" style={{ fontSize: '11px' }} />
                   <Tooltip contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.1)' }} />
                   <Legend verticalAlign="bottom" height={36} iconType="circle" wrapperStyle={{ fontSize: '12px' }} />
-                  {categoryTrendData.categories.map((cat, index) => (
+                  {categoryLineCategories.map((cat, index) => (
                     <Line key={cat} type="monotone" dataKey={cat} stroke={COLORS[index % COLORS.length]} strokeWidth={2.5} activeDot={{ r: 6 }} dot={{ r: 3 }} />
                   ))}
                 </LineChart>
@@ -923,51 +1231,146 @@ export default function ReportingDashboard() {
           </div>
         </div>
 
-        {/* CHART 4: Dispatch Categories & Repeat Failures (Bar Chart) */}
+        {/* CHART 4: Dispatch Categories & Repeat Failures (Stacked Bar Chart) */}
         <div className="chart-panel md3-surface" style={{ background: '#ffffff', padding: '20px', borderRadius: '8px', boxShadow: '0 1px 3px rgba(0,0,0,0.1)' }}>
-          <h4 style={{ margin: '0 0 4px 0', color: '#0f172a' }}>Dispatch Categories & Repeat Failures</h4>
-          <p style={{ margin: '0 0 20px 0', fontSize: '0.85rem', color: '#64748b' }}>Analysis of engineer dispatch type and recurring calls</p>
+          <h3 style={{ marginTop: 0, color: '#334155', marginBottom: '4px' }}>Dispatch Categories & Repeat Failures</h3>
+          <p style={{ fontSize: '0.75rem', color: '#64748b', marginTop: 0, marginBottom: '16px' }}>Analysis of engineer dispatch type and recurring calls</p>
           <div style={{ height: '300px', width: '100%' }}>
             {loading ? (
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', fontSize: '0.85rem', color: '#94a3b8', fontStyle: 'italic' }}>Loading...</div>
-            ) : timeFilteredTickets.length === 0 ? (
+            ) : dispatchBreakdownData.length === 0 ? (
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', fontSize: '0.85rem', color: '#94a3b8', fontStyle: 'italic' }}>No data available.</div>
             ) : (
               <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={engineerAndRepeatedData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
-                  <XAxis dataKey="name" stroke="#64748b" style={{ fontSize: '11px' }} />
-                  <YAxis stroke="#64748b" style={{ fontSize: '11px' }} />
-                  <Tooltip contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.1)' }} />
-                  <Bar dataKey="count" fill="#8b5cf6" radius={[4, 4, 0, 0]} />
+                <BarChart data={dispatchBreakdownData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                  <XAxis dataKey="time" style={{ fontSize: '0.8rem' }} />
+                  <YAxis allowDecimals={false} style={{ fontSize: '0.8rem' }} />
+                  <Tooltip
+                    cursor={{ fill: '#f1f5f9' }}
+                    contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)', fontSize: '0.85rem' }}
+                  />
+                  <Legend wrapperStyle={{ paddingTop: '10px', fontSize: '0.8rem' }} />
+
+                  {/* stackId="a" forces the bars to stack on top of each other */}
+                  <Bar dataKey="resident" name="Resident Eng" stackId="a" fill="#f97316" /> {/* Orange */}
+                  <Bar dataKey="field" name="Field Eng" stackId="a" fill="#94a3b8" /> {/* Grey */}
+                  <Bar dataKey="closed" name="Closed Tasks" stackId="b" fill="#eab308" /> {/* Yellow */}
+                  <Bar dataKey="pending" name="Pending Tasks" stackId="b" fill="#3b82f6" /> {/* Blue */}
+                  <Bar dataKey="repeated" name="Top Repeated Issues" stackId="c" fill="#22c55e" radius={[4, 4, 0, 0]} /> {/* Green */}
                 </BarChart>
               </ResponsiveContainer>
             )}
           </div>
         </div>
 
-        {/* CHART 5: Brand Ticket Distribution (Bar Chart) */}
-        <div className="chart-panel md3-surface" style={{ background: '#ffffff', padding: '20px', borderRadius: '8px', boxShadow: '0 1px 3px rgba(0,0,0,0.1)' }}>
-          <h4 style={{ margin: '0 0 4px 0', color: '#0f172a' }}>Brand Ticket Distribution</h4>
-          <p style={{ margin: '0 0 20px 0', fontSize: '0.85rem', color: '#64748b' }}>Proportion of tickets grouped by product manufacturer</p>
-          <div style={{ height: '300px', width: '100%' }}>
+        {/* CHART 5: Brand Ticket Distribution (Clustered Bar Chart) */}
+        <div style={{ background: '#ffffff', padding: '20px', borderRadius: '8px', boxShadow: '0 1px 3px rgba(0,0,0,0.1)', gridColumn: '1 / -1' }}>
+          <h3 style={{ marginTop: 0, color: '#334155', marginBottom: '4px' }}>Top Brands Compared With Total Nos. Of Calls</h3>
+          <p style={{ fontSize: '0.75rem', color: '#64748b', marginTop: 0, marginBottom: '16px' }}>
+            Chronological comparison of overall ticket volume against specific product manufacturers.
+          </p>
+          <div style={{ height: '350px', width: '100%' }}>
             {loading ? (
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', fontSize: '0.85rem', color: '#94a3b8', fontStyle: 'italic' }}>Loading...</div>
-            ) : ticketProductMakeData.length === 0 ? (
+            ) : brandTrendData.length === 0 ? (
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', fontSize: '0.85rem', color: '#94a3b8', fontStyle: 'italic' }}>No data available.</div>
             ) : (
               <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={ticketProductMakeData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
-                  <XAxis dataKey="name" stroke="#64748b" style={{ fontSize: '11px' }} />
-                  <YAxis stroke="#64748b" style={{ fontSize: '11px' }} />
-                  <Tooltip contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.1)' }} />
-                  <Bar dataKey="count" fill="#ec4899" radius={[4, 4, 0, 0]} />
+                <BarChart data={brandTrendData} margin={{ top: 20, right: 30, left: -20, bottom: 5 }}>
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                  <XAxis dataKey="time" style={{ fontSize: '0.8rem' }} />
+                  <YAxis allowDecimals={false} style={{ fontSize: '0.8rem' }} />
+                  <Tooltip
+                    cursor={{ fill: '#f1f5f9' }}
+                    contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)', fontSize: '0.85rem' }}
+                  />
+                  <Legend wrapperStyle={{ paddingTop: '10px', fontSize: '0.8rem' }} />
+
+                  {/* Main Total Tickets Bar - Fixed blue to match your reference image */}
+                  <Bar dataKey="totalTickets" name="Total Nos. of Calls" fill="#3b82f6" radius={[4, 4, 0, 0]} />
+
+                  {/* Dynamically render clustered bars for each specific brand found in the data */}
+                  {uniqueBrands.map((brand, index) => (
+                    <Bar
+                      key={brand}
+                      dataKey={brand}
+                      name={brand}
+                      // Offsetting the color index by 1 so it doesn't duplicate the blue from Total Tickets
+                      fill={COLORS[(index + 1) % COLORS.length]}
+                      radius={[4, 4, 0, 0]}
+                    />
+                  ))}
                 </BarChart>
               </ResponsiveContainer>
             )}
           </div>
         </div>
+        {/* CHART 6: Issue Workload by Engineer Role (Clustered Bar Chart) */}
+        <div style={{ background: '#ffffff', padding: '20px', borderRadius: '8px', boxShadow: '0 1px 3px rgba(0,0,0,0.1)', gridColumn: '1 / -1' }}>
+          <h3 style={{ marginTop: 0, color: '#334155' }}>Issue Types Resolved: Resident vs. Field</h3>
+          {loading ? (
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '350px', fontSize: '0.85rem', color: '#94a3b8', fontStyle: 'italic' }}>Loading...</div>
+          ) : engineerIssueData.length === 0 ? (
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '350px', fontSize: '0.85rem', color: '#94a3b8', fontStyle: 'italic' }}>No data available.</div>
+          ) : (
+            <ResponsiveContainer width="100%" height={350}>
+              <BarChart data={engineerIssueData} margin={{ top: 20, right: 30, left: 0, bottom: 5 }}>
+                <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                <XAxis dataKey="issue" />
+                <YAxis allowDecimals={false} />
+                <Tooltip cursor={{ fill: '#f8fafc' }} contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)' }} />
+                <Legend wrapperStyle={{ paddingTop: '10px' }} />
+
+                {/* The two bars render side-by-side automatically for each issue */}
+                <Bar dataKey="resident" name="Resident Engineers" fill="#8b5cf6" radius={[4, 4, 0, 0]} />
+                <Bar dataKey="field" name="Field Engineers" fill="#0ea5e9" radius={[4, 4, 0, 0]} />
+              </BarChart>
+            </ResponsiveContainer>
+          )}
+        </div>
+
+        {/* --- Failure Trends by Product Make (Master Tickets) --- */}
+        <div style={{ background: '#ffffff', padding: '20px', borderRadius: '8px', boxShadow: '0 1px 3px rgba(0,0,0,0.1)', gridColumn: '1 / -1', marginTop: '24px' }}>
+          <h3 style={{ marginTop: 0, color: '#334155' }}>Hardware Failure Trends by Make (Master Log)</h3>
+          <p style={{ fontSize: '0.8rem', color: '#64748b', marginTop: '-10px', marginBottom: '16px' }}>
+            Volume of total reported tickets grouped by hardware brand over time.
+          </p>
+          {loading ? (
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '350px', fontSize: '0.85rem', color: '#94a3b8', fontStyle: 'italic' }}>Loading...</div>
+          ) : makeTrendData.length === 0 ? (
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '350px', fontSize: '0.85rem', color: '#94a3b8', fontStyle: 'italic' }}>No data available.</div>
+          ) : (
+            <ResponsiveContainer width="100%" height={350}>
+              <LineChart data={makeTrendData} margin={{ top: 10, right: 30, left: 0, bottom: 5 }}>
+                <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                <XAxis dataKey="time" />
+                <YAxis allowDecimals={false} />
+                <Tooltip
+                  contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)' }}
+                  itemStyle={{ fontWeight: 'bold' }}
+                />
+                <Legend wrapperStyle={{ paddingTop: '10px' }} />
+
+                {/* Dynamically render a line for every unique hardware brand found in the data */}
+                {uniqueMakes.map((make, index) => (
+                  <Line
+                    key={make}
+                    type="monotone"
+                    dataKey={make}
+                    name={make}
+                    stroke={COLORS[index % COLORS.length]}
+                    strokeWidth={3}
+                    dot={{ r: 4, strokeWidth: 2 }}
+                    activeDot={{ r: 6 }}
+                  />
+                ))}
+              </LineChart>
+            </ResponsiveContainer>
+          )}
+        </div>
+
+
 
       </div>
 
@@ -1028,11 +1431,11 @@ export default function ReportingDashboard() {
                           <span style={{
                             padding: '4px 8px', borderRadius: '12px', fontSize: '0.7rem', fontWeight: 'bold',
                             background: getSupportTier(asset) === 'DLP' ? '#e0f2fe' :
-                                        getSupportTier(asset) === 'Comprehensive AMC' ? '#dcfce7' :
-                                        getSupportTier(asset) === 'Non-Comprehensive AMC' ? '#fffbeb' : '#fee2e2',
+                              getSupportTier(asset) === 'Comprehensive AMC' ? '#dcfce7' :
+                                getSupportTier(asset) === 'Non-Comprehensive AMC' ? '#fffbeb' : '#fee2e2',
                             color: getSupportTier(asset) === 'DLP' ? '#0369a1' :
-                                   getSupportTier(asset) === 'Comprehensive AMC' ? '#15803d' :
-                                   getSupportTier(asset) === 'Non-Comprehensive AMC' ? '#b45309' : '#dc2626'
+                              getSupportTier(asset) === 'Comprehensive AMC' ? '#15803d' :
+                                getSupportTier(asset) === 'Non-Comprehensive AMC' ? '#b45309' : '#dc2626'
                           }}>
                             {getSupportTier(asset)}
                           </span>
@@ -1049,59 +1452,55 @@ export default function ReportingDashboard() {
             </div>
           </div>
         </div>
-      )}      {/* --- KPI DRILL-DOWN MODAL --- */}
+      )}
+            {/* --- REPAIRED DRILL-DOWN MODAL --- */}
       {kpiDrillDown && (
         <div className="modal-overlay" style={{ position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh', background: 'rgba(15, 23, 42, 0.6)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
           <div className="modal-content" style={{ background: '#ffffff', borderRadius: '12px', maxWidth: '1100px', width: '95%', padding: '24px', boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1)' }}>
-
-            {/* 1. HEADER CONTAINER */}
+            
+            {/* 1. HEADER & DOWNLOAD BUTTON */}
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', borderBottom: '1px solid #e2e8f0', paddingBottom: '16px' }}>
-              <div>
-                <h3 style={{ margin: 0, color: '#0f172a', fontSize: '1.25rem' }}>
-                  {kpiDrillDown === 'TOTAL' && 'All Managed Assets'}
-                  {kpiDrillDown === 'COMPLAINTS' && 'Active Helpdesk Tickets'}
-                  {kpiDrillDown === 'WARRANTY' && 'Assets Under Active OEM Warranty'}
-                  {kpiDrillDown === 'WARRANTY_EXPIRED' && 'Assets with Expired OEM Warranty'}
-                  {kpiDrillDown === 'DLP' && 'Active DLP (New Projects)'}
-                  {kpiDrillDown === 'COMP_AMC' && 'Comprehensive AMC'}
-                  {kpiDrillDown === 'NON_COMP_AMC' && 'Non-Comprehensive AMC'}
-                  {kpiDrillDown === 'WARRANTY_NO_AMC' && 'OEM Warranty Only (No AMC)'}
-                  {kpiDrillDown === 'EXPIRED' && 'Completely Uncovered / Expired'}
-                </h3>
-              </div>
+              <h3 style={{ margin: 0, color: '#0f172a', fontSize: '1.25rem' }}>
+                {kpiDrillDown === 'TOTAL' && 'All Managed Assets'}
+                {kpiDrillDown === 'COMPLAINTS' && 'Active Helpdesk Tickets'}
+                {kpiDrillDown === 'WARRANTY' && 'Assets Under Active OEM Warranty'}
+                {kpiDrillDown === 'WARRANTY_EXPIRED' && 'Assets with Expired OEM Warranty'}
+                {kpiDrillDown === 'DLP' && 'Active DLP (New Projects)'}
+                {kpiDrillDown === 'COMP_AMC' && 'Comprehensive AMC'}
+                {kpiDrillDown === 'NON_COMP_AMC' && 'Non-Comprehensive AMC'}
+                {kpiDrillDown === 'WARRANTY_NO_AMC' && 'OEM Warranty Only (No AMC)'}
+                {kpiDrillDown === 'EXPIRED' && 'Completely Uncovered / Expired'}
+                {typeof kpiDrillDown === 'string' && kpiDrillDown.startsWith('CHART_') && `Filtered Data: ${kpiDrillDown.split('|')[1]}`}
+              </h3>
+              
               <div style={{ display: 'flex', gap: '16px', alignItems: 'center' }}>
-                {/* CSV DOWNLOAD BUTTON */}
-                {kpiDrillDown !== 'COMPLAINTS' && (
-                  <button
-                    onClick={() => exportToCSV(kpiDrillDownData, 'Asset_Export')}
-                    style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '6px 12px', background: '#10b981', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold', fontSize: '0.8rem' }}
-                  >
-                    <span className="material-symbols-outlined" style={{ fontSize: '16px' }}>download</span>
-                    Export CSV
-                  </button>
-                )}
-
+                {/* RESTORED DOWNLOAD BUTTON: Passes the hoisted modalData array */}
+                <button 
+                  onClick={() => exportToCSV(modalData, typeof kpiDrillDown === 'string' && kpiDrillDown.startsWith('CHART_') ? 'Chart_Export' : 'Asset_Export')}
+                  style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '6px 12px', background: '#10b981', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold', fontSize: '0.8rem' }}
+                >
+                  <span className="material-symbols-outlined" style={{ fontSize: '16px' }}>download</span>
+                  Export CSV
+                </button>
                 <button onClick={() => setKpiDrillDown(null)} style={{ background: 'transparent', border: 'none', fontSize: '24px', cursor: 'pointer', color: '#94a3b8' }}>✕</button>
               </div>
             </div>
-            {/* CRITICAL: Header div closes here! */}
 
-            {/* 2. TABLE WRAPPER (Handles scrolling so the modal doesn't break) */}
+            {/* 2. TABLE WRAPPER */}
             <div style={{ maxHeight: '60vh', overflowY: 'auto', overflowX: 'auto', border: '1px solid #e2e8f0', borderRadius: '8px' }}>
-
-              {/* We use minWidth to ensure columns don't crush together on smaller screens */}
               <table style={{ width: '100%', minWidth: '900px', borderCollapse: 'collapse', fontSize: '0.85rem' }}>
+                
+                {/* DYNAMIC HEADERS: Detects if we are looking at Tickets or Assets */}
                 <thead style={{ position: 'sticky', top: 0, background: '#f8fafc', zIndex: 1 }}>
                   <tr style={{ borderBottom: '2px solid #e2e8f0', textAlign: 'left' }}>
-
-                    {/* Dynamic Headers */}
-                    {kpiDrillDown === 'COMPLAINTS' ? (
+                    {(kpiDrillDown === 'COMPLAINTS' || (typeof kpiDrillDown === 'string' && kpiDrillDown.startsWith('CHART_'))) ? (
                       <>
-                        <th style={{ padding: '12px', color: '#475569' }}>TICKET & DATE</th>
-                        <th style={{ padding: '12px', color: '#475569' }}>LOCATION</th>
-                        <th style={{ padding: '12px', color: '#475569' }}>ENGINEER</th>
-                        <th style={{ padding: '12px', color: '#475569' }}>AFFECTED ASSET</th>
-                        <th style={{ padding: '12px', color: '#475569' }}>SUPPORT TIER</th>
+                        <th style={{ padding: '12px', color: '#475569' }}>TICKET ID</th>
+                        <th style={{ padding: '12px', color: '#475569' }}>ISSUE DETAILS</th>
+                        <th style={{ padding: '12px', color: '#475569' }}>HARDWARE MAKE</th>
+                        <th style={{ padding: '12px', color: '#475569' }}>COMPANY</th>
+                        <th style={{ padding: '12px', color: '#475569' }}>OPEN DATE</th>
+                        <th style={{ padding: '12px', color: '#475569' }}>STATUS</th>
                       </>
                     ) : (
                       <>
@@ -1113,182 +1512,53 @@ export default function ReportingDashboard() {
                         <th style={{ padding: '12px', color: '#475569' }}>SUPPORT TIER</th>
                       </>
                     )}
-
                   </tr>
                 </thead>
+
+                {/* DYNAMIC BODY: Maps the hoisted modalData array */}
                 <tbody>
-
-                  {/* 1. TICKET DATA RENDERING */}
-                  {kpiDrillDown === 'COMPLAINTS' && (() => {
-                    const activeTickets = filteredTickets.filter(t => {
-                      const s = String(t.Status || t.Ticket_Status || '').toLowerCase();
-                      return !s.includes('resolved') && !s.includes('close');
-                    });
-
-                    if (activeTickets.length === 0) {
-                      return <tr><td colSpan="5" style={{ padding: '24px', textAlign: 'center', color: '#64748b' }}>No active tickets found.</td></tr>;
-                    }
-
-                    return activeTickets.map((ticket, i) => {
-                      // Cross-reference the global assets array to pull full hardware details
-                      // (Falls back to the ticket itself if the backend already joined the data)
-                      const linkedAsset = assets?.find(a => {
-                        const aRef = a.Unique_Product_Id || a.id || a.Ref_Code;
-                        const tRef = ticket.Asset_Ref_Code || ticket.Unique_Product_Id;
-                        return aRef && tRef && String(aRef).trim().toLowerCase() === String(tRef).trim().toLowerCase();
-                      }) || ticket;
-
-                      const openDate = ticket.Open_Date || ticket.Created_At || ticket.CreatedAt;
-                      const company = ticket.Company || ticket.Company_Name || '-';
-                      const branch = ticket.Branch || ticket.branch || '-';
-                      const engineer = ticket.Assigned_Engineer || ticket.Engineer_Name || 'Unassigned';
-
-                      const make = linkedAsset.Make || linkedAsset.ProductMake;
-                      const model = linkedAsset.Model || linkedAsset.ProductModel;
-                      const serial = linkedAsset.Serial_No || linkedAsset.ProductSerial || 'N/A';
-
-                      // DYNAMIC CONTRACT CALCULATOR (Ignores backend Support_Type text)
-                      const now = new Date().getTime();
-                      let calculatedTier = 'Out Of Support';
-
-                      const amcEnd = linkedAsset.AMC_End_Date || linkedAsset.amcEnd || linkedAsset.amcEndDate ? new Date(linkedAsset.AMC_End_Date || linkedAsset.amcEnd || linkedAsset.amcEndDate).getTime() : 0;
-                      const nonAmcEnd = linkedAsset.NON_CAMC_End_Date || linkedAsset.nonAmcEnd || linkedAsset.nonAmcEndDate ? new Date(linkedAsset.NON_CAMC_End_Date || linkedAsset.nonAmcEnd || linkedAsset.nonAmcEndDate).getTime() : 0;
-                      const dlpEnd = linkedAsset.DLP_End_Date || linkedAsset.dlpEnd || linkedAsset.dlpEndDate ? new Date(linkedAsset.DLP_End_Date || linkedAsset.dlpEnd || linkedAsset.dlpEndDate).getTime() : 0;
-
-                      if (!isNaN(amcEnd) && amcEnd >= now) {
-                        calculatedTier = 'Comprehensive AMC';
-                      } else if (!isNaN(nonAmcEnd) && nonAmcEnd >= now) {
-                        calculatedTier = 'Non-Comprehensive AMC';
-                      } else if (!isNaN(dlpEnd) && dlpEnd >= now) {
-                        calculatedTier = 'DLP';
+                  {modalData.length === 0 ? (
+                    <tr><td colSpan="6" style={{ padding: '32px', textAlign: 'center', color: '#64748b' }}>No data found.</td></tr>
+                  ) : (
+                    modalData.map((item, i) => {
+                      const isTicket = item.hasOwnProperty('Ticket_ID');
+                      
+                      // RENDER TICKET ROW
+                      if (isTicket) {
+                        const linkedAsset = assets?.find(a => a.Ref_Code === item.Asset_Ref_Code) || {};
+                        return (
+                          <tr key={i} style={{ borderBottom: '1px solid #e2e8f0', background: i % 2 === 0 ? '#ffffff' : '#f8fafc' }}>
+                            <td style={{ padding: '12px', fontWeight: 'bold', color: '#3b82f6' }}>{item.Ticket_ID}</td>
+                            <td style={{ padding: '12px', color: '#475569' }}>{item.Category}<br/><span style={{fontSize:'0.75rem'}}>{item.Issue_Type || item.Issue}</span></td>
+                            <td style={{ padding: '12px', color: '#475569' }}>{linkedAsset.Make || linkedAsset.ProductMake} {linkedAsset.Model}</td>
+                            <td style={{ padding: '12px', color: '#475569' }}>{item.Company_Name}</td>
+                            <td style={{ padding: '12px', color: '#475569' }}>{item.Open_Date ? new Date(item.Open_Date).toLocaleDateString('en-GB') : ''}</td>
+                            <td style={{ padding: '12px', color: '#475569', fontWeight: 'bold' }}>{item.Status}</td>
+                          </tr>
+                        );
                       }
 
-                      return (
-                        <tr key={i} style={{ borderBottom: '1px solid #e2e8f0', background: i % 2 === 0 ? '#ffffff' : '#f8fafc' }}>
-
-                          {/* Ticket ID & Open Date Stacked */}
-                          <td style={{ padding: '12px', verticalAlign: 'top' }}>
-                            <div style={{ color: '#dc2626', fontWeight: 'bold' }}>{ticket.Ticket_ID || '-'}</div>
-                            <div style={{ fontSize: '0.75rem', color: '#64748b', marginTop: '2px' }}>
-                              {openDate ? new Date(openDate).toLocaleDateString('en-GB') : 'No Date'}
-                            </div>
-                          </td>
-
-                          {/* Location (Company & Branch) */}
-                          <td style={{ padding: '12px', color: '#334155', verticalAlign: 'top' }}>
-                            <div style={{ fontWeight: 'bold' }}>{company}</div>
-                            <div style={{ fontSize: '0.75rem', color: '#64748b' }}>{branch}</div>
-                          </td>
-
-                          {/* Assigned Engineer */}
-                          <td style={{ padding: '12px', color: '#334155', fontWeight: 'bold', verticalAlign: 'top' }}>
-                            {engineer}
-                          </td>
-
-                          {/* Affected Asset (Make, Model, Serial Stacked) */}
-                          <td style={{ padding: '12px', verticalAlign: 'top' }}>
-                             {make || model ? (
-                               <>
-                                 <div style={{ fontWeight: 'bold' }}>{make || ''} {model || ''}</div>
-                                 <div style={{ fontSize: '0.75rem', color: '#64748b' }}>SN: {serial || '-'}</div>
-                               </>
-                             ) : (
-                               <span style={{ color: '#94a3b8', fontStyle: 'italic', fontSize: '0.8rem' }}>No Asset Data</span>
-                             )}
-                           </td>
-
-                        </tr>
-                      );
-                    });
-                  })()}
-
-                  {/* 2. ASSET DATA RENDERING */}
-                  {kpiDrillDown !== 'COMPLAINTS' && (() => {
-                    // Filter logic for the specific Asset KPI clicked
-                    let dataToRender = filteredAssets;
-                    if (kpiDrillDown === 'WARRANTY') {
-                      dataToRender = filteredAssets.filter(a => isWarrantyActive(a.Warranty_End_Date || a.warrantyEndDate));
-                    }
-                    if (kpiDrillDown === 'WARRANTY_EXPIRED') {
-                      dataToRender = filteredAssets.filter(a => isWarrantyExpired(a.Warranty_End_Date || a.warrantyEndDate));
-                    }
-                    if (kpiDrillDown === 'EXPIRED') {
-                      // CRITICAL FIX: Only render assets that are 100% uncovered
-                      dataToRender = filteredAssets.filter(a => isCompletelyUncovered(a));
-                    }
-                    if (kpiDrillDown === 'WARRANTY_NO_AMC') {
-                      dataToRender = filteredAssets.filter(a => getSupportTier(a) === 'Out Of Support' && !isCompletelyUncovered(a));
-                    }
-
-                    if (dataToRender.length === 0) {
-                      return <tr><td colSpan="6" style={{ padding: '32px', textAlign: 'center', color: '#64748b' }}>No assets found matching this criterion.</td></tr>;
-                    }
-
-                    return dataToRender.map((asset, i) => {
-                      // Calculate Warranty Days Left inline
+                      // RENDER ASSET ROW
+                      const calculatedTier = getSupportTier(item);
+                      const wEndDate = item.Warranty_End_Date || item.warrantyEndDate;
                       let warrantyDaysLeft = null;
-                      const wEndDate = asset.Warranty_End_Date || asset.warrantyEndDate;
                       if (wEndDate) {
                         const diff = new Date(wEndDate).getTime() - new Date().getTime();
                         warrantyDaysLeft = diff > 0 ? Math.ceil(diff / (1000 * 60 * 60 * 24)) : 0;
                       }
 
-                      const assetId = asset.Unique_Product_Id || asset.id || asset.Ref_Code || '-';
-                      const make = asset.Make || asset.ProductMake || '-';
-                      const model = asset.Model || asset.ProductModel || '';
-                      const serial = asset.Serial_No || asset.ProductSerial || 'N/A';
-                      const salesOrder = asset.Sales_Order || asset.salesOrder || '-';
-
-                      // DYNAMIC CONTRACT CALCULATOR (Ignores backend Support_Type text)
-                      const now = new Date().getTime();
-                      let calculatedTier = 'Out Of Support';
-
-                      const amcEnd = asset.AMC_End_Date || asset.amcEnd || asset.amcEndDate ? new Date(asset.AMC_End_Date || asset.amcEnd || asset.amcEndDate).getTime() : 0;
-                      const nonAmcEnd = asset.NON_CAMC_End_Date || asset.nonAmcEnd || asset.nonAmcEndDate ? new Date(asset.NON_CAMC_End_Date || asset.nonAmcEnd || asset.nonAmcEndDate).getTime() : 0;
-                      const dlpEnd = asset.DLP_End_Date || asset.dlpEnd || asset.dlpEndDate ? new Date(asset.DLP_End_Date || asset.dlpEnd || asset.dlpEndDate).getTime() : 0;
-
-                      if (!isNaN(dlpEnd) && dlpEnd >= now) {
-                        calculatedTier = 'DLP';
-                      } else if (!isNaN(amcEnd) && amcEnd >= now) {
-                        calculatedTier = 'Comprehensive AMC';
-                      } else if (!isNaN(nonAmcEnd) && nonAmcEnd >= now) {
-                        calculatedTier = 'Non-Comprehensive AMC';
-                      }
-
                       return (
                         <tr key={i} style={{ borderBottom: '1px solid #e2e8f0', background: i % 2 === 0 ? '#ffffff' : '#f8fafc' }}>
-
-                          {/* 1. Asset ID */}
-                          <td style={{ padding: '12px', color: '#2563eb', fontWeight: 'bold', verticalAlign: 'top' }}>
-                            {assetId}
-                          </td>
-
-                          {/* 2. Location (Company & Branch Stacked) */}
-                          <td style={{ padding: '12px', color: '#334155', verticalAlign: 'top' }}>
-                            <div style={{ fontWeight: 'bold' }}>{asset.Company_Name || '-'}</div>
-                            <div style={{ fontSize: '0.75rem', color: '#64748b' }}>{asset.Branch || '-'}</div>
-                          </td>
-
-                          {/* 3. Product & Serial Stacked */}
-                          <td style={{ padding: '12px', color: '#334155', verticalAlign: 'top' }}>
-                            <div style={{ fontWeight: 'bold' }}>{make} {model}</div>
-                            <div style={{ fontSize: '0.75rem', color: '#64748b', marginTop: '2px' }}>SN: {serial}</div>
-                          </td>
-
-                          {/* 4. Sales Order */}
-                          <td style={{ padding: '12px', color: '#334155', fontWeight: 'bold', verticalAlign: 'top' }}>
-                            {salesOrder}
-                          </td>
-
-                          {/* 5. Warranty End Date & Days Left Stacked */}
+                          <td style={{ padding: '12px', color: '#3b82f6', fontWeight: 'bold' }}>{item.Ref_Code}</td>
+                          <td style={{ padding: '12px', color: '#475569' }}>{item.Company_Name || item.Company}<br/><span style={{fontSize:'0.75rem'}}>{item.Branch}</span></td>
+                          <td style={{ padding: '12px', color: '#475569' }}>{item.Make} {item.Model}<br/><span style={{fontSize:'0.75rem', color: '#94a3b8'}}>SN: {item.Serial_No}</span></td>
+                          <td style={{ padding: '12px', color: '#475569' }}>{item.Sales_Order}</td>
                           <td style={{ padding: '12px', color: '#334155', verticalAlign: 'top' }}>
                             {wEndDate ? (
                               <>
                                 <div>{new Date(wEndDate).toLocaleDateString('en-GB')}</div>
                                 <div style={{
-                                  fontSize: '0.75rem',
-                                  fontWeight: 'bold',
-                                  marginTop: '2px',
+                                  fontSize: '0.75rem', fontWeight: 'bold', marginTop: '2px',
                                   color: warrantyDaysLeft > 30 ? '#166534' : warrantyDaysLeft > 0 ? '#b45309' : '#991b1b'
                                 }}>
                                   {warrantyDaysLeft > 0 ? `${warrantyDaysLeft} Days Left` : 'Expired'}
@@ -1298,12 +1568,8 @@ export default function ReportingDashboard() {
                               <span style={{ color: '#94a3b8', fontStyle: 'italic', fontSize: '0.8rem' }}>No Warranty Data</span>
                             )}
                           </td>
-
-                          {/* 6. Support Tier Badges */}
                           <td style={{ padding: '12px', verticalAlign: 'top' }}>
                             <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', alignItems: 'flex-start' }}>
-                              
-                              {/* BADGE 1: Managed Service Contract (DLP / AMC) */}
                               <span style={{
                                 padding: '4px 8px',
                                 borderRadius: '12px',
@@ -1312,17 +1578,15 @@ export default function ReportingDashboard() {
                                 whiteSpace: 'nowrap',
                                 background:
                                   calculatedTier === 'Out Of Support' ? '#fee2e2' :
-                                  calculatedTier === 'Comprehensive AMC' ? '#dcfce7' :
-                                  calculatedTier === 'Non-Comprehensive AMC' ? '#fffbeb' : '#e0f2fe',
+                                    calculatedTier === 'Comprehensive AMC' ? '#dcfce7' :
+                                      calculatedTier === 'Non-Comprehensive AMC' ? '#fffbeb' : '#e0f2fe',
                                 color:
                                   calculatedTier === 'Out Of Support' ? '#991b1b' :
-                                  calculatedTier === 'Comprehensive AMC' ? '#15803d' :
-                                  calculatedTier === 'Non-Comprehensive AMC' ? '#b45309' : '#0369a1'
+                                    calculatedTier === 'Comprehensive AMC' ? '#15803d' :
+                                      calculatedTier === 'Non-Comprehensive AMC' ? '#b45309' : '#0369a1'
                               }}>
                                 {calculatedTier}
                               </span>
-
-                              {/* BADGE 2: OEM Warranty (Only renders if currently active) */}
                               {(() => {
                                 if (!isWarrantyActive(wEndDate)) return null;
                                 return (
@@ -1342,28 +1606,20 @@ export default function ReportingDashboard() {
                               })()}
                             </div>
                           </td>
-
                         </tr>
                       );
-                    });
-                  })()}
-
-                  {/* FALLBACK FOR EMPTY ARRAYS JUST IN CASE */}
-                  {kpiDrillDown !== 'COMPLAINTS' && filteredAssets.length === 0 && (
-                    <tr><td colSpan="6" style={{ padding: '32px', textAlign: 'center', color: '#64748b' }}>No assets found matching this criterion.</td></tr>
+                    })
                   )}
-
                 </tbody>
               </table>
             </div>
-
-            {/* 3. FOOTER CONTAINER */}
+            
+            {/* 3. FOOTER */}
             <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '20px' }}>
               <button onClick={() => setKpiDrillDown(null)} style={{ padding: '8px 16px', background: '#f1f5f9', border: '1px solid #cbd5e1', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold', color: '#334155' }}>
                 Close
               </button>
             </div>
-
           </div>
         </div>
       )}
@@ -1378,7 +1634,7 @@ export default function ReportingDashboard() {
                 <h3 style={{ margin: 0, color: '#0f172a', fontSize: '1.25rem' }}>Ticket Analysis</h3>
                 <p style={{ margin: '4px 0 0 0', fontSize: '0.85rem', color: '#64748b' }}>
                   {chartDrillDown.filterType === 'ISSUE' && <>Tickets categorized as: <strong style={{ color: '#ef4444' }}>{chartDrillDown.value}</strong></>}
-                  {chartDrillDown.filterType === 'ENGINEER' && <>Resolved tickets handled by: <strong style={{ color: '#0369a1' }}>{chartDrillDown.value}</strong></>}
+                  {chartDrillDown.filterType === 'ENGINEER' && <>Closed tickets handled by: <strong style={{ color: '#0369a1' }}>{chartDrillDown.value}</strong></>}
                   {chartDrillDown.filterType === 'CATEGORY' && <>Tickets under failure trend: <strong style={{ color: '#8b5cf6' }}>{chartDrillDown.value}</strong></>}
                 </p>
               </div>
@@ -1395,7 +1651,7 @@ export default function ReportingDashboard() {
                     {/* DYNAMIC HEADER: Changes based on the clicked graph */}
                     <th style={{ padding: '12px', color: '#475569' }}>
                       {chartDrillDown.filterType === 'CATEGORY' ? 'CATEGORY' :
-                       chartDrillDown.filterType === 'ISSUE' ? 'ISSUE TYPE' : 'STATUS'}
+                        chartDrillDown.filterType === 'ISSUE' ? 'ISSUE TYPE' : 'STATUS'}
                     </th>
 
                     <th style={{ padding: '12px', color: '#475569' }}>LOCATION</th>
@@ -1409,20 +1665,20 @@ export default function ReportingDashboard() {
 
                     // 1. ISSUE TYPE: Must match the issue AND strictly be an open/active ticket
                     if (chartDrillDown.filterType === 'ISSUE') {
-                      const isActive = ticketStatus !== 'Resolved' && ticketStatus !== 'Closed';
-                      return (t.Issue_Type || t.issueType || 'Uncategorized') === chartDrillDown.value && isActive;
+                      const isActive = ticketStatus !== 'Closed';
+                      return (t.Issue || 'Uncategorized') === chartDrillDown.value && isActive;
                     }
 
                     // 2. ENGINEER: Must match the engineer AND strictly be a completed ticket (since this tracks performance)
                     if (chartDrillDown.filterType === 'ENGINEER') {
-                      const isCompleted = ticketStatus === 'Resolved' || ticketStatus === 'Closed';
+                      const isCompleted = ticketStatus === 'Closed';
                       return engineerName === chartDrillDown.value && isCompleted;
                     }
 
                     // 3. CATEGORY: Must match the category AND strictly be an open/active ticket
                     if (chartDrillDown.filterType === 'CATEGORY') {
-                      const isActive = ticketStatus !== 'Resolved' && ticketStatus !== 'Closed';
-                      return (t.Category || t.category || 'Uncategorized') === chartDrillDown.value && isActive;
+                      const isActive = ticketStatus !== 'Closed';
+                      return (t.Category || 'Uncategorized') === chartDrillDown.value && isActive;
                     }
 
                     return false;
@@ -1443,8 +1699,8 @@ export default function ReportingDashboard() {
                         {chartDrillDown.filterType === 'ENGINEER' && (
                           <span style={{
                             padding: '4px 8px', borderRadius: '12px', fontSize: '0.7rem', fontWeight: 'bold',
-                            background: String(ticket.Status || '').toLowerCase().includes('resolved') ? '#dcfce7' : '#fee2e2',
-                            color: String(ticket.Status || '').toLowerCase().includes('resolved') ? '#166534' : '#991b1b'
+                            background: String(ticket.Status || '').toLowerCase().includes('closed') ? '#dcfce7' : '#fee2e2',
+                            color: String(ticket.Status || '').toLowerCase().includes('closed') ? '#166534' : '#991b1b'
                           }}>
                             {ticket.Status || 'Open'}
                           </span>
@@ -1471,26 +1727,26 @@ export default function ReportingDashboard() {
 
                     // 1. ISSUE TYPE: Must match the issue AND strictly be an open/active ticket
                     if (chartDrillDown.filterType === 'ISSUE') {
-                      const isActive = ticketStatus !== 'Resolved' && ticketStatus !== 'Closed';
-                      return (t.Issue_Type || t.issueType || 'Uncategorized') === chartDrillDown.value && isActive;
+                      const isActive = ticketStatus !== 'Closed';
+                      return (t.Issue || 'Uncategorized') === chartDrillDown.value && isActive;
                     }
 
                     // 2. ENGINEER: Must match the engineer AND strictly be a completed ticket (since this tracks performance)
                     if (chartDrillDown.filterType === 'ENGINEER') {
-                      const isCompleted = ticketStatus === 'Resolved' || ticketStatus === 'Closed';
+                      const isCompleted = ticketStatus === 'Closed';
                       return engineerName === chartDrillDown.value && isCompleted;
                     }
 
                     // 3. CATEGORY: Must match the category AND strictly be an open/active ticket
                     if (chartDrillDown.filterType === 'CATEGORY') {
-                      const isActive = ticketStatus !== 'Resolved' && ticketStatus !== 'Closed';
-                      return (t.Category || t.category || 'Uncategorized') === chartDrillDown.value && isActive;
+                      const isActive = ticketStatus !== 'Closed';
+                      return (t.Category || 'Uncategorized') === chartDrillDown.value && isActive;
                     }
 
                     return false;
                   }).length === 0 && (
-                    <tr><td colSpan="4" style={{ padding: '24px', textAlign: 'center', color: '#64748b' }}>No tickets found.</td></tr>
-                  )}
+                      <tr><td colSpan="4" style={{ padding: '24px', textAlign: 'center', color: '#64748b' }}>No tickets found.</td></tr>
+                    )}
                 </tbody>
               </table>
             </div>

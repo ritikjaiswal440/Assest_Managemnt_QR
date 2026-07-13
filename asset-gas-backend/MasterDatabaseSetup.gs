@@ -28,7 +28,7 @@ function setupMasterDatabase() {
     },
     {
       name: "Engineer_Tasks",
-      headers: ['Task_ID', 'Ticket_ID_Ref', 'Engineer_Name', 'Engineer_Email', 'Status', 'Assigned_Date', 'Closed_Date', 'Admin_Instructions', 'Engineer_Remarks']
+      headers: ['Task_ID', 'Ticket_ID_Ref', 'Engineer_Name', 'Engineer_Email', 'Status', 'Assigned_Date', 'Closed_Date', 'Admin_Instructions', 'Engineer_Remarks', 'Category', 'Issue', 'Engineer_Role']
     },
     {
       name: "System_Logs",

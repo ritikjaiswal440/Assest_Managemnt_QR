@@ -687,6 +687,7 @@ const Dashboard = () => {
         bundle={{ engineers: kpiMetrics?.engineers || [] }}
         currentUser={user}
         onSuccess={fetchDashboardData}
+        tickets={masterData}
       />
       <RemarkModal
         isOpen={remarkModalConfig.isOpen}

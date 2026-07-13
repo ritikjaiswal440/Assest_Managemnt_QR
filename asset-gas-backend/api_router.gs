@@ -2202,35 +2202,88 @@ function handleUpdateAsset(payload) {
  * Assign ticket tasks to engineers
  */
 function handleTicketAssignmentRequest(payload) {
-  const taskSheet = ss.getSheetByName('Engineer_Tasks');
-  const nextIdx = taskSheet.getLastRow() + 1;
+  const sheet = ss.getSheetByName("Engineer_Tasks");
+  const usersSheet = ss.getSheetByName("System_Users");
+  const nextIdx = sheet.getLastRow() + 1;
   const taskId = `TSK-${nextIdx.toString().padStart(4, '0')}`;
   
-  taskSheet.appendRow([
-    taskId,
-    payload.parentId,
-    payload.engName,
-    payload.engEmail || "",
-    "Assigned", // Status
-    new Date(), // Assigned_Date
-    "",         // Closed_Date
-    payload.instructions || "",
-    ""          // Engineer_Remarks
-  ]);
+  // Extract all data from the React payload (supporting both styles)
+  const { 
+    ticketId, 
+    assignedTo, 
+    assignedBy, 
+    dateAssigned, 
+    category, 
+    issue, 
+    engineerRole,
+    engEmail = "",
+    instructions = ""
+  } = payload;
+
+  // Resolve defaults and fallbacks for standard and enriched keys
+  const resolvedTicketId = ticketId || payload.parentId || "";
+  const resolvedAssignedTo = assignedTo || payload.engName || "";
+  const resolvedAssignedBy = assignedBy || payload.actorEmail || "SYSTEM";
+  const resolvedDateAssigned = dateAssigned || new Date().toISOString();
+  const resolvedCategory = category || "Uncategorized";
+  const resolvedIssue = issue || "Unknown";
+  const resolvedEngineerRole = engineerRole || payload.engRole || "Field";
+
+  // --- ENGINE: Look up Engineer Role from System_Users ---
+  let userRole = resolvedEngineerRole || "Field"; // Initial fallback from payload
+  if (usersSheet) {
+    const usersData = usersSheet.getDataRange().getValues();
+    const headers = usersData[0];
+    
+    // Dynamically find column indexes to prevent breaking if columns move
+    const nameIdx = headers.indexOf("Name");
+    const emailIdx = headers.indexOf("Email");
+    const roleIdx = headers.indexOf("Role");
+    
+    if (roleIdx !== -1) {
+      // Loop through users (skipping header row) to find the match
+      for (let i = 1; i < usersData.length; i++) {
+        const matchesName = nameIdx !== -1 && String(usersData[i][nameIdx]).trim().toLowerCase() === String(resolvedAssignedTo).trim().toLowerCase();
+        const matchesEmail = emailIdx !== -1 && engEmail && String(usersData[i][emailIdx]).trim().toLowerCase() === String(engEmail).trim().toLowerCase();
+        if (matchesName || matchesEmail) {
+          userRole = usersData[i][roleIdx] || userRole;
+          break;
+        }
+      }
+    }
+  }
+
+  // Build the new row matching the exact column order of the sheet
+  const newRow = [
+    taskId,                              // 1. Task_ID
+    resolvedTicketId,                    // 2. Ticket_ID_Ref
+    resolvedAssignedTo,                  // 3. Engineer_Name
+    engEmail,                            // 4. Engineer_Email
+    "Assigned",                          // 5. Status
+    resolvedDateAssigned,                // 6. Assigned_Date
+    "",                                  // 7. Closed_Date
+    instructions,                        // 8. Admin_Instructions
+    "",                                  // 9. Engineer_Remarks
+    resolvedCategory,                    // 10. Matches Category column
+    resolvedIssue,                       // 11. Matches Issue column
+    userRole                             // 12. Matches Engineer_Role column (real-time lookup)
+  ];
+
+  sheet.appendRow(newRow);
 
   const pSheet = ss.getSheetByName('Master_Tickets');
   const pData = pSheet.getDataRange().getValues();
   for (let i = 1; i < pData.length; i++) {
-    if (pData[i][0] === payload.parentId) {
+    if (pData[i][0] === resolvedTicketId) {
       pSheet.getRange(i + 1, 7).setValue("In Progress"); 
-      pSheet.getRange(i + 1, 8).setValue(payload.engName); 
+      pSheet.getRange(i + 1, 8).setValue(resolvedAssignedTo); 
       break;
     }
   }
   
-  logSystemActivity(payload.actorEmail || 'SYSTEM', "TASK_ASSIGNED", taskId, `Task assigned to ${payload.engName} (${payload.engEmail})`);
+  logSystemActivity(resolvedAssignedBy, "TASK_ASSIGNED", taskId, `Task assigned to ${resolvedAssignedTo} (${engEmail}) with role ${userRole}`);
   
-  return { success: true };
+  return { success: true, roleAssigned: userRole };
 }
 
 /**
@@ -3094,7 +3147,7 @@ function handleGetDashboard(payload) {
     rawTaskObjects.forEach(row => {
       // Find role of the engineer
       const engEmail = String(row.Engineer_Email || "").trim().toLowerCase();
-      const engRole = userRolesMap[engEmail] || "Engineer";
+      const engRole = row.Engineer_Role || row.engineerRole || userRolesMap[engEmail] || "Engineer";
       
       // Determine Acknowledged_At from the record's values
       let acknowledgedAt = "";
@@ -3126,6 +3179,9 @@ function handleGetDashboard(payload) {
         Assigned_Date: row.Assigned_Date || "",
         Closed_Date: row.Closed_Date || "",
         Instructions: row.Instructions || "",
+        
+        Category: row.Category || row.category || "",
+        Issue: row.Issue || row.issue || "",
         
         // Expose under all variations to be absolutely safe for the frontend UI
         Engineer_Remarks: remarksVal,
