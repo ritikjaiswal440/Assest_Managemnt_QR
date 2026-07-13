@@ -42,9 +42,9 @@ export default function ReportingDashboard() {
   // UTILITY: Smart CSV Exporter (Handles both Assets and Tickets)
   const exportToCSV = (data, filename) => {
     if (!data || data.length === 0) return;
-    
+
     const isTicketData = data[0].hasOwnProperty('Ticket_ID');
-    
+
     let headers = [];
     let rows = [];
 
@@ -72,7 +72,7 @@ export default function ReportingDashboard() {
         a.Model || a.ProductModel || '',
         a.Serial_No || a.ProductSerial || '',
         a.Sales_Order || '',
-        getSupportTier(a), 
+        getSupportTier(a),
         a.Warranty_End_Date ? new Date(a.Warranty_End_Date).toLocaleDateString('en-GB') : 'N/A'
       ]);
     }
@@ -601,27 +601,27 @@ export default function ReportingDashboard() {
   // 10. Data: Engineer Performance by Workflow Status
   const engineerPerformanceData = useMemo(() => {
     if (!timeFilteredTasks || timeFilteredTasks.length === 0) return [];
-    
+
     const engMap = {};
 
     timeFilteredTasks.forEach(task => {
       // Adjust the key below if your DB uses 'Assigned_To' instead of 'Engineer_Name'
       const engName = task.Engineer_Name || task.Assigned_To || 'Unassigned';
-      
+
       if (!engMap[engName]) {
-        engMap[engName] = { 
-          name: engName, 
-          'Assigned': 0, 
-          'Inprogress': 0, 
-          'Pending Parts': 0, 
-          'Closed': 0, 
-          total: 0 
+        engMap[engName] = {
+          name: engName,
+          'Assigned': 0,
+          'Inprogress': 0,
+          'Pending Parts': 0,
+          'Closed': 0,
+          total: 0
         };
       }
 
       // Sanitize status string for robust matching
       const status = (task.Status || '').toLowerCase().replace(/\s+/g, '');
-      
+
       if (status.includes('assign')) {
         engMap[engName]['Assigned'] += 1;
       } else if (status.includes('progress')) {
@@ -749,13 +749,13 @@ export default function ReportingDashboard() {
   // 11. Data: Parent Ticket Volume (Sourced from Engineer_Tasks)
   const parentChildData = useMemo(() => {
     if (!timeFilteredTasks || timeFilteredTasks.length === 0) return [];
-    
+
     const parentMap = {};
 
     timeFilteredTasks.forEach(task => {
       // Robustly catch the specific column name, handling potential spaces or underscores
-      const parentId = task['Parent Ticket_ID_Ref'] || task.Parent_Ticket_ID_Ref || task.Parent_Ticket_ID; 
-      
+      const parentId = task['Parent Ticket_ID_Ref'] || task.Parent_Ticket_ID_Ref || task.Parent_Ticket_ID;
+
       if (parentId && parentId.toString().trim() !== '') {
         if (!parentMap[parentId]) {
           parentMap[parentId] = { parentId: parentId, childCount: 0 };
@@ -816,11 +816,11 @@ export default function ReportingDashboard() {
   // --- Centralized MODAL DATA ENGINE ---
   const modalData = useMemo(() => {
     if (!kpiDrillDown) return [];
-    
+
     // 1. CHART DRILL-DOWNS (Tickets)
     if (typeof kpiDrillDown === 'string' && kpiDrillDown.startsWith('CHART_')) {
       const [chartType, clickedValue] = kpiDrillDown.split('|');
-      
+
       if (chartType === 'CHART_BRAND') {
         return activeMasterTickets.filter(t => {
           const linkedAsset = assets?.find(a => a.Ref_Code === t.Asset_Ref_Code) || t;
@@ -869,7 +869,7 @@ export default function ReportingDashboard() {
     if (kpiDrillDown === 'NON_COMP_AMC') return filteredAssets.filter(a => getSupportTier(a) === 'Non-Comprehensive AMC');
     if (kpiDrillDown === 'WARRANTY_NO_AMC') return filteredAssets.filter(a => getSupportTier(a) === 'Out Of Support' && !isCompletelyUncovered(a));
     if (kpiDrillDown === 'EXPIRED') return filteredAssets.filter(a => isCompletelyUncovered(a));
-    
+
     return filteredAssets; // Default fallback
   }, [kpiDrillDown, filteredAssets, activeMasterTickets, assets, filteredTickets, tickets, filterYear, filterMonth, engineerTasks]);
 
@@ -877,6 +877,76 @@ export default function ReportingDashboard() {
     <div className="reporting-dashboard">
       <div className="dashboard-header">
         <h2>Analytics & Reporting Engine</h2>
+      </div>
+
+      {/* --- RESTORED TOP KPI CARDS --- */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '16px', marginBottom: '32px' }}>
+
+        {/* 1. Total Managed Assets */}
+        <div 
+          onClick={() => setKpiDrillDown('TOTAL')} 
+          style={{ background: '#f3e8ff', padding: '20px', borderRadius: '8px', textAlign: 'center', cursor: 'pointer', borderBottom: '4px solid #a855f7', transition: 'transform 0.2s' }}
+          onMouseOver={(e) => e.currentTarget.style.transform = 'scale(1.02)'}
+          onMouseOut={(e) => e.currentTarget.style.transform = 'scale(1)'}
+        >
+          <h4 style={{ margin: 0, color: '#6b21a8', fontSize: '0.8rem', textTransform: 'uppercase' }}>Total Managed Assets</h4>
+          <h2 style={{ margin: '10px 0 0 0', color: '#7e22ce', fontSize: '2.5rem' }}>
+            {filteredAssets.length}
+          </h2>
+        </div>
+
+        {/* 2. Active DLP */}
+        <div 
+          onClick={() => setKpiDrillDown('DLP')} 
+          style={{ background: '#e0f2fe', padding: '20px', borderRadius: '8px', textAlign: 'center', cursor: 'pointer', borderBottom: '4px solid #0284c7', transition: 'transform 0.2s' }}
+          onMouseOver={(e) => e.currentTarget.style.transform = 'scale(1.02)'}
+          onMouseOut={(e) => e.currentTarget.style.transform = 'scale(1)'}
+        >
+          <h4 style={{ margin: 0, color: '#0369a1', fontSize: '0.8rem', textTransform: 'uppercase' }}>Active DLP</h4>
+          <h2 style={{ margin: '10px 0 0 0', color: '#0284c7', fontSize: '2.5rem' }}>
+            {filteredAssets.filter(a => getSupportTier(a) === 'DLP').length}
+          </h2>
+        </div>
+
+        {/* 3. Comprehensive AMC */}
+        <div 
+          onClick={() => setKpiDrillDown('COMP_AMC')} 
+          style={{ background: '#dcfce7', padding: '20px', borderRadius: '8px', textAlign: 'center', cursor: 'pointer', borderBottom: '4px solid #22c55e', transition: 'transform 0.2s' }}
+          onMouseOver={(e) => e.currentTarget.style.transform = 'scale(1.02)'}
+          onMouseOut={(e) => e.currentTarget.style.transform = 'scale(1)'}
+        >
+          <h4 style={{ margin: 0, color: '#15803d', fontSize: '0.8rem', textTransform: 'uppercase' }}>Comprehensive AMC</h4>
+          <h2 style={{ margin: '10px 0 0 0', color: '#16a34a', fontSize: '2.5rem' }}>
+            {filteredAssets.filter(a => getSupportTier(a) === 'Comprehensive AMC').length}
+          </h2>
+        </div>
+
+        {/* 4. Non-Comprehensive AMC */}
+        <div 
+          onClick={() => setKpiDrillDown('NON_COMP_AMC')} 
+          style={{ background: '#fffbeb', padding: '20px', borderRadius: '8px', textAlign: 'center', cursor: 'pointer', borderBottom: '4px solid #d97706', transition: 'transform 0.2s' }}
+          onMouseOver={(e) => e.currentTarget.style.transform = 'scale(1.02)'}
+          onMouseOut={(e) => e.currentTarget.style.transform = 'scale(1)'}
+        >
+          <h4 style={{ margin: 0, color: '#b45309', fontSize: '0.8rem', textTransform: 'uppercase' }}>Non-Comprehensive AMC</h4>
+          <h2 style={{ margin: '10px 0 0 0', color: '#d97706', fontSize: '2.5rem' }}>
+            {filteredAssets.filter(a => getSupportTier(a) === 'Non-Comprehensive AMC').length}
+          </h2>
+        </div>
+
+        {/* 5. Completely Uncovered */}
+        <div 
+          onClick={() => setKpiDrillDown('EXPIRED')} 
+          style={{ background: '#fee2e2', padding: '20px', borderRadius: '8px', textAlign: 'center', cursor: 'pointer', borderBottom: '4px solid #ef4444', transition: 'transform 0.2s' }}
+          onMouseOver={(e) => e.currentTarget.style.transform = 'scale(1.02)'}
+          onMouseOut={(e) => e.currentTarget.style.transform = 'scale(1)'}
+        >
+          <h4 style={{ margin: 0, color: '#991b1b', fontSize: '0.8rem', textTransform: 'uppercase' }}>Completely Uncovered</h4>
+          <h2 style={{ margin: '10px 0 0 0', color: '#dc2626', fontSize: '2.5rem' }}>
+            {filteredAssets.filter(a => isCompletelyUncovered(a)).length}
+          </h2>
+        </div>
+
       </div>
 
       {/* ADVANCED GLOBAL FILTERS */}
@@ -1013,16 +1083,16 @@ export default function ReportingDashboard() {
 
       {/* --- TOP SUMMARY CARDS (Active Master Tickets) --- */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '24px', marginBottom: '24px' }}>
-        
+
         {/* Card 1: Hardware Failure Trends */}
         <div style={{ background: '#ffffff', padding: '20px', borderRadius: '8px', boxShadow: '0 1px 3px rgba(0,0,0,0.1)' }}>
           <h3 style={{ marginTop: 0, color: '#0f172a', fontSize: '1.1rem', marginBottom: '4px' }}>Hardware Failure Trends</h3>
           <p style={{ fontSize: '0.8rem', color: '#64748b', marginTop: 0, marginBottom: '20px' }}>Volume of active tickets by category</p>
-          
+
           <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', maxHeight: '200px', overflowY: 'auto', paddingRight: '8px' }}>
             {categoryTrendsData.length === 0 && <span style={{ color: '#94a3b8', fontSize: '0.9rem' }}>No active tickets.</span>}
             {categoryTrendsData.map((item, i) => (
-              <div 
+              <div
                 key={i}
                 onClick={() => setKpiDrillDown(`CHART_CATEGORY|${item.name}`)}
                 style={{ cursor: 'pointer', transition: 'opacity 0.2s' }}
@@ -1045,15 +1115,15 @@ export default function ReportingDashboard() {
         <div style={{ background: '#ffffff', padding: '20px', borderRadius: '8px', boxShadow: '0 1px 3px rgba(0,0,0,0.1)' }}>
           <h3 style={{ marginTop: 0, color: '#0f172a', fontSize: '1.1rem', marginBottom: '4px' }}>Asset Distribution by Brand</h3>
           <p style={{ fontSize: '0.8rem', color: '#64748b', marginTop: 0, marginBottom: '0px' }}>Proportion of managed hardware makes</p>
-          
+
           <div style={{ width: '100%', height: '220px' }}>
             {brandPieData.length === 0 ? (
-               <div style={{ height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#94a3b8', fontSize: '0.9rem' }}>No data available.</div>
+              <div style={{ height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#94a3b8', fontSize: '0.9rem' }}>No data available.</div>
             ) : (
               <ResponsiveContainer width="100%" height="100%">
                 <PieChart>
-                  <Pie 
-                    data={brandPieData} 
+                  <Pie
+                    data={brandPieData}
                     cx="50%" cy="50%" innerRadius={50} outerRadius={80} paddingAngle={2} dataKey="value"
                     onClick={(data) => setKpiDrillDown(`CHART_BRAND|${data.name}`)}
                     style={{ cursor: 'pointer' }}
@@ -1072,12 +1142,12 @@ export default function ReportingDashboard() {
         <div style={{ background: '#ffffff', padding: '20px', borderRadius: '8px', boxShadow: '0 1px 3px rgba(0,0,0,0.1)' }}>
           <h3 style={{ marginTop: 0, color: '#0f172a', fontSize: '1.1rem', marginBottom: '4px' }}>Issue Type Breakdown</h3>
           <p style={{ fontSize: '0.8rem', color: '#64748b', marginTop: 0, marginBottom: '20px' }}>Volume of open tickets by category</p>
-          
+
           <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', maxHeight: '200px', overflowY: 'auto', paddingRight: '8px' }}>
             {issueBreakdownData.length === 0 && <span style={{ color: '#94a3b8', fontSize: '0.9rem' }}>No open issues.</span>}
             {issueBreakdownData.map((item, i) => (
-              <div 
-                key={i} 
+              <div
+                key={i}
                 onClick={() => setKpiDrillDown(`CHART_ISSUE|${item.name}`)}
                 style={{ cursor: 'pointer', transition: 'opacity 0.2s' }}
                 onMouseOver={(e) => e.currentTarget.style.opacity = 0.7}
@@ -1096,46 +1166,46 @@ export default function ReportingDashboard() {
         </div>
 
       </div>  {/* --- Engineer Performance (Full Workflow Stack) --- */}
-        <div style={{ background: '#ffffff', padding: '20px', borderRadius: '8px', boxShadow: '0 1px 3px rgba(0,0,0,0.1)', gridColumn: '1 / -1' }}>
-          <h3 style={{ marginTop: 0, color: '#334155', marginBottom: '4px' }}>Engineer Performance</h3>
-          <p style={{ fontSize: '0.75rem', color: '#64748b', marginTop: 0, marginBottom: '16px' }}>
-            Task volume broken down by current workflow status.
-          </p>
-          
-          <div style={{ height: '380px', width: '100%' }}>
-            {loading ? (
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', fontSize: '0.85rem', color: '#94a3b8', fontStyle: 'italic' }}>Loading...</div>
-            ) : engineerPerformanceData.length === 0 ? (
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', fontSize: '0.85rem', color: '#94a3b8', fontStyle: 'italic' }}>No data available.</div>
-            ) : (
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart 
-                  data={engineerPerformanceData} 
-                  layout="vertical" 
-                  margin={{ top: 10, right: 30, left: 40, bottom: 5 }}
-                >
-                  <CartesianGrid strokeDasharray="3 3" horizontal={false} />
-                  
-                  {/* X and Y axes are swapped for horizontal bars */}
-                  <XAxis type="number" allowDecimals={false} style={{ fontSize: '0.8rem' }} />
-                  <YAxis type="category" dataKey="name" width={110} style={{ fontSize: '0.8rem', fontWeight: '500' }} />
-                  
-                  <Tooltip 
-                    cursor={{ fill: '#f1f5f9' }} 
-                    contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)', fontSize: '0.85rem' }} 
-                  />
-                  <Legend wrapperStyle={{ paddingTop: '10px', fontSize: '0.8rem' }} />
-                  
-                  {/* Stacked Bars representing the workflow progression */}
-                  <Bar dataKey="Assigned" stackId="a" fill="#94a3b8" /> {/* Slate/Grey - Just assigned */}
-                  <Bar dataKey="Inprogress" name="In Progress" stackId="a" fill="#f59e0b" /> {/* Amber/Orange - Actively working */}
-                  <Bar dataKey="Pending Parts" stackId="a" fill="#ef4444" /> {/* Red - Blocked */}
-                  <Bar dataKey="Closed" stackId="a" fill="#10b981" radius={[0, 4, 4, 0]} /> {/* Green - Completed */}
-                </BarChart>
-              </ResponsiveContainer>
-            )}
-          </div>
+      <div style={{ background: '#ffffff', padding: '20px', borderRadius: '8px', boxShadow: '0 1px 3px rgba(0,0,0,0.1)', gridColumn: '1 / -1' }}>
+        <h3 style={{ marginTop: 0, color: '#334155', marginBottom: '4px' }}>Engineer Performance</h3>
+        <p style={{ fontSize: '0.75rem', color: '#64748b', marginTop: 0, marginBottom: '16px' }}>
+          Task volume broken down by current workflow status.
+        </p>
+
+        <div style={{ height: '380px', width: '100%' }}>
+          {loading ? (
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', fontSize: '0.85rem', color: '#94a3b8', fontStyle: 'italic' }}>Loading...</div>
+          ) : engineerPerformanceData.length === 0 ? (
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', fontSize: '0.85rem', color: '#94a3b8', fontStyle: 'italic' }}>No data available.</div>
+          ) : (
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart
+                data={engineerPerformanceData}
+                layout="vertical"
+                margin={{ top: 10, right: 30, left: 40, bottom: 5 }}
+              >
+                <CartesianGrid strokeDasharray="3 3" horizontal={false} />
+
+                {/* X and Y axes are swapped for horizontal bars */}
+                <XAxis type="number" allowDecimals={false} style={{ fontSize: '0.8rem' }} />
+                <YAxis type="category" dataKey="name" width={110} style={{ fontSize: '0.8rem', fontWeight: '500' }} />
+
+                <Tooltip
+                  cursor={{ fill: '#f1f5f9' }}
+                  contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)', fontSize: '0.85rem' }}
+                />
+                <Legend wrapperStyle={{ paddingTop: '10px', fontSize: '0.8rem' }} />
+
+                {/* Stacked Bars representing the workflow progression */}
+                <Bar dataKey="Assigned" stackId="a" fill="#94a3b8" /> {/* Slate/Grey - Just assigned */}
+                <Bar dataKey="Inprogress" name="In Progress" stackId="a" fill="#f59e0b" /> {/* Amber/Orange - Actively working */}
+                <Bar dataKey="Pending Parts" stackId="a" fill="#ef4444" /> {/* Red - Blocked */}
+                <Bar dataKey="Closed" stackId="a" fill="#10b981" radius={[0, 4, 4, 0]} /> {/* Green - Completed */}
+              </BarChart>
+            </ResponsiveContainer>
+          )}
         </div>
+      </div>
 
 
       <h3 style={{ margin: '32px 0 16px 0', color: '#0f172a' }}>Advanced Time-Filtered Analytics</h3>
@@ -1407,26 +1477,26 @@ export default function ReportingDashboard() {
           <p style={{ fontSize: '0.75rem', color: '#64748b', marginTop: 0, marginBottom: '16px' }}>
             Top Parent tickets generating the highest volume of Child tickets.
           </p>
-          
+
           <div style={{ width: '100%', height: '300px' }}>
             {parentChildData.length === 0 ? (
-               <div style={{ height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#94a3b8', fontSize: '0.9rem' }}>No parent/child links detected.</div>
+              <div style={{ height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#94a3b8', fontSize: '0.9rem' }}>No parent/child links detected.</div>
             ) : (
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart data={parentChildData} margin={{ top: 10, right: 10, left: -20, bottom: 5 }}>
                   <CartesianGrid strokeDasharray="3 3" vertical={false} />
                   <XAxis dataKey="parentId" style={{ fontSize: '0.7rem' }} tick={{ fill: '#64748b' }} />
                   <YAxis allowDecimals={false} style={{ fontSize: '0.8rem' }} />
-                  <Tooltip 
-                    cursor={{ fill: '#f1f5f9' }} 
-                    contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)' }} 
+                  <Tooltip
+                    cursor={{ fill: '#f1f5f9' }}
+                    contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)' }}
                   />
-                  
-                  <Bar 
-                    dataKey="childCount" 
-                    name="Linked Child Tickets" 
-                    fill="#6366f1" 
-                    radius={[4, 4, 0, 0]} 
+
+                  <Bar
+                    dataKey="childCount"
+                    name="Linked Child Tickets"
+                    fill="#6366f1"
+                    radius={[4, 4, 0, 0]}
                     onClick={(data) => setKpiDrillDown(`CHART_PARENT|${data.parentId}`)}
                     style={{ cursor: 'pointer' }}
                   />
@@ -1519,11 +1589,11 @@ export default function ReportingDashboard() {
           </div>
         </div>
       )}
-            {/* --- REPAIRED DRILL-DOWN MODAL --- */}
+      {/* --- REPAIRED DRILL-DOWN MODAL --- */}
       {kpiDrillDown && (
         <div className="modal-overlay" style={{ position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh', background: 'rgba(15, 23, 42, 0.6)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
           <div className="modal-content" style={{ background: '#ffffff', borderRadius: '12px', maxWidth: '1100px', width: '95%', padding: '24px', boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1)' }}>
-            
+
             {/* 1. HEADER & DOWNLOAD BUTTON */}
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', borderBottom: '1px solid #e2e8f0', paddingBottom: '16px' }}>
               <h3 style={{ margin: 0, color: '#0f172a', fontSize: '1.25rem' }}>
@@ -1538,10 +1608,10 @@ export default function ReportingDashboard() {
                 {kpiDrillDown === 'EXPIRED' && 'Completely Uncovered / Expired'}
                 {typeof kpiDrillDown === 'string' && kpiDrillDown.startsWith('CHART_PARENT|') ? `Child Tickets for Master Ticket: ${kpiDrillDown.split('|')[1]}` : (typeof kpiDrillDown === 'string' && kpiDrillDown.startsWith('CHART_') && `Filtered Data: ${kpiDrillDown.split('|')[1]}`)}
               </h3>
-              
+
               <div style={{ display: 'flex', gap: '16px', alignItems: 'center' }}>
                 {/* RESTORED DOWNLOAD BUTTON: Passes the hoisted modalData array */}
-                <button 
+                <button
                   onClick={() => exportToCSV(modalData, typeof kpiDrillDown === 'string' && kpiDrillDown.startsWith('CHART_') ? 'Chart_Export' : 'Asset_Export')}
                   style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '6px 12px', background: '#10b981', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold', fontSize: '0.8rem' }}
                 >
@@ -1555,7 +1625,7 @@ export default function ReportingDashboard() {
             {/* 2. TABLE WRAPPER */}
             <div style={{ maxHeight: '60vh', overflowY: 'auto', overflowX: 'auto', border: '1px solid #e2e8f0', borderRadius: '8px' }}>
               <table style={{ width: '100%', minWidth: '900px', borderCollapse: 'collapse', fontSize: '0.85rem' }}>
-                
+
                 {/* DYNAMIC HEADERS: Detects if we are looking at Tickets or Assets */}
                 <thead style={{ position: 'sticky', top: 0, background: '#f8fafc', zIndex: 1 }}>
                   <tr style={{ borderBottom: '2px solid #e2e8f0', textAlign: 'left' }}>
@@ -1588,7 +1658,7 @@ export default function ReportingDashboard() {
                   ) : (
                     modalData.map((item, i) => {
                       const isTicket = item.hasOwnProperty('Ticket_ID') || item.hasOwnProperty('Task_ID');
-                      
+
                       // RENDER TICKET/TASK ROW
                       if (isTicket) {
                         const ticketRef = item.Ticket_ID_Ref || item.Ticket_ID;
@@ -1602,7 +1672,7 @@ export default function ReportingDashboard() {
                         return (
                           <tr key={i} style={{ borderBottom: '1px solid #e2e8f0', background: i % 2 === 0 ? '#ffffff' : '#f8fafc' }}>
                             <td style={{ padding: '12px', fontWeight: 'bold', color: '#3b82f6' }}>{item.Task_ID || item.Ticket_ID}</td>
-                            <td style={{ padding: '12px', color: '#475569' }}>{item.Category || parentTicket.Category || 'Other'}<br/><span style={{fontSize:'0.75rem'}}>{item.Issue_Type || item.Issue || parentTicket.Issue_Type || parentTicket.Issue || ''}</span></td>
+                            <td style={{ padding: '12px', color: '#475569' }}>{item.Category || parentTicket.Category || 'Other'}<br /><span style={{ fontSize: '0.75rem' }}>{item.Issue_Type || item.Issue || parentTicket.Issue_Type || parentTicket.Issue || ''}</span></td>
                             <td style={{ padding: '12px', color: '#475569' }}>{linkedAsset.Make || linkedAsset.ProductMake || ''} {linkedAsset.Model || ''}</td>
                             <td style={{ padding: '12px', color: '#475569' }}>{company}</td>
                             <td style={{ padding: '12px', color: '#475569' }}>{formattedDate}</td>
@@ -1623,8 +1693,8 @@ export default function ReportingDashboard() {
                       return (
                         <tr key={i} style={{ borderBottom: '1px solid #e2e8f0', background: i % 2 === 0 ? '#ffffff' : '#f8fafc' }}>
                           <td style={{ padding: '12px', color: '#3b82f6', fontWeight: 'bold' }}>{item.Ref_Code}</td>
-                          <td style={{ padding: '12px', color: '#475569' }}>{item.Company_Name || item.Company}<br/><span style={{fontSize:'0.75rem'}}>{item.Branch}</span></td>
-                          <td style={{ padding: '12px', color: '#475569' }}>{item.Make} {item.Model}<br/><span style={{fontSize:'0.75rem', color: '#94a3b8'}}>SN: {item.Serial_No}</span></td>
+                          <td style={{ padding: '12px', color: '#475569' }}>{item.Company_Name || item.Company}<br /><span style={{ fontSize: '0.75rem' }}>{item.Branch}</span></td>
+                          <td style={{ padding: '12px', color: '#475569' }}>{item.Make} {item.Model}<br /><span style={{ fontSize: '0.75rem', color: '#94a3b8' }}>SN: {item.Serial_No}</span></td>
                           <td style={{ padding: '12px', color: '#475569' }}>{item.Sales_Order}</td>
                           <td style={{ padding: '12px', color: '#334155', verticalAlign: 'top' }}>
                             {wEndDate ? (
@@ -1686,7 +1756,7 @@ export default function ReportingDashboard() {
                 </tbody>
               </table>
             </div>
-            
+
             {/* 3. FOOTER */}
             <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '20px' }}>
               <button onClick={() => setKpiDrillDown(null)} style={{ padding: '8px 16px', background: '#f1f5f9', border: '1px solid #cbd5e1', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold', color: '#334155' }}>
