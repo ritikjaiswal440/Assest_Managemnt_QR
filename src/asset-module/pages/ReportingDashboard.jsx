@@ -1,6 +1,6 @@
 /* eslint-disable react-hooks/set-state-in-effect */
 import { useState, useEffect, useMemo } from 'react';
-import { assetApi, fetchAssets, fetchMasterTickets, getDashboard } from '../../services/apiClient';
+import { assetApi, fetchMasterTickets, getDashboard } from '../../services/apiClient';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
   PieChart, Pie, Cell, LineChart, Line
@@ -100,15 +100,20 @@ export default function ReportingDashboard() {
         setFilterOptions(res.data.filterOptions || { brands: [], companies: [], locations: [], rooms: [] });
       }
 
+      // FIX: Use assetApi directly to query Asset_Master
       const [assetsRes, ticketsRes, dashboardRes] = await Promise.all([
-        fetchAssets(),
+        assetApi('getAssets'), 
         fetchMasterTickets(),
         getDashboard()
       ]);
 
+      // Robust check for GAS response structure
       if (assetsRes && assetsRes.success) {
         setAssets(assetsRes.data || []);
+      } else if (assetsRes && Array.isArray(assetsRes)) {
+        setAssets(assetsRes);
       }
+
       if (ticketsRes && ticketsRes.success) {
         setTickets(ticketsRes.data || []);
       }
@@ -862,6 +867,7 @@ export default function ReportingDashboard() {
     }
 
     // 2. STANDARD KPI DRILL-DOWNS (Assets)
+    if (kpiDrillDown === 'TOTAL') return filteredAssets; // Explicit routing for Total Assets
     if (kpiDrillDown === 'WARRANTY') return filteredAssets.filter(a => isWarrantyActive(a.Warranty_End_Date || a.warrantyEndDate));
     if (kpiDrillDown === 'WARRANTY_EXPIRED') return filteredAssets.filter(a => isWarrantyExpired(a.Warranty_End_Date || a.warrantyEndDate));
     if (kpiDrillDown === 'DLP') return filteredAssets.filter(a => getSupportTier(a) === 'DLP');
@@ -883,21 +889,21 @@ export default function ReportingDashboard() {
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '16px', marginBottom: '32px' }}>
 
         {/* 1. Total Managed Assets */}
-        <div 
-          onClick={() => setKpiDrillDown('TOTAL')} 
+        <div
+          onClick={() => setKpiDrillDown('TOTAL')}
           style={{ background: '#f3e8ff', padding: '20px', borderRadius: '8px', textAlign: 'center', cursor: 'pointer', borderBottom: '4px solid #a855f7', transition: 'transform 0.2s' }}
           onMouseOver={(e) => e.currentTarget.style.transform = 'scale(1.02)'}
           onMouseOut={(e) => e.currentTarget.style.transform = 'scale(1)'}
         >
           <h4 style={{ margin: 0, color: '#6b21a8', fontSize: '0.8rem', textTransform: 'uppercase' }}>Total Managed Assets</h4>
           <h2 style={{ margin: '10px 0 0 0', color: '#7e22ce', fontSize: '2.5rem' }}>
-            {filteredAssets.length}
+            {kpiMetrics.totalAssets || filteredAssets.length}
           </h2>
         </div>
 
         {/* 2. Active DLP */}
-        <div 
-          onClick={() => setKpiDrillDown('DLP')} 
+        <div
+          onClick={() => setKpiDrillDown('DLP')}
           style={{ background: '#e0f2fe', padding: '20px', borderRadius: '8px', textAlign: 'center', cursor: 'pointer', borderBottom: '4px solid #0284c7', transition: 'transform 0.2s' }}
           onMouseOver={(e) => e.currentTarget.style.transform = 'scale(1.02)'}
           onMouseOut={(e) => e.currentTarget.style.transform = 'scale(1)'}
@@ -909,8 +915,8 @@ export default function ReportingDashboard() {
         </div>
 
         {/* 3. Comprehensive AMC */}
-        <div 
-          onClick={() => setKpiDrillDown('COMP_AMC')} 
+        <div
+          onClick={() => setKpiDrillDown('COMP_AMC')}
           style={{ background: '#dcfce7', padding: '20px', borderRadius: '8px', textAlign: 'center', cursor: 'pointer', borderBottom: '4px solid #22c55e', transition: 'transform 0.2s' }}
           onMouseOver={(e) => e.currentTarget.style.transform = 'scale(1.02)'}
           onMouseOut={(e) => e.currentTarget.style.transform = 'scale(1)'}
@@ -922,8 +928,8 @@ export default function ReportingDashboard() {
         </div>
 
         {/* 4. Non-Comprehensive AMC */}
-        <div 
-          onClick={() => setKpiDrillDown('NON_COMP_AMC')} 
+        <div
+          onClick={() => setKpiDrillDown('NON_COMP_AMC')}
           style={{ background: '#fffbeb', padding: '20px', borderRadius: '8px', textAlign: 'center', cursor: 'pointer', borderBottom: '4px solid #d97706', transition: 'transform 0.2s' }}
           onMouseOver={(e) => e.currentTarget.style.transform = 'scale(1.02)'}
           onMouseOut={(e) => e.currentTarget.style.transform = 'scale(1)'}
@@ -935,8 +941,8 @@ export default function ReportingDashboard() {
         </div>
 
         {/* 5. Completely Uncovered */}
-        <div 
-          onClick={() => setKpiDrillDown('EXPIRED')} 
+        <div
+          onClick={() => setKpiDrillDown('EXPIRED')}
           style={{ background: '#fee2e2', padding: '20px', borderRadius: '8px', textAlign: 'center', cursor: 'pointer', borderBottom: '4px solid #ef4444', transition: 'transform 0.2s' }}
           onMouseOver={(e) => e.currentTarget.style.transform = 'scale(1.02)'}
           onMouseOut={(e) => e.currentTarget.style.transform = 'scale(1)'}
@@ -1673,7 +1679,14 @@ export default function ReportingDashboard() {
                           <tr key={i} style={{ borderBottom: '1px solid #e2e8f0', background: i % 2 === 0 ? '#ffffff' : '#f8fafc' }}>
                             <td style={{ padding: '12px', fontWeight: 'bold', color: '#3b82f6' }}>{item.Task_ID || item.Ticket_ID}</td>
                             <td style={{ padding: '12px', color: '#475569' }}>{item.Category || parentTicket.Category || 'Other'}<br /><span style={{ fontSize: '0.75rem' }}>{item.Issue_Type || item.Issue || parentTicket.Issue_Type || parentTicket.Issue || ''}</span></td>
-                            <td style={{ padding: '12px', color: '#475569' }}>{linkedAsset.Make || linkedAsset.ProductMake || ''} {linkedAsset.Model || ''}</td>
+                            <td style={{ padding: '12px', color: '#475569' }}>
+                              <div style={{ fontWeight: 'bold', color: '#334155' }}>
+                                {linkedAsset.ProductMake || linkedAsset.Make || parentTicket.ProductMake || parentTicket.Make || 'Unknown'} {linkedAsset.ProductModel || linkedAsset.Model || parentTicket.ProductModel || parentTicket.Model || ''}
+                              </div>
+                              <div style={{ fontSize: '0.75rem', color: '#94a3b8', marginTop: '2px' }}>
+                                SN: {linkedAsset.ProductSerial || linkedAsset.Serial_No || 'N/A'}
+                              </div>
+                            </td>
                             <td style={{ padding: '12px', color: '#475569' }}>{company}</td>
                             <td style={{ padding: '12px', color: '#475569' }}>{formattedDate}</td>
                             <td style={{ padding: '12px', color: '#475569', fontWeight: 'bold' }}>{item.Status || 'Open'}</td>
@@ -1692,10 +1705,33 @@ export default function ReportingDashboard() {
 
                       return (
                         <tr key={i} style={{ borderBottom: '1px solid #e2e8f0', background: i % 2 === 0 ? '#ffffff' : '#f8fafc' }}>
-                          <td style={{ padding: '12px', color: '#3b82f6', fontWeight: 'bold' }}>{item.Ref_Code}</td>
-                          <td style={{ padding: '12px', color: '#475569' }}>{item.Company_Name || item.Company}<br /><span style={{ fontSize: '0.75rem' }}>{item.Branch}</span></td>
-                          <td style={{ padding: '12px', color: '#475569' }}>{item.Make} {item.Model}<br /><span style={{ fontSize: '0.75rem', color: '#94a3b8' }}>SN: {item.Serial_No}</span></td>
-                          <td style={{ padding: '12px', color: '#475569' }}>{item.Sales_Order}</td>
+                          
+                          {/* FIXED: Prioritize True Asset ID before falling back to Ref Code */}
+                          <td style={{ padding: '12px', color: '#3b82f6', fontWeight: 'bold' }}>
+                            {item.Unique_Product_Id || item.id || item.Ref_Code || 'Unknown ID'}
+                          </td>
+                          
+                          {/* FIXED: Robust Location/Branch fallbacks */}
+                          <td style={{ padding: '12px', color: '#475569' }}>
+                            <div style={{ fontWeight: 'bold', color: '#334155' }}>{item.Company_Name || item.companyName || item.Company || 'N/A'}</div>
+                            <div style={{ fontSize: '0.75rem', color: '#64748b' }}>{item.Branch || item.branch || item.Location || item.location || ''}</div>
+                          </td>
+                          
+                          {/* FIXED: Product Make, Model, and Serial Number mappings */}
+                          <td style={{ padding: '12px', color: '#475569' }}>
+                            <div style={{ fontWeight: 'bold', color: '#334155' }}>
+                              {item.ProductMake || item.productMake || item.Make || 'Unknown'} {item.ProductModel || item.productModel || item.Model || ''}
+                            </div>
+                            <div style={{ fontSize: '0.75rem', color: '#94a3b8', marginTop: '2px' }}>
+                              SN: {item.ProductSerial || item.productSerial || item.Serial_No || item.Serial_Number || 'Not Provided'}
+                            </div>
+                          </td>
+                          
+                          {/* FIXED: Sales order fallback */}
+                          <td style={{ padding: '12px', color: '#475569' }}>
+                            {item.Sales_Order || item.salesOrder || 'N/A'}
+                          </td>
+                          
                           <td style={{ padding: '12px', color: '#334155', verticalAlign: 'top' }}>
                             {wEndDate ? (
                               <>

@@ -35,8 +35,17 @@ const genericPost = async (action, payload = {}, timeoutMs = 30000) => {
 
         const data = await response.json();
 
-        if (!data.success) {
-            throw new Error(data.message || 'Unknown API error');
+        // FIX: Handle both Boolean (success: true) and Legacy String (status: 'success') paradigms
+        const isSuccessful = data.success === true || data.status === 'success';
+
+        if (!isSuccessful) {
+            throw new Error(data.message || data.error || 'Unknown API error');
+        }
+
+        // NORMALIZE: Ensure the returned object always has a .success boolean
+        // This prevents frontend components like ReportingDashboard from ignoring the payload.
+        if (data.success === undefined && data.status === 'success') {
+            data.success = true;
         }
 
         return data;
