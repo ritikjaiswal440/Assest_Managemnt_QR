@@ -437,10 +437,6 @@ export default function AssetDashboard() {
           />
         </div>
         <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
-          <button onClick={() => setShowBulkAmcModal(true)} className="md3-btn md3-btn-secondary" style={{ marginLeft: '12px' }}>
-            <span className="material-symbols-outlined" style={{ fontSize: '18px', marginRight: '6px', verticalAlign: 'middle' }}>autorenew</span>
-            Bulk Renew AMC
-          </button>
           <button 
             className="btn-filled" 
             style={{ borderRadius: '20px' }}
@@ -466,7 +462,7 @@ export default function AssetDashboard() {
                 <th>Asset ID & Ref</th>
                 <th>Company & Location</th>
                 <th>Hardware Specs</th>
-                <th>Network / Serial</th>
+                <th>Serial & Billing</th>
                 <th>SLA & Warranty</th>
                 <th>Status</th>
                 <th>Actions</th>
@@ -526,15 +522,17 @@ export default function AssetDashboard() {
                         <div style={{ fontSize: '0.85rem', color: '#334155' }}>{model}</div>
                       </td>
 
-                      {/* Network & Serial Stack */}
+                      {/* Serial & Billing Stack */}
                       <td>
                         <div style={{ fontSize: '0.85rem', color: '#334155' }}><span style={{color:'#94a3b8', fontWeight:'bold'}}>S/N:</span> {serial}</div>
-                        <div style={{ fontSize: '0.8rem', color: '#64748b' }}><span style={{color:'#94a3b8', fontWeight:'bold'}}>IP:</span> {ip}</div>
-                        <div style={{ fontSize: '0.8rem', color: '#64748b' }}><span style={{color:'#94a3b8', fontWeight:'bold'}}>MAC:</span> {mac}</div>
                         {/* --- FINANCIAL TRACKING --- */}
                         <div style={{ marginTop: '8px', paddingTop: '8px', borderTop: '1px dashed #e2e8f0', fontSize: '0.75rem', color: '#64748b' }}>
                           <div><span style={{ fontWeight: 'bold' }}>Sales Order:</span> {asset.Sales_Order || asset.salesOrder || 'N/A'}</div>
+                          <div style={{ fontSize: '0.7rem', color: '#64748b', paddingLeft: '8px', marginBottom: '4px' }}>PO: {asset.Purchase_Order || asset.purchaseOrder || 'N/A'}</div>
                           <div><span style={{ fontWeight: 'bold' }}>Invoice No:</span> {asset.Invoice_No || asset.invoiceNo || 'N/A'}</div>
+                          <div style={{ fontSize: '0.7rem', color: '#64748b', paddingLeft: '8px' }}>
+                            Dt: {asset.Invoice_Date || asset.invoiceDate ? new Date(asset.Invoice_Date || asset.invoiceDate).toLocaleDateString('en-GB') : 'No Date'}
+                          </div>
                         </div>
                       </td>
 

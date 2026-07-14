@@ -228,14 +228,14 @@ const TicketTable = ({ parents, children, logs = [], userRole, isAdmin, currentU
                                 <div className="dossier-row"><span className="dossier-label">Room:</span> <span className="dossier-value">Flr {p.Floor || '-'} | {p.Room_Type || '-'} | {p.Room_Name || '-'}</span></div>
                               </div>
 
-                              {/* SECTION 2: Hardware & Network */}
+                              {/* SECTION 2: Hardware Details */}
                               <div className="dossier-section">
-                                <h4>🛡️ Hardware & Network</h4>
+                                <h4>🛡️ Hardware Details</h4>
                                 <div className="dossier-row"><span className="dossier-label">Device:</span> <span className="dossier-value">{p.ProductMake || ''} {p.ProductModel || 'Unknown'}</span></div>
                                 <div className="dossier-row"><span className="dossier-label">S/N:</span> <span className="dossier-value">{p.ProductSerial || 'N/A'}</span></div>
                                 <div className="dossier-row"><span className="dossier-label">Asset ID:</span> <span className="dossier-value">{p.Unique_Product_Id || 'N/A'}</span></div>
-                                <div className="dossier-row"><span className="dossier-label">IP / MAC:</span> <span className="dossier-value">{p.IP_Address || '-'} / {p.MAC_ID || '-'}</span></div>
                                 <div className="dossier-row"><span className="dossier-label">Sales Order:</span> <span className="dossier-value">{p.Sales_Order || 'N/A'}</span></div>
+                                <div className="dossier-row"><span className="dossier-label">PO Number:</span> <span className="dossier-value">{p.Purchase_Order || p.purchaseOrder || 'N/A'}</span></div>
                               </div>
 
                               {/* SECTION 3: SLA & Warranty */}

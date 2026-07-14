@@ -403,12 +403,10 @@ const ServiceRequestTable = ({ requests, masterTickets, onConvertToMaster, onArc
                                       </p>
                                     </div>
                                     <div>
-                                      <span style={{ fontSize: '0.75rem', textTransform: 'uppercase', color: '#64748b', fontWeight: 'bold', display: 'block', marginBottom: '4px' }}>Location & Network</span>
+                                      <span style={{ fontSize: '0.75rem', textTransform: 'uppercase', color: '#64748b', fontWeight: 'bold', display: 'block', marginBottom: '4px' }}>Location Details</span>
                                       <p style={{ margin: 0, fontSize: '0.9rem', color: '#334155', lineHeight: '1.5' }}>
                                         <b>Floor:</b> {floor}<br />
-                                        <b>Room Type:</b> {roomType}<br />
-                                        <b>IP:</b> {ipAddress}<br />
-                                        <b>MAC:</b> {macId}
+                                        <b>Room Type:</b> {roomType}
                                       </p>
                                     </div>
                                     <div>

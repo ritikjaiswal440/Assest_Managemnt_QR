@@ -133,7 +133,9 @@ export default function AssetFormModal({ isOpen, onClose, onSave, initialData, c
     amcStart: '',
     amcEnd: '',
     nonAmcStart: '',
-    nonAmcEnd: ''
+    nonAmcEnd: '',
+    Purchase_Order: '',
+    Invoice_Date: ''
   };
 
   const [formData, setFormData] = useState(defaultState);
@@ -214,7 +216,9 @@ export default function AssetFormModal({ isOpen, onClose, onSave, initialData, c
         amcStart: formatDateForInput(initialData.AMC_Start_Date),
         amcEnd: formatDateForInput(initialData.AMC_End_Date),
         nonAmcStart: formatDateForInput(initialData.NON_CAMC_Start_Date),
-        nonAmcEnd: formatDateForInput(initialData.NON_CAMC_End_Date)
+        nonAmcEnd: formatDateForInput(initialData.NON_CAMC_End_Date),
+        Purchase_Order: initialData.Purchase_Order || initialData.PURCHASE_ORDER || initialData.purchaseOrder || '',
+        Invoice_Date: formatDateForInput(initialData.Invoice_Date || initialData.INVOICE_DATE || initialData.invoiceDate)
       };
       setFormData(mappedData);
       const inferredDuration = getDurationInMonths(mappedData.warrantyStart || mappedData.warrantyStartDate, mappedData.warrantyEnd || mappedData.warrantyEndDate);
@@ -338,6 +342,8 @@ export default function AssetFormModal({ isOpen, onClose, onSave, initialData, c
     e.preventDefault();
     const payload = {
       ...formData,
+      Purchase_Order: formData.Purchase_Order || "",
+      Invoice_Date: formData.Invoice_Date || "",
       DLP_Start_Date: formData.dlpStart || "",
       DLP_End_Date: formData.dlpEnd || "",
       Warranty_Start_Date: formData.warrantyStart || "",
@@ -425,14 +431,39 @@ export default function AssetFormModal({ isOpen, onClose, onSave, initialData, c
 
             <div className="form-section">
               <h4>Order Info</h4>
-              <div className="form-grid">
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '16px' }}>
                 <div className="form-group">
                   <label>Sales Order</label>
                   <input type="text" name="salesOrder" value={formData.salesOrder || ''} onChange={handleChange} className="md3-input" />
                 </div>
+                {/* NEW: Purchase Order Input */}
+                <div className="form-group">
+                  <label>Purchase Order Number</label>
+                  <input 
+                    type="text" 
+                    name="Purchase_Order" 
+                    value={formData.Purchase_Order || ''} 
+                    onChange={handleChange} 
+                    placeholder="e.g. PO-2026-892"
+                    className="md3-input"
+                  />
+                </div>
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
                 <div className="form-group">
                   <label>Invoice No</label>
                   <input type="text" name="invoiceNo" value={formData.invoiceNo || ''} onChange={handleChange} className="md3-input" />
+                </div>
+                {/* NEW: Invoice Date Input */}
+                <div className="form-group">
+                  <label>Invoice Date</label>
+                  <input 
+                    type="date" 
+                    name="Invoice_Date" 
+                    value={formData.Invoice_Date ? formData.Invoice_Date.split('T')[0] : ''} 
+                    onChange={handleChange} 
+                    className="md3-input"
+                  />
                 </div>
               </div>
             </div>

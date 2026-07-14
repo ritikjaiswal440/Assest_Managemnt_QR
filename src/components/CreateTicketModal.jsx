@@ -418,10 +418,7 @@ const CreateTicketModal = ({ isOpen, onClose, clients = [], engineers = [], curr
                   <label style={{ fontSize: '0.75rem' }}>Location / Room</label>
                   <input type="text" className="form-control form-control-sm" disabled value={`${formData.floor || ''} - ${formData.roomName || ''}`} style={{ backgroundColor: '#f1f3f4', width: '100%', padding: '6px', borderRadius: '4px', border: '1px solid #ccc' }} />
                 </div>
-                <div className="input-group" style={{ marginBottom: 0 }}>
-                  <label style={{ fontSize: '0.75rem' }}>Network (IP / MAC)</label>
-                  <input type="text" className="form-control form-control-sm" disabled value={`${formData.ipAddress || 'N/A'} / ${formData.macId || 'N/A'}`} style={{ backgroundColor: '#f1f3f4', width: '100%', padding: '6px', borderRadius: '4px', border: '1px solid #ccc' }} />
-                </div>
+
                 <div className="input-group" style={{ marginBottom: 0 }}>
                   <label style={{ fontSize: '0.75rem' }}>Warranty Status</label>
                   <input type="text" className="form-control form-control-sm" disabled value={`${formData.assetStatus || ''} (Ends: ${formData.warrantyEnd || 'N/A'})`} style={{ backgroundColor: '#f1f3f4', width: '100%', padding: '6px', borderRadius: '4px', border: '1px solid #ccc' }} />

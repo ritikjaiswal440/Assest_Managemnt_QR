@@ -39,45 +39,88 @@ export default function ReportingDashboard() {
     companyName: '', location: '', roomName: ''
   });
 
-  // UTILITY: Smart CSV Exporter (Handles both Assets and Tickets)
+  // UTILITY: Smart Dynamic CSV Exporter
   const exportToCSV = (data, filename) => {
-    if (!data || data.length === 0) return;
-
-    const isTicketData = data[0].hasOwnProperty('Ticket_ID');
-
+    if (!data || data.length === 0) {
+      alert("No data available to export.");
+      return;
+    }
+    
+    // 1. Detect Payload Schema
+    const sample = data[0];
+    const isTask = sample.hasOwnProperty('Task_ID') || sample.hasOwnProperty('Parent Ticket_ID_Ref');
+    const isTicket = !isTask && (sample.hasOwnProperty('Ticket_ID') || sample.hasOwnProperty('ticketId'));
+    
     let headers = [];
     let rows = [];
 
-    if (isTicketData) {
-      headers = ['Ticket ID', 'Category', 'Issue', 'Make', 'Company', 'Open Date', 'Status'];
+    // 2. Map Columns based on Schema
+    if (isTask) {
+      headers = ['Task ID', 'Parent Ticket', 'Category', 'Issue', 'Company', 'Branch', 'Asset Make & Model', 'Asset Serial', 'Assigned Engineer', 'Status', 'Date'];
       rows = data.map(t => {
-        const linkedAsset = assets?.find(a => a.Ref_Code === t.Asset_Ref_Code) || {};
+        const parentRef = t['Parent Ticket_ID_Ref'] || t.Parent_Ticket_ID_Ref || t.Ticket_ID_Ref || t.Parent_Ticket_ID || t.Ticket_ID;
+        const parentTicket = tickets?.find(pt => String(pt.Ticket_ID).trim().toLowerCase() === String(parentRef).trim().toLowerCase()) || {};
+        const assetRef = parentTicket.Asset_Ref_Code || parentTicket.Unique_Product_Id || t.Asset_Ref_Code || t.Unique_Product_Id;
+        const linkedAsset = assets?.find(a => a.Ref_Code === assetRef || a.Unique_Product_Id === assetRef) || {};
+        
+        return [
+          t.Task_ID || t.Ticket_ID || '',
+          parentRef !== (t.Task_ID || t.Ticket_ID) ? parentRef : '', // Don't duplicate if it's the same
+          parentTicket.Category || t.Category || '',
+          parentTicket.Issue_Type || parentTicket.Issue || t.Issue_Type || t.Issue || '',
+          t.Company_Name || parentTicket.Company_Name || t.Company || '',
+          t.Branch || parentTicket.Branch || '',
+          `${linkedAsset.Make || linkedAsset.ProductMake || parentTicket.Make || ''} ${linkedAsset.Model || linkedAsset.ProductModel || ''}`.trim(),
+          linkedAsset.Serial_No || linkedAsset.ProductSerial || '',
+          t.Engineer_Name || t.Assigned_Engineer || t.assignedEngineer || t.Assigned_To || 'Unassigned',
+          t.Status || '',
+          t.Assigned_Date || t.Date || t.Open_Date || parentTicket.Open_Date || ''
+        ];
+      });
+    } else if (isTicket) {
+      headers = ['Ticket ID', 'Category', 'Issue', 'Company', 'Asset Make & Model', 'Asset Serial', 'Status', 'Open Date'];
+      rows = data.map(t => {
+        const assetRef = t.Asset_Ref_Code || t.Unique_Product_Id;
+        const linkedAsset = assets?.find(a => a.Ref_Code === assetRef || a.Unique_Product_Id === assetRef) || {};
         return [
           t.Ticket_ID || '',
           t.Category || '',
           t.Issue_Type || t.Issue || '',
-          linkedAsset.Make || linkedAsset.ProductMake || 'Unknown',
-          t.Company_Name || '',
-          t.Open_Date ? new Date(t.Open_Date).toLocaleDateString('en-GB') : '',
-          t.Status || ''
+          t.Company_Name || t.Company || '',
+          `${linkedAsset.Make || linkedAsset.ProductMake || t.Make || ''} ${linkedAsset.Model || linkedAsset.ProductModel || ''}`.trim(),
+          linkedAsset.Serial_No || linkedAsset.ProductSerial || '',
+          t.Status || '',
+          t.Open_Date || ''
         ];
       });
     } else {
-      headers = ['Asset ID', 'Company', 'Branch', 'Make', 'Model', 'Serial No', 'Sales Order', 'Support Tier', 'OEM Warranty End'];
+      headers = ['Asset ID', 'Ref Code', 'Company', 'Branch', 'Make', 'Model', 'Serial No', 'Sales Order', 'Support Tier', 'Warranty End Date'];
       rows = data.map(a => [
+        a.Unique_Product_Id || a.id || '',
         a.Ref_Code || '',
         a.Company_Name || a.Company || '',
-        a.Branch || '',
-        a.Make || a.ProductMake || '',
-        a.Model || a.ProductModel || '',
-        a.Serial_No || a.ProductSerial || '',
-        a.Sales_Order || '',
-        getSupportTier(a),
+        a.Branch || a.Location || '',
+        a.ProductMake || a.Make || '',
+        a.ProductModel || a.Model || '',
+        a.ProductSerial || a.Serial_No || a.Serial_Number || '',
+        a.Sales_Order || a.salesOrder || '',
+        getSupportTier(a), 
         a.Warranty_End_Date ? new Date(a.Warranty_End_Date).toLocaleDateString('en-GB') : 'N/A'
       ]);
     }
 
-    const csvContent = [headers.join(','), ...rows.map(e => `"${e.join('","')}"`)].join('\n');
+    // 3. Format and Escape CSV securely
+    const escapeCsvField = (val) => {
+      if (val === null || val === undefined) return '""';
+      return `"${String(val).replace(/"/g, '""')}"`;
+    };
+
+    const csvContent = [
+      headers.map(escapeCsvField).join(','), 
+      ...rows.map(row => row.map(escapeCsvField).join(','))
+    ].join('\n');
+    
+    // 4. Download Trigger
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
@@ -332,24 +375,29 @@ export default function ReportingDashboard() {
     if (!engineerTasks) return [];
 
     return engineerTasks.map(task => {
-      const parentTicket = tickets.find(t => String(t.Ticket_ID).trim().toLowerCase() === String(task.Ticket_ID_Ref).trim().toLowerCase());
+      // FIX: Robust fallback for whatever the Parent Reference column is named in Google Sheets
+      const linkedParentId = task['Parent Ticket_ID_Ref'] || task.Parent_Ticket_ID_Ref || task.Ticket_ID_Ref || task.Ticket_ID || task.Parent_Ticket_ID;
+      
+      const parentTicket = tickets.find(t => 
+        String(t.Ticket_ID).trim().toLowerCase() === String(linkedParentId || '').trim().toLowerCase()
+      ) || {};
 
       const linkedAsset = assets?.find(a => {
         const aRef = a.Unique_Product_Id || a.id || a.Ref_Code;
-        const tRef = parentTicket?.Asset_Ref_Code || parentTicket?.Unique_Product_Id || parentTicket?.Asset_ID;
+        const tRef = parentTicket.Asset_Ref_Code || parentTicket.Unique_Product_Id || parentTicket.Asset_ID;
         return aRef && tRef && String(aRef).trim().toLowerCase() === String(tRef).trim().toLowerCase();
       });
 
       return {
         ...task,
-        Company_Name: parentTicket?.Company_Name || parentTicket?.Company || '',
-        Branch: parentTicket?.Branch || parentTicket?.branch || '',
-        Room_Name: parentTicket?.Room_Name || parentTicket?.roomName || '',
-        Unique_Product_Id: parentTicket?.Unique_Product_Id || parentTicket?.Asset_Ref_Code || '',
-        ProductMake: linkedAsset?.ProductMake || linkedAsset?.Make || parentTicket?.ProductMake || parentTicket?.Make || '',
-        ProductModel: linkedAsset?.ProductModel || linkedAsset?.Model || parentTicket?.ProductModel || parentTicket?.Model || '',
-        Open_Date: task.Assigned_Date || parentTicket?.Open_Date || parentTicket?.Created_At || '',
-        Admin_Remarks: task.Instructions || parentTicket?.Admin_Remarks || parentTicket?.Description || ''
+        Company_Name: parentTicket.Company_Name || parentTicket.Company || '',
+        Branch: parentTicket.Branch || parentTicket.branch || '',
+        Room_Name: parentTicket.Room_Name || parentTicket.roomName || '',
+        Unique_Product_Id: parentTicket.Unique_Product_Id || parentTicket.Asset_Ref_Code || '',
+        ProductMake: linkedAsset?.ProductMake || linkedAsset?.Make || parentTicket.ProductMake || parentTicket.Make || '',
+        ProductModel: linkedAsset?.ProductModel || linkedAsset?.Model || parentTicket.ProductModel || parentTicket.Model || '',
+        Open_Date: task.Assigned_Date || parentTicket.Open_Date || parentTicket.Created_At || '',
+        Admin_Remarks: task.Instructions || parentTicket.Admin_Remarks || parentTicket.Description || ''
       };
     }).filter(task => {
       // PURGE: Explicitly ignore any legacy tasks stuck in 'Resolved' status
@@ -564,44 +612,50 @@ export default function ReportingDashboard() {
     });
   }, [tickets, filterYear, filterMonth]);
 
-  // 1. Data: Hardware Failure Trends (By Category)
+  // 1. Data: Hardware Failure Trends (Sourced from Tasks to sync with modal count)
   const categoryTrendsData = useMemo(() => {
     const counts = {};
-    activeMasterTickets.forEach(t => {
-      const cat = t.Category || 'Uncategorized';
+    timeFilteredTasks.forEach(task => {
+      const parentRef = task['Parent Ticket_ID_Ref'] || task.Parent_Ticket_ID_Ref || task.Ticket_ID_Ref || task.Parent_Ticket_ID || task.Ticket_ID;
+      const parentTicket = tickets.find(t => String(t.Ticket_ID).trim().toLowerCase() === String(parentRef).trim().toLowerCase()) || {};
+      const cat = parentTicket.Category || 'Uncategorized';
       counts[cat] = (counts[cat] || 0) + 1;
     });
-    const max = Math.max(...Object.values(counts), 1); // For progress bar scaling
+    const max = Math.max(...Object.values(counts), 1); 
     return Object.keys(counts)
       .map(key => ({ name: key, value: counts[key], width: (counts[key] / max) * 100 }))
       .sort((a, b) => b.value - a.value);
-  }, [activeMasterTickets]);
+  }, [timeFilteredTasks, tickets]);
 
-  // 2. Data: Asset Distribution by Brand (Cross-referenced with Assets)
+  // 2. Data: Asset Distribution by Brand (Overall Deployed Assets - NOT Ticket Based)
   const brandPieData = useMemo(() => {
     const counts = {};
-    activeMasterTickets.forEach(t => {
-      const linkedAsset = assets?.find(a => a.Ref_Code === t.Asset_Ref_Code) || t;
-      const make = linkedAsset.Make || linkedAsset.ProductMake || 'Unknown';
-      counts[make] = (counts[make] || 0) + 1;
+    filteredAssets.forEach(a => {
+      const make = a.Make || a.ProductMake || 'Unknown';
+      if (make !== 'Unknown' && make.trim() !== '') {
+        counts[make] = (counts[make] || 0) + 1;
+      }
     });
     return Object.keys(counts)
       .map(key => ({ name: key, value: counts[key] }))
-      .filter(item => item.value > 0);
-  }, [activeMasterTickets, assets]);
+      .filter(item => item.value > 0)
+      .sort((a, b) => b.value - a.value); // Sort highest to lowest
+  }, [filteredAssets]);
 
-  // 3. Data: Issue Type Breakdown
+  // 3. Data: Issue Type Breakdown (Sourced from Tasks to sync with modal count)
   const issueBreakdownData = useMemo(() => {
     const counts = {};
-    activeMasterTickets.forEach(t => {
-      const issue = t.Issue_Type || t.Issue || 'Uncategorized';
+    timeFilteredTasks.forEach(task => {
+      const parentRef = task['Parent Ticket_ID_Ref'] || task.Parent_Ticket_ID_Ref || task.Ticket_ID_Ref || task.Parent_Ticket_ID || task.Ticket_ID;
+      const parentTicket = tickets.find(t => String(t.Ticket_ID).trim().toLowerCase() === String(parentRef).trim().toLowerCase()) || {};
+      const issue = parentTicket.Issue_Type || parentTicket.Issue || task.Issue || task.Issue_Type || 'Uncategorized';
       counts[issue] = (counts[issue] || 0) + 1;
     });
     const max = Math.max(...Object.values(counts), 1);
     return Object.keys(counts)
       .map(key => ({ name: key, value: counts[key], width: (counts[key] / max) * 100 }))
       .sort((a, b) => b.value - a.value);
-  }, [activeMasterTickets]);
+  }, [timeFilteredTasks, tickets]);
 
   // 10. Data: Engineer Performance by Workflow Status
   const engineerPerformanceData = useMemo(() => {
@@ -751,28 +805,87 @@ export default function ReportingDashboard() {
       .filter(item => item.value > 0);
   }, [tickets, filterYear, filterMonth]);
 
-  // 11. Data: Parent Ticket Volume (Sourced from Engineer_Tasks)
+  // 11. ENGINE: Master Incident Impact (Sourced from timeFilteredTasks for perfect sync)
   const parentChildData = useMemo(() => {
     if (!timeFilteredTasks || timeFilteredTasks.length === 0) return [];
 
-    const parentMap = {};
+    const impactMap = {};
 
     timeFilteredTasks.forEach(task => {
-      // Robustly catch the specific column name, handling potential spaces or underscores
-      const parentId = task['Parent Ticket_ID_Ref'] || task.Parent_Ticket_ID_Ref || task.Parent_Ticket_ID;
+      // 1. Safely extract the Master Ticket ID
+      const parentRef = task['Parent Ticket_ID_Ref'] || task.Parent_Ticket_ID_Ref || task.Ticket_ID_Ref || task.Parent_Ticket_ID;
+      const masterId = parentRef ? String(parentRef).trim() : null;
+      
+      if (!masterId || masterId.toLowerCase() === 'undefined') return;
 
-      if (parentId && parentId.toString().trim() !== '') {
-        if (!parentMap[parentId]) {
-          parentMap[parentId] = { parentId: parentId, childCount: 0 };
-        }
-        parentMap[parentId].childCount += 1;
+      // 2. Initialize the bucket if it doesn't exist
+      if (!impactMap[masterId]) {
+        const parentTicket = tickets.find(t => String(t.Ticket_ID).trim().toLowerCase() === masterId.toLowerCase()) || {};
+        const linkedAsset = assets?.find(a => a.Ref_Code === parentTicket.Asset_Ref_Code || a.Unique_Product_Id === parentTicket.Asset_Ref_Code) || {};
+        
+        const assetMake = linkedAsset.Make || linkedAsset.ProductMake || parentTicket.Make || parentTicket.ProductMake || '';
+        const assetModel = linkedAsset.Model || linkedAsset.ProductModel || parentTicket.Model || parentTicket.ProductModel || '';
+        const assetDetails = assetMake ? `${assetMake} ${assetModel}`.trim() : 'General/Unknown Asset';
+
+        impactMap[masterId] = {
+          parentId: masterId,
+          pendingCount: 0,
+          resolvedCount: 0,
+          totalTasks: 0,
+          company: parentTicket.Company_Name || parentTicket.Company || task.Company_Name || 'Unknown',
+          assetDetails: assetDetails,
+          engineers: new Set() // Tracks unique engineers across multiple tasks
+        };
+      }
+
+      // 3. Tally the workflow statuses
+      const taskStatus = String(task.Status || '').toLowerCase();
+      if (taskStatus.includes('close') || taskStatus.includes('resolve')) {
+        impactMap[masterId].resolvedCount += 1;
+      } else {
+        impactMap[masterId].pendingCount += 1;
+      }
+      impactMap[masterId].totalTasks += 1;
+
+      // 4. Collect the Engineer's name
+      const engName = task.Engineer_Name || task.Assigned_Engineer || task.assignedEngineer || task.Assigned_To;
+      if (engName && engName.trim() !== '') {
+        impactMap[masterId].engineers.add(engName.trim());
       }
     });
 
-    // Convert to array, sort by highest volume of child tasks, and take the top 10
-    return Object.values(parentMap)
-      .sort((a, b) => b.childCount - a.childCount)
+    // 5. Convert to array, format the engineer list, sort by volume, and slice top 10
+    return Object.values(impactMap)
+      .map(item => ({
+        ...item,
+        engineerNames: item.engineers.size > 0 ? Array.from(item.engineers).join(', ') : 'Unassigned'
+      }))
+      .sort((a, b) => b.totalTasks - a.totalTasks)
       .slice(0, 10);
+
+  }, [timeFilteredTasks, tickets, assets]);
+
+  // 12. Data: Task Execution KPIs
+  const taskKpis = useMemo(() => {
+    if (!timeFilteredTasks) return { total: 0, pending: 0, resolved: 0 };
+    
+    let pending = 0;
+    let resolved = 0;
+    
+    timeFilteredTasks.forEach(task => {
+      const status = String(task.Status || '').toLowerCase();
+      if (status.includes('close') || status.includes('resolve')) {
+        resolved += 1;
+      } else {
+        pending += 1;
+      }
+    });
+
+    return { 
+      total: timeFilteredTasks.length, 
+      pending, 
+      resolved 
+    };
   }, [timeFilteredTasks]);
 
   // 1. projectAssets: Assets linked to the selected Sales Order for drill-down modal
@@ -826,18 +939,32 @@ export default function ReportingDashboard() {
     if (typeof kpiDrillDown === 'string' && kpiDrillDown.startsWith('CHART_')) {
       const [chartType, clickedValue] = kpiDrillDown.split('|');
 
+      // FIXED: Brand Drill-Down now maps to Deployed Assets, not Tickets
       if (chartType === 'CHART_BRAND') {
-        return activeMasterTickets.filter(t => {
-          const linkedAsset = assets?.find(a => a.Ref_Code === t.Asset_Ref_Code) || t;
-          const make = linkedAsset.Make || linkedAsset.ProductMake || 'Unknown';
+        return filteredAssets.filter(a => {
+          const make = a.Make || a.ProductMake || 'Unknown';
           return make === clickedValue;
         });
       }
-      if (chartType === 'CHART_ISSUE') {
-        return activeMasterTickets.filter(t => (t.Issue_Type || 'Uncategorized') === clickedValue);
-      }
+      
+      // FIXED: Category Drill-Down now maps to timeFilteredTasks to perfectly sync with chart counts
       if (chartType === 'CHART_CATEGORY') {
-        return activeMasterTickets.filter(t => (t.Category || 'Uncategorized') === clickedValue);
+        return timeFilteredTasks.filter(task => {
+          const parentRef = task['Parent Ticket_ID_Ref'] || task.Parent_Ticket_ID_Ref || task.Ticket_ID_Ref || task.Parent_Ticket_ID || task.Ticket_ID;
+          const parentTicket = tickets.find(t => String(t.Ticket_ID).trim().toLowerCase() === String(parentRef).trim().toLowerCase()) || {};
+          const cat = parentTicket.Category || 'Uncategorized';
+          return cat === clickedValue;
+        });
+      }
+
+      // FIXED: Issue Drill-Down now maps to timeFilteredTasks
+      if (chartType === 'CHART_ISSUE') {
+        return timeFilteredTasks.filter(task => {
+          const parentRef = task['Parent Ticket_ID_Ref'] || task.Parent_Ticket_ID_Ref || task.Ticket_ID_Ref || task.Parent_Ticket_ID || task.Ticket_ID;
+          const parentTicket = tickets.find(t => String(t.Ticket_ID).trim().toLowerCase() === String(parentRef).trim().toLowerCase()) || {};
+          const issue = parentTicket.Issue_Type || parentTicket.Issue || task.Issue || task.Issue_Type || 'Uncategorized';
+          return issue === clickedValue;
+        });
       }
       if (chartType === 'CHART_STATUS') {
         return activeMasterTickets.filter(t => {
@@ -849,11 +976,11 @@ export default function ReportingDashboard() {
           return false;
         });
       }
+      // FIXED: Parent Chart Drill-Down now maps to timeFilteredTasks
       if (chartType === 'CHART_PARENT') {
-        // Return tasks from Engineer_Tasks where the Parent ID matches the clicked bar
-        return engineerTasks.filter(task => {
-          const parentId = task['Parent Ticket_ID_Ref'] || task.Parent_Ticket_ID_Ref || task.Parent_Ticket_ID;
-          return parentId === clickedValue;
+        return timeFilteredTasks.filter(task => {
+          const parentRef = task['Parent Ticket_ID_Ref'] || task.Parent_Ticket_ID_Ref || task.Ticket_ID_Ref || task.Parent_Ticket_ID;
+          return String(parentRef).trim().toLowerCase() === String(clickedValue).trim().toLowerCase();
         });
       }
     }
@@ -877,7 +1004,7 @@ export default function ReportingDashboard() {
     if (kpiDrillDown === 'EXPIRED') return filteredAssets.filter(a => isCompletelyUncovered(a));
 
     return filteredAssets; // Default fallback
-  }, [kpiDrillDown, filteredAssets, activeMasterTickets, assets, filteredTickets, tickets, filterYear, filterMonth, engineerTasks]);
+  }, [kpiDrillDown, filteredAssets, timeFilteredTasks, tickets, assets]);
 
   return (
     <div className="reporting-dashboard">
@@ -1477,12 +1604,34 @@ export default function ReportingDashboard() {
           )}
         </div>
 
-        {/* --- Parent/Child Ticket Volume --- */}
+        {/* --- Parent/Child Ticket Volume & Task KPIs --- */}
         <div style={{ background: '#ffffff', padding: '20px', borderRadius: '8px', boxShadow: '0 1px 3px rgba(0,0,0,0.1)', gridColumn: '1 / -1', marginTop: '24px' }}>
-          <h3 style={{ marginTop: 0, color: '#334155', marginBottom: '4px' }}>Master Incident Impact</h3>
-          <p style={{ fontSize: '0.75rem', color: '#64748b', marginTop: 0, marginBottom: '16px' }}>
-            Top Parent tickets generating the highest volume of Child tickets.
-          </p>
+          
+          {/* Enriched Header with Mini-KPIs */}
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '16px', marginBottom: '20px' }}>
+            <div>
+              <h3 style={{ marginTop: 0, color: '#334155', marginBottom: '4px' }}>Master Incident Impact & Execution</h3>
+              <p style={{ fontSize: '0.75rem', color: '#64748b', marginTop: 0, marginBottom: '0' }}>
+                Top Parent tickets generating child tasks, alongside overall task execution metrics.
+              </p>
+            </div>
+            
+            {/* The Small KPI Cards */}
+            <div style={{ display: 'flex', gap: '12px' }}>
+              <div style={{ background: '#f1f5f9', padding: '8px 16px', borderRadius: '6px', textAlign: 'center', minWidth: '90px', borderBottom: '3px solid #3b82f6' }}>
+                <div style={{ fontSize: '0.7rem', color: '#64748b', fontWeight: 'bold', textTransform: 'uppercase' }}>Total Tasks</div>
+                <div style={{ fontSize: '1.25rem', fontWeight: '900', color: '#1e293b' }}>{taskKpis.total}</div>
+              </div>
+              <div style={{ background: '#fffbeb', padding: '8px 16px', borderRadius: '6px', textAlign: 'center', minWidth: '90px', borderBottom: '3px solid #f59e0b' }}>
+                <div style={{ fontSize: '0.7rem', color: '#b45309', fontWeight: 'bold', textTransform: 'uppercase' }}>Pending</div>
+                <div style={{ fontSize: '1.25rem', fontWeight: '900', color: '#d97706' }}>{taskKpis.pending}</div>
+              </div>
+              <div style={{ background: '#ecfdf5', padding: '8px 16px', borderRadius: '6px', textAlign: 'center', minWidth: '90px', borderBottom: '3px solid #10b981' }}>
+                <div style={{ fontSize: '0.7rem', color: '#047857', fontWeight: 'bold', textTransform: 'uppercase' }}>Resolved</div>
+                <div style={{ fontSize: '1.25rem', fontWeight: '900', color: '#059669' }}>{taskKpis.resolved}</div>
+              </div>
+            </div>
+          </div>
 
           <div style={{ width: '100%', height: '300px' }}>
             {parentChildData.length === 0 ? (
@@ -1493,16 +1642,59 @@ export default function ReportingDashboard() {
                   <CartesianGrid strokeDasharray="3 3" vertical={false} />
                   <XAxis dataKey="parentId" style={{ fontSize: '0.7rem' }} tick={{ fill: '#64748b' }} />
                   <YAxis allowDecimals={false} style={{ fontSize: '0.8rem' }} />
-                  <Tooltip
-                    cursor={{ fill: '#f1f5f9' }}
-                    contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)' }}
+                  <Legend wrapperStyle={{ paddingTop: '10px', fontSize: '0.8rem' }} />
+                  
+                  <Tooltip 
+                    cursor={{ fill: '#f8fafc' }}
+                    content={({ active, payload, label }) => {
+                      if (active && payload && payload.length) {
+                        const data = payload[0].payload;
+                        return (
+                          <div style={{ background: '#ffffff', padding: '12px', border: '1px solid #e2e8f0', borderRadius: '8px', boxShadow: '0 10px 15px -3px rgba(0,0,0,0.1)' }}>
+                            <p style={{ margin: '0 0 8px 0', fontWeight: 'bold', color: '#0f172a', borderBottom: '1px solid #e2e8f0', paddingBottom: '4px' }}>
+                              Master Incident: {label}
+                            </p>
+                            <p style={{ margin: '0 0 4px 0', fontSize: '0.8rem', color: '#475569' }}>
+                              <strong>Client:</strong> {data.company}
+                            </p>
+                            <p style={{ margin: '0 0 4px 0', fontSize: '0.8rem', color: '#475569' }}>
+                              <strong>Hardware:</strong> <span style={{ color: '#8b5cf6', fontWeight: '600' }}>{data.assetDetails}</span>
+                            </p>
+                            <p style={{ margin: '0 0 8px 0', fontSize: '0.8rem', color: '#475569' }}>
+                              <strong>Assigned:</strong> <span style={{ color: '#0369a1', fontWeight: '600' }}>{data.engineerNames}</span>
+                            </p>
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', marginTop: '8px', paddingTop: '8px', borderTop: '1px dashed #e2e8f0' }}>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                <div style={{ width: '10px', height: '10px', background: '#f59e0b', borderRadius: '2px' }}></div>
+                                <span style={{ fontSize: '0.8rem', color: '#334155' }}>Pending Tasks: <strong>{data.pendingCount}</strong></span>
+                              </div>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                <div style={{ width: '10px', height: '10px', background: '#10b981', borderRadius: '2px' }}></div>
+                                <span style={{ fontSize: '0.8rem', color: '#334155' }}>Resolved Tasks: <strong>{data.resolvedCount}</strong></span>
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      }
+                      return null;
+                    }}
                   />
 
-                  <Bar
-                    dataKey="childCount"
-                    name="Linked Child Tickets"
-                    fill="#6366f1"
-                    radius={[4, 4, 0, 0]}
+                  {/* Stacked Bars: Amber for Pending, Green for Resolved */}
+                  <Bar 
+                    dataKey="pendingCount" 
+                    name="Pending Tasks" 
+                    stackId="a" 
+                    fill="#f59e0b" 
+                    onClick={(data) => setKpiDrillDown(`CHART_PARENT|${data.parentId}`)}
+                    style={{ cursor: 'pointer' }}
+                  />
+                  <Bar 
+                    dataKey="resolvedCount" 
+                    name="Resolved Tasks" 
+                    stackId="a" 
+                    fill="#10b981" 
+                    radius={[4, 4, 0, 0]} 
                     onClick={(data) => setKpiDrillDown(`CHART_PARENT|${data.parentId}`)}
                     style={{ cursor: 'pointer' }}
                   />
@@ -1617,13 +1809,18 @@ export default function ReportingDashboard() {
 
               <div style={{ display: 'flex', gap: '16px', alignItems: 'center' }}>
                 {/* RESTORED DOWNLOAD BUTTON: Passes the hoisted modalData array */}
-                <button
-                  onClick={() => exportToCSV(modalData, typeof kpiDrillDown === 'string' && kpiDrillDown.startsWith('CHART_') ? 'Chart_Export' : 'Asset_Export')}
-                  style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '6px 12px', background: '#10b981', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold', fontSize: '0.8rem' }}
-                >
-                  <span className="material-symbols-outlined" style={{ fontSize: '16px' }}>download</span>
-                  Export CSV
-                </button>
+          <button 
+            onClick={() => {
+              const exportPrefix = (typeof kpiDrillDown === 'string' && kpiDrillDown.startsWith('CHART_')) 
+                ? kpiDrillDown.replace('|', '_') 
+                : kpiDrillDown || 'Filtered_Report';
+              exportToCSV(modalData, `AVD_Export_${exportPrefix}`);
+            }}
+            style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '6px 12px', background: '#10b981', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold', fontSize: '0.8rem' }}
+          >
+            <span className="material-symbols-outlined" style={{ fontSize: '16px' }}>download</span>
+            Export CSV
+          </button>
                 <button onClick={() => setKpiDrillDown(null)} style={{ background: 'transparent', border: 'none', fontSize: '24px', cursor: 'pointer', color: '#94a3b8' }}>✕</button>
               </div>
             </div>
@@ -1642,7 +1839,7 @@ export default function ReportingDashboard() {
                         <th style={{ padding: '12px', color: '#475569' }}>HARDWARE MAKE</th>
                         <th style={{ padding: '12px', color: '#475569' }}>COMPANY</th>
                         <th style={{ padding: '12px', color: '#475569' }}>OPEN DATE</th>
-                        <th style={{ padding: '12px', color: '#475569' }}>STATUS</th>
+                        <th style={{ padding: '12px', color: '#475569' }}>STATUS & ENG.</th>
                       </>
                     ) : (
                       <>
@@ -1667,29 +1864,47 @@ export default function ReportingDashboard() {
 
                       // RENDER TICKET/TASK ROW
                       if (isTicket) {
-                        const ticketRef = item.Ticket_ID_Ref || item.Ticket_ID;
-                        const parentTicket = tickets?.find(t => String(t.Ticket_ID).trim().toLowerCase() === String(ticketRef).trim().toLowerCase()) || {};
-                        const linkedAsset = assets?.find(a => a.Ref_Code === (parentTicket.Asset_Ref_Code || item.Asset_Ref_Code || item.Unique_Product_Id)) || {};
-                        const primaryId = item.Ticket_ID || item.Task_ID;
-                        const company = item.Company_Name || parentTicket.Company_Name || item.Company || parentTicket.Company || '';
-                        const dateVal = item.Open_Date || item.Date || item.Date_Assigned || item.Assigned_Date || parentTicket.Open_Date || '';
+                        // ROBUST JOIN: Identify Parent Ticket
+                        const parentRef = item['Parent Ticket_ID_Ref'] || item.Parent_Ticket_ID_Ref || item.Ticket_ID_Ref || item.Parent_Ticket_ID || item.Ticket_ID;
+                        const parentTicket = tickets?.find(t => String(t.Ticket_ID).trim().toLowerCase() === String(parentRef).trim().toLowerCase()) || {};
+                        
+                        // ROBUST JOIN: Identify Linked Asset
+                        const assetRef = parentTicket.Asset_Ref_Code || parentTicket.Unique_Product_Id || item.Asset_Ref_Code || item.Unique_Product_Id;
+                        const linkedAsset = assets?.find(a => a.Ref_Code === assetRef || a.Unique_Product_Id === assetRef) || {};
+                        
+                        const primaryId = item.Task_ID || item.Ticket_ID;
+                        const company = item.Company_Name || parentTicket.Company_Name || item.Company || parentTicket.Company || 'Unknown Client';
+                        const dateVal = item.Assigned_Date || item.Date || item.Date_Assigned || item.Open_Date || parentTicket.Open_Date || '';
                         const formattedDate = dateVal ? new Date(dateVal).toLocaleDateString('en-GB') : '';
+                        
+                        // NEW: Extract Engineer Name
+                        const engName = item.Engineer_Name || item.Assigned_Engineer || item.assignedEngineer || item.Assigned_To || 'Unassigned';
 
                         return (
                           <tr key={i} style={{ borderBottom: '1px solid #e2e8f0', background: i % 2 === 0 ? '#ffffff' : '#f8fafc' }}>
-                            <td style={{ padding: '12px', fontWeight: 'bold', color: '#3b82f6' }}>{item.Task_ID || item.Ticket_ID}</td>
-                            <td style={{ padding: '12px', color: '#475569' }}>{item.Category || parentTicket.Category || 'Other'}<br /><span style={{ fontSize: '0.75rem' }}>{item.Issue_Type || item.Issue || parentTicket.Issue_Type || parentTicket.Issue || ''}</span></td>
-                            <td style={{ padding: '12px', color: '#475569' }}>
-                              <div style={{ fontWeight: 'bold', color: '#334155' }}>
-                                {linkedAsset.ProductMake || linkedAsset.Make || parentTicket.ProductMake || parentTicket.Make || 'Unknown'} {linkedAsset.ProductModel || linkedAsset.Model || parentTicket.ProductModel || parentTicket.Model || ''}
-                              </div>
-                              <div style={{ fontSize: '0.75rem', color: '#94a3b8', marginTop: '2px' }}>
-                                SN: {linkedAsset.ProductSerial || linkedAsset.Serial_No || 'N/A'}
-                              </div>
+                            <td style={{ padding: '12px', color: '#3b82f6' }}>
+                               <div style={{ fontWeight: 'bold' }}>{primaryId}</div>
+                               {parentRef && parentRef !== primaryId && (
+                                 <div style={{ fontSize: '0.75rem', color: '#64748b', marginTop: '2px' }}>Parent: <strong>{parentRef}</strong></div>
+                               )}
                             </td>
-                            <td style={{ padding: '12px', color: '#475569' }}>{company}</td>
+                            <td style={{ padding: '12px', color: '#475569' }}>
+                               <div style={{ fontWeight: 'bold' }}>{parentTicket.Category || item.Category || 'Other'}</div>
+                               <div style={{ fontSize: '0.75rem' }}>{parentTicket.Issue_Type || parentTicket.Issue || item.Issue_Type || item.Issue || ''}</div>
+                            </td>
+                            <td style={{ padding: '12px', color: '#475569' }}>
+                               <div style={{ fontWeight: 'bold', color: '#334155' }}>{linkedAsset.Make || linkedAsset.ProductMake || parentTicket.Make || parentTicket.ProductMake || 'Unknown'} {linkedAsset.Model || linkedAsset.ProductModel || ''}</div>
+                               <div style={{ fontSize: '0.75rem', color: '#94a3b8', marginTop: '2px' }}>SN: {linkedAsset.Serial_No || linkedAsset.ProductSerial || 'N/A'}</div>
+                            </td>
+                            <td style={{ padding: '12px', color: '#475569' }}>
+                               <div style={{ fontWeight: 'bold' }}>{company}</div>
+                               <div style={{ fontSize: '0.75rem', color: '#64748b' }}>{parentTicket.Branch || item.Branch || ''}</div>
+                            </td>
                             <td style={{ padding: '12px', color: '#475569' }}>{formattedDate}</td>
-                            <td style={{ padding: '12px', color: '#475569', fontWeight: 'bold' }}>{item.Status || 'Open'}</td>
+                            <td style={{ padding: '12px', color: '#475569' }}>
+                               <div style={{ fontWeight: 'bold' }}>{item.Status || 'Open'}</div>
+                               <div style={{ fontSize: '0.75rem', color: '#0369a1', marginTop: '2px', fontWeight: 'bold' }}>{engName}</div>
+                            </td>
                           </tr>
                         );
                       }
@@ -1729,7 +1944,8 @@ export default function ReportingDashboard() {
                           
                           {/* FIXED: Sales order fallback */}
                           <td style={{ padding: '12px', color: '#475569' }}>
-                            {item.Sales_Order || item.salesOrder || 'N/A'}
+                            <div style={{ fontWeight: 'bold' }}>{item.Sales_Order || item.salesOrder || 'N/A'}</div>
+                            <div style={{ fontSize: '0.75rem', color: '#64748b' }}>PO: {item.Purchase_Order || item.purchaseOrder || 'N/A'}</div>
                           </td>
                           
                           <td style={{ padding: '12px', color: '#334155', verticalAlign: 'top' }}>

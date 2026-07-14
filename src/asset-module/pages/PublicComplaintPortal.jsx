@@ -284,14 +284,12 @@ export default function PublicComplaintPortal() {
                 </div>
               </div>
 
-              {/* Network & Specs */}
+              {/* Hardware Specs */}
               <div style={{ marginBottom: '24px' }}>
-                <h4 style={{ color: '#64748b', fontSize: '0.8rem', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '12px', borderBottom: '1px solid #f1f5f9', paddingBottom: '8px' }}>Hardware & Network</h4>
+                <h4 style={{ color: '#64748b', fontSize: '0.8rem', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '12px', borderBottom: '1px solid #f1f5f9', paddingBottom: '8px' }}>Hardware Specs</h4>
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: '16px', background: '#f8fafc', padding: '16px', borderRadius: '8px' }}>
                   <div><div style={{ fontSize: '0.75rem', color: '#64748b', marginBottom: '4px' }}>Device</div><div style={{ fontWeight: '600', color: '#0f172a' }}>{asset.ProductMake || asset.productMake || ''} {asset.ProductModel || asset.productModel || ''}</div></div>
                   <div><div style={{ fontSize: '0.75rem', color: '#64748b', marginBottom: '4px' }}>Serial Number</div><div style={{ fontWeight: '500', color: '#334155', fontFamily: 'monospace' }}>{asset.ProductSerial || asset.productSerial || 'N/A'}</div></div>
-                  <div><div style={{ fontSize: '0.75rem', color: '#64748b', marginBottom: '4px' }}>IP Address</div><div style={{ fontWeight: '500', color: '#334155', fontFamily: 'monospace' }}>{asset.IP_Address || asset.IP_ADDRESS || asset.ipAddress || 'DHCP'}</div></div>
-                  <div><div style={{ fontSize: '0.75rem', color: '#64748b', marginBottom: '4px' }}>MAC ID</div><div style={{ fontWeight: '500', color: '#334155', fontFamily: 'monospace' }}>{asset.MAC_ID || asset.MAC_Id || asset.macId || 'N/A'}</div></div>
                 </div>
               </div>
 
