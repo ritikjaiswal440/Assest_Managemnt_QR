@@ -100,7 +100,7 @@ const UpdateTaskModal = ({ isOpen, onClose, taskConfig, currentUser, onSuccess }
               <option value="Assigned">Assigned</option>
               <option value="In Progress">In Progress</option>
               <option value="Pending Parts">Pending Parts</option>
-              <option value="Resolved">Resolved</option>
+              <option value="Pending Client">Pending Client</option>
               <option value="Closed">Closed</option>
             </select>
           </div>

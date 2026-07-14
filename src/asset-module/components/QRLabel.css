@@ -1,14 +1,17 @@
 /* QRLabel.css */
 .qr-label-card {
-  width: 3.5in;
+  width: 3in;
   height: 2in;
+  display: flex;
+  flex-direction: column;
   background: #ffffff;
   border: 1px solid #000;
   box-sizing: border-box;
-  padding: 0.1in;
+  padding: 0.05in; /* Safe padding */
   font-family: 'Arial', sans-serif;
   color: #000;
   margin: 0 auto;
+  overflow: hidden; /* CRITICAL: Prevents content from bleeding out */
 }
 
 .qr-label-header {
@@ -36,15 +39,14 @@
 
 .qr-label-body {
   display: flex;
-  gap: 0.1in;
-  align-items: center;
+  flex: 1; /* This is the key: auto-grow to fill the gap */
+  padding-top: 0.05in;
 }
 
 .qr-code-wrapper {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border: 1px solid #ccc;
+  width: 0.8in;
+  height: 0.8in;
+  flex-shrink: 0;
 }
 
 .qr-label-details {
@@ -82,19 +84,32 @@
 
 /* Print Specific Styles */
 @media print {
+  /* 1. Hide everything on the page except the label */
   body * {
-    visibility: hidden;
+    visibility: hidden !important;
   }
   
-  #print-qr-label, #print-qr-label * {
-    visibility: visible;
+  #print-label, #print-label * {
+    visibility: visible !important;
   }
   
-  #print-qr-label {
-    position: absolute;
-    left: 0;
-    top: 0;
-    margin: 0;
-    border: none;
+  /* 2. Lock the print page size to 3x2 inches */
+  @page {
+    size: 3in 2in;
+    margin: 0 !important;
+  }
+  
+  /* 3. Force the label to fill the 3x2 area exactly */
+  .qr-label-card {
+    position: fixed !important;
+    left: 0 !important;
+    top: 0 !important;
+    width: 3in !important;
+    height: 2in !important;
+    padding: 0.05in !important;
+    margin: 0 !important;
+    border: none !important; /* Borders often cause clipping on small labels */
+    display: flex !important;
+    flex-direction: column !important;
   }
 }

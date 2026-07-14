@@ -17,37 +17,27 @@ export default function QRLabel({ asset, signature }) {
   const qrUrl = `${baseUrl}#/asset/${encodedId}.${signature}`;
 
   return (
-    <div 
-      id="print-label" 
-      style={{ 
-        width: '400px', 
-        height: '200px', 
-        backgroundColor: '#ffffff', 
-        border: '2px solid #000000', 
-        padding: '12px', 
-        boxSizing: 'border-box', 
-        display: 'flex', 
-        flexDirection: 'column',
-        fontFamily: 'Arial, sans-serif'
-      }}
+    <div
+      id="print-label"
+      className="qr-label-card"
     >
       {/* Header Section */}
-      <div style={{ 
-        display: 'flex', 
-        justifyContent: 'space-between', 
-        alignItems: 'flex-start', 
-        borderBottom: '2px solid #000000', 
-        paddingBottom: '8px', 
-        marginBottom: '8px' 
+      <div style={{
+        display: 'flex',
+        justifyContent: 'space-between',
+        alignItems: 'flex-start',
+        borderBottom: '2px solid #000000',
+        paddingBottom: '8px',
+        marginBottom: '8px'
       }}>
         <div style={{ fontWeight: '900', fontSize: '18px', color: '#000000', lineHeight: '1.2' }}>
-          AV Dynamic<br />Support
+          AV Dynamic<br />ProSupport
         </div>
-        <div style={{ 
-          backgroundColor: '#000000', 
-          color: '#ffffff', 
-          padding: '4px 8px', 
-          fontSize: '11px', 
+        <div style={{
+          backgroundColor: '#000000',
+          color: '#ffffff',
+          padding: '4px 8px',
+          fontSize: '11px',
           fontWeight: 'bold',
           letterSpacing: '0.5px',
           textAlign: 'center'
@@ -57,68 +47,74 @@ export default function QRLabel({ asset, signature }) {
       </div>
 
       {/* Body Section */}
-      <div style={{ display: 'flex', flex: 1, gap: '12px', overflow: 'hidden' }}>
+      <div style={{ 
+        display: 'flex', 
+        flex: 1,         /* This forces the body to fill all available space */
+        gap: '0.05in',   /* Tighten the gap */
+        overflow: 'hidden',
+        alignItems: 'center' /* Centers content vertically in the available space */
+      }}>
         
-        {/* QR Code Container - Fixed Width */}
-        <div style={{ 
+        {/* QR Code Container */}
+        <div className="qr-code-wrapper" style={{ 
           display: 'flex', 
           alignItems: 'center', 
           justifyContent: 'center', 
-          width: '100px',
-          height: '100px',
+          width: '0.8in',
+          height: '0.8in',
           flexShrink: 0
         }}>
           <QRCodeSVG 
             value={qrUrl} 
-            size={100} 
+            size={75} /* Adjusted for 3x2in scale */
             level="H" 
             style={{ height: "auto", maxWidth: "100%", width: "100%" }} 
           />
         </div>
 
-        {/* Details Container - Dynamic but constrained */}
+        {/* Details Container - Now stretches to fill */}
         <div style={{ 
           flex: 1, 
           display: 'flex', 
           flexDirection: 'column', 
-          justifyContent: 'space-between',
-          fontSize: '11px', 
+          justifyContent: 'space-evenly', /* Distributes text lines evenly */
+          fontSize: '9pt', 
           color: '#000000',
-          lineHeight: '1.3'
+          lineHeight: '1.1'
         }}>
           <div style={{ display: 'flex' }}>
-            <strong style={{ width: '65px', flexShrink: 0 }}>Client:</strong> 
-            <span style={{ 
-              display: '-webkit-box', 
-              WebkitLineClamp: 2, 
-              WebkitBoxOrient: 'vertical', 
-              overflow: 'hidden', 
-              fontWeight: '600' 
+            <strong style={{ width: '65px', flexShrink: 0 }}>Client:</strong>
+            <span style={{
+              display: '-webkit-box',
+              WebkitLineClamp: 2,
+              WebkitBoxOrient: 'vertical',
+              overflow: 'hidden',
+              fontWeight: '600'
             }}>
               {company}
             </span>
           </div>
           <div style={{ display: 'flex' }}>
-            <strong style={{ width: '65px', flexShrink: 0 }}>Asset ID:</strong> 
+            <strong style={{ width: '65px', flexShrink: 0 }}>Asset ID:</strong>
             <span style={{ fontWeight: '900' }}>{assetId}</span>
           </div>
           <div style={{ display: 'flex' }}>
-            <strong style={{ width: '65px', flexShrink: 0 }}>Model:</strong> 
+            <strong style={{ width: '65px', flexShrink: 0 }}>Model:</strong>
             <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
               {make} {model}
             </span>
           </div>
           <div style={{ display: 'flex' }}>
-            <strong style={{ width: '65px', flexShrink: 0 }}>Serial:</strong> 
+            <strong style={{ width: '65px', flexShrink: 0 }}>Serial:</strong>
             <span>{serial}</span>
           </div>
           <div style={{ display: 'flex' }}>
-            <strong style={{ width: '65px', flexShrink: 0 }}>Location:</strong> 
-            <span style={{ 
-              display: '-webkit-box', 
-              WebkitLineClamp: 2, 
-              WebkitBoxOrient: 'vertical', 
-              overflow: 'hidden' 
+            <strong style={{ width: '65px', flexShrink: 0 }}>Location:</strong>
+            <span style={{
+              display: '-webkit-box',
+              WebkitLineClamp: 2,
+              WebkitBoxOrient: 'vertical',
+              overflow: 'hidden'
             }}>
               {location} {roomName ? `(${roomName})` : ''}
             </span>

@@ -148,6 +148,7 @@ const ServiceRequestTable = ({ requests, masterTickets, onConvertToMaster, onArc
               <th>Request ID</th>
               <th>Client Info</th>
               <th>Issue Details</th>
+              <th style={{ padding: '12px', color: '#475569' }}>SUPPORT TYPE</th>
               <th>Received On</th>
               <th>Triage Action</th>
             </tr>
@@ -199,6 +200,11 @@ const ServiceRequestTable = ({ requests, masterTickets, onConvertToMaster, onArc
                       <p className="detail-text mt-1" style={{ maxWidth: '300px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                         {description}
                       </p>
+                    </td>
+                    <td style={{ padding: '12px', color: '#475569' }}>
+                      <span className={`badge ${req.Support_Type === 'Comprehensive' ? 'bg-green' : 'bg-amber'}`}>
+                        {req.Support_Type || req.supportType || 'N/A'}
+                      </span>
                     </td>
                     <td>{formatDate(timestamp)}</td>
                     <td onClick={(e) => e.stopPropagation()}>
@@ -266,7 +272,7 @@ const ServiceRequestTable = ({ requests, masterTickets, onConvertToMaster, onArc
                   {/* 2. Update the Expanded Details View (Batch Render) */}
                   {isExpanded && (
                     <tr style={{ background: '#f8fafc' }}>
-                      <td colSpan="5" style={{ padding: '15px 20px' }}>
+                      <td colSpan="6" style={{ padding: '15px 20px' }}>
                         {/* Shared General/Contact info rendered once at the top */}
                         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '20px', marginBottom: '20px', borderBottom: '1px solid #e2e8f0', paddingBottom: '15px' }}>
                           <div>
@@ -384,7 +390,8 @@ const ServiceRequestTable = ({ requests, masterTickets, onConvertToMaster, onArc
                                   category: item.Category || item.category || req.Category || req.category || '',
                                   Attachment_URL: item.Attachment_URL || item.attachmentUrl || req.Attachment_URL || req.attachmentUrl || '',
                                   attachmentUrl: item.Attachment_URL || item.attachmentUrl || req.Attachment_URL || req.attachmentUrl || '',
-                                  invoiceUrl: item.invoiceUrl || req.invoiceUrl || ''
+                                  invoiceUrl: item.invoiceUrl || req.invoiceUrl || '',
+                                  Support_Type: item.Support_Type || item.supportType || req.Support_Type || req.supportType || ''
                                 };
                                 onConvertToMaster(enriched); // Passing specific item payload
                               };

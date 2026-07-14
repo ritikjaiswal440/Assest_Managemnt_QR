@@ -847,7 +847,6 @@ function handleSubmitIntake(payload) {
   }
   
   const newIntakeId = generateIntakeId(sheet);
-  
   let fileUrl = "";
   const base64 = payload.Attachment_Base64 || payload.fileData;
   const fileName = payload.Attachment_Name || payload.fileName || "attachment";
@@ -889,9 +888,44 @@ function handleSubmitIntake(payload) {
         assetStatus: payload.assetStatus || payload.Asset_Status || (payload.payloadObj && payload.payloadObj.Asset_Status) || ""
       }];
 
+  // --- NEW: AUTOMATED BACKEND LOOKUP FOR SUPPORT TYPE ---
+  let resolvedSupportType = "General"; 
+  const targetAssetId = productsArray[0].uniqueId || payload.Unique_Product_Id || payload.Asset_ID || (payload.payloadObj && (payload.payloadObj.Unique_Product_Id || payload.payloadObj.Asset_ID)) || "";
+
+  if (targetAssetId) {
+    const assetSheet = ss.getSheetByName("Asset_Master");
+    if (assetSheet) {
+      const assetData = assetSheet.getDataRange().getValues();
+      const aHeaders = getHeaders(assetSheet);
+      
+      const aIdIdx = aHeaders.indexOf("Unique_Product_Id");
+      const aSuppIdx = aHeaders.indexOf("Support_Type");
+
+      if (aIdIdx !== -1 && aSuppIdx !== -1) {
+        for (let i = 1; i < assetData.length; i++) {
+          if (String(assetData[i][aIdIdx]).trim() === String(targetAssetId).trim()) {
+            resolvedSupportType = assetData[i][aSuppIdx] || "General";
+            break;
+          }
+        }
+      }
+    }
+  }
+  // --- END LOOKUP ---
+
+  // Inject resolved value back to payload object
+  payload.Service_Type = resolvedSupportType;
+  payload.Support_Type = resolvedSupportType;
+  if (payload.payloadObj) {
+    payload.payloadObj.Service_Type = resolvedSupportType;
+    payload.payloadObj.Support_Type = resolvedSupportType;
+  } else {
+    payload.payloadObj = { Service_Type: resolvedSupportType, Support_Type: resolvedSupportType };
+  }
+
   const headers = getHeaders(sheet);
   const payloadString = payload.payloadObj ? JSON.stringify(payload.payloadObj) : "{}";
-
+  
   productsArray.forEach(prod => {
     const newRow = headers.map(header => {
       switch (header) {
@@ -930,11 +964,17 @@ function handleSubmitIntake(payload) {
         case 'Warranty_End_Date': return prod.warrantyEnd || prod.Warranty_End_Date || "";
         case 'Warranty_Days_Left': return prod.warrantyDays || prod.Warranty_Days_Left || "";
         case 'Asset_Status': return prod.assetStatus || prod.Asset_Status || "";
-        case 'Requester_Name': return payload.requesterName || payload.Requester_Name || "";
-        case 'Client_Email': return payload.email || payload.Client_Email || "";
+        
+        // --- NEW: INJECT THE RESOLVED SUPPORT TYPE ---
+        case 'Support_Type': return resolvedSupportType; 
+        case 'Service_Type': return resolvedSupportType; // Added both just in case of naming mismatch
+        // ---------------------------------------------
+        
+        case 'Requester_Name': return payload.requesterName || payload.Requester_Name || payload.requestedBy || "";
+        case 'Client_Email': return payload.email || payload.Client_Email || payload.clientEmail || "";
         case 'PhoneNumber': return payload.phoneNumber || payload.PhoneNumber || "";
         case 'Category': return payload.category || payload.Category || "";
-        case 'Issue_Description': return payload.issueDescription || payload.Issue_Description || "";
+        case 'Issue_Description': return payload.issueDescription || payload.Issue_Description || payload.description || "";
         case 'Attachment_URL': return fileUrl || payload.Attachment_URL || "";
         case 'Status': return "Open";
         case 'Timestamp': return new Date().toISOString();
@@ -1003,6 +1043,12 @@ function groupIntakeQueue(rawIntakeObjects) {
         PhoneNumber: row.PhoneNumber,
         phoneNumber: row.PhoneNumber,
         phone: row.PhoneNumber,
+        // --- NEW: EXPLICIT SUPPORT TYPE MAPPING ---
+        Service_Type: row.Service_Type || row.Support_Type || pObj.Service_Type || pObj.Support_Type || "General",
+        Support_Type: row.Support_Type || row.Service_Type || pObj.Support_Type || pObj.Service_Type || "General",
+        serviceType: row.Service_Type || row.Support_Type || pObj.Service_Type || pObj.Support_Type || "General",
+        // ------------------------------------------
+
         Category: row.Category,
         category: row.Category,
         Issue_Description: row.Issue_Description,
@@ -1058,7 +1104,13 @@ function groupIntakeQueue(rawIntakeObjects) {
         dlpPeriod: row.DLP_Period,
         warrantyEnd: row.Warranty_End_Date,
         warrantyDays: row.Warranty_Days_Left,
-        assetStatus: row.Asset_Status
+        assetStatus: row.Asset_Status,
+        
+        // --- NEW: EXPLICIT SUPPORT TYPE MAPPING ---
+        Service_Type: row.Service_Type || row.Support_Type || pObj.Service_Type || pObj.Support_Type || "General",
+        Support_Type: row.Support_Type || row.Service_Type || pObj.Support_Type || pObj.Service_Type || "General",
+        serviceType: row.Service_Type || row.Support_Type || pObj.Service_Type || pObj.Support_Type || "General"
+        // ------------------------------------------
       });
     }
   });
@@ -1215,6 +1267,7 @@ function handlePromoteTicket(payload) {
   let warrantyEndDate = "";
   let category = "";
   let attachmentUrl = "";
+  let supportType = "";
 
   let uniqueProductId = "";
   let floor = "";
@@ -1252,6 +1305,7 @@ function handlePromoteTicket(payload) {
     warrantyEndDate = pData.warrantyEndDate || pData.Warranty_End_Date || "";
     category = pData.category || pData.Category || "";
     attachmentUrl = directAttachment || pData.Attachment_URL || pData.attachmentUrl || pData.invoiceUrl || "";
+    supportType = pData.Support_Type || pData.supportType || "";
 
     uniqueProductId = pData.Unique_Product_Id || pData.uniqueId || "";
     floor = pData.Floor || pData.floor || "";
@@ -1289,6 +1343,7 @@ function handlePromoteTicket(payload) {
     const dlpPeriodIdx = queueHeaders.indexOf('DLP_Period');
     const warrantyDaysLeftIdx = queueHeaders.indexOf('Warranty_Days_Left');
     const assetStatusIdx = queueHeaders.indexOf('Asset_Status');
+    const supportTypeIdx = queueHeaders.indexOf('Support_Type');
     
     refCode = refCodeIdx !== -1 ? intakeRow[refCodeIdx] : "";
     companyName = compNameIdx !== -1 ? intakeRow[compNameIdx] : "";
@@ -1308,6 +1363,7 @@ function handlePromoteTicket(payload) {
     clientEmail = emailIdx !== -1 ? intakeRow[emailIdx] : "";
     phoneNumber = phoneIdx !== -1 ? intakeRow[phoneIdx] : "";
     salesOrder = salesOrderIdx !== -1 ? intakeRow[salesOrderIdx] : "";
+    supportType = supportTypeIdx !== -1 ? intakeRow[supportTypeIdx] : "";
 
     uniqueProductId = prodIdIdx !== -1 ? intakeRow[prodIdIdx] : "";
     floor = floorIdx !== -1 ? intakeRow[floorIdx] : "";
@@ -1338,7 +1394,7 @@ function handlePromoteTicket(payload) {
   const tData = {
     Category: pData.Category || category || "",
     Attachment_URL: attachmentUrl || "",
-    Service_Type: pData.Support_Type || pData.serviceType || payload.Service_Type || payload.serviceType || "General"
+    Service_Type: pData.Support_Type || pData.supportType || supportType || payload.Support_Type || payload.supportType || payload.Service_Type || payload.serviceType || "General"
   };
 
   const newMasterRow = [

@@ -40,10 +40,10 @@ const initialState = {
 };
 
 const STANDARD_CATEGORIES = [
-  "Hardware", 
-  "Connectivity", 
-  "Programming", 
-  "Software", 
+  "Hardware",
+  "Connectivity",
+  "Programming",
+  "Software",
   "Network"
 ];
 
@@ -69,7 +69,12 @@ const CreateTicketModal = ({ isOpen, onClose, clients = [], engineers = [], curr
 
         // 1. DEEP HUNT & NORMALIZE: Check top-level, lowercase, and inside the parsed payloadObj
         let rawCat = initialData.Category || initialData.category || (initialData.payloadObj && initialData.payloadObj.Category) || "";
-        
+
+        let payloadObj = {};
+        try {
+          payloadObj = JSON.parse(initialData.Payload || initialData.payload || '{}');
+        } catch (e) { }
+
         // Clean it: Trim spaces and capitalize the first letter for strict matching
         let cleanCat = String(rawCat).trim();
         if (cleanCat) {
@@ -95,7 +100,7 @@ const CreateTicketModal = ({ isOpen, onClose, clients = [], engineers = [], curr
           room: initialData?.Room_Name || initialData?.roomName || initialData?.room || '',
           category: cleanCat,
           issueType: initialData?.Issue_Type || initialData?.issueType || '',
-          serviceType: initialData?.Type_of_Service || initialData?.serviceType || '',
+          serviceType: initialData?.Service_Type || initialData?.Support_Type || initialData?.Type_of_Service || initialData?.serviceType || initialData?.supportType || payloadObj.Service_Type || payloadObj.Support_Type || 'General',
           salesOrder: initialData?.Sales_Order || initialData?.salesOrder || '',
           description: `${initialData?.Issue_Description || initialData?.description || ''}${invoicePart}`,
           productMake: defaultMake,
@@ -195,15 +200,15 @@ const CreateTicketModal = ({ isOpen, onClose, clients = [], engineers = [], curr
 
   const filteredAssets = (assetsList || []).filter(asset => {
     if (!formData.company) return false;
-    
+
     const selectedClean = normalizeCompanyName(formData.company);
     const assetCompanyClean = normalizeCompanyName(asset.Company_Name || asset.companyName || asset.company || "");
-    
+
     // 1. Cleaned name exact or substring match
     if (selectedClean && assetCompanyClean && (assetCompanyClean.includes(selectedClean) || selectedClean.includes(assetCompanyClean))) {
       return true;
     }
-    
+
     // 2. Standard includes check on stringified asset
     const selectedCompanyStr = String(formData.company).trim().toLowerCase();
     const rowDataString = JSON.stringify(asset).toLowerCase();
@@ -216,7 +221,7 @@ const CreateTicketModal = ({ isOpen, onClose, clients = [], engineers = [], curr
       .toLowerCase()
       .split(/[\s\._,-]+/)
       .filter(t => t.length >= 2 && !['pvt', 'ltd', 'private', 'limited', 'llp', 'inc', 'corp', 'corporation', 'india', 'pvt.', 'ltd.', 'co', 'in'].includes(t));
-      
+
     if (tokens.length > 0) {
       const assetStringLower = rowDataString.toLowerCase();
       // If ALL token words match anywhere in the asset data, include it!
@@ -229,7 +234,7 @@ const CreateTicketModal = ({ isOpen, onClose, clients = [], engineers = [], curr
 
   const handleAssetSelect = (e) => {
     const selectedId = e.target.value;
-    const asset = assetsList.find(a => 
+    const asset = assetsList.find(a =>
       String(a.Unique_Product_Id || a.Unique_Product_ID || a.Asset_ID || a.assetId || '').trim() === String(selectedId).trim()
     );
 
@@ -253,7 +258,8 @@ const CreateTicketModal = ({ isOpen, onClose, clients = [], engineers = [], curr
         warrantyEnd: asset.Warranty_End_Date || asset.warrantyEndDate || asset.warrantyEnd || prev.warrantyEnd || "",
         warrantyDays: asset.Warranty_Days_Left || asset.warrantyDaysLeft || asset.warrantyDays || prev.warrantyDays || "",
         assetStatus: asset.Asset_Status || asset.assetStatus || asset.Active || prev.assetStatus || "Active",
-        serviceRequestId: asset.Ref_Code || asset.refCode || prev.serviceRequestId || ""
+        serviceRequestId: asset.Ref_Code || asset.refCode || prev.serviceRequestId || "",
+        serviceType: asset.Support_Type || asset.supportType || prev.serviceType || "General"
       }));
     } else {
       setFormData(prev => ({ ...prev, uniqueId: selectedId }));
@@ -317,7 +323,7 @@ const CreateTicketModal = ({ isOpen, onClose, clients = [], engineers = [], curr
 
     try {
       const response = await createMasterTicket(payload);
-      
+
       if (response?.success) {
         setFormData(initialState); // Reset form
         onSuccess();               // Trigger Dashboard refresh
@@ -348,13 +354,13 @@ const CreateTicketModal = ({ isOpen, onClose, clients = [], engineers = [], curr
             {/* --- Core Details --- */}
             <div className="form-group span-2">
               <label>SR Reference / Intake ID (Optional)</label>
-              <input 
-                type="text" 
-                name="manualIntakeRef" 
-                value={formData.manualIntakeRef || ''} 
-                onChange={(e) => setFormData({...formData, manualIntakeRef: e.target.value})} 
-                placeholder="e.g., INQ-001 (Leave blank for MANUAL_ENTRY)" 
-                disabled={status.loading || !!initialData} 
+              <input
+                type="text"
+                name="manualIntakeRef"
+                value={formData.manualIntakeRef || ''}
+                onChange={(e) => setFormData({ ...formData, manualIntakeRef: e.target.value })}
+                placeholder="e.g., INQ-001 (Leave blank for MANUAL_ENTRY)"
+                disabled={status.loading || !!initialData}
               />
             </div>
 
@@ -374,8 +380,8 @@ const CreateTicketModal = ({ isOpen, onClose, clients = [], engineers = [], curr
 
             <div className="form-group span-2">
               <label>Select Device / Asset</label>
-              <select 
-                value={formData.uniqueId || ""} 
+              <select
+                value={formData.uniqueId || ""}
                 onChange={handleAssetSelect}
                 disabled={!formData.company}
                 style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid #ccc', background: '#ffffff', fontSize: '0.95rem' }}
@@ -390,15 +396,15 @@ const CreateTicketModal = ({ isOpen, onClose, clients = [], engineers = [], curr
             </div>
 
             {formData.uniqueId && (
-              <div className="auto-fill-preview" style={{ 
-                display: 'grid', 
-                gridTemplateColumns: '1fr 1fr', 
-                gap: '12px', 
-                marginTop: '15px', 
+              <div className="auto-fill-preview" style={{
+                display: 'grid',
+                gridTemplateColumns: '1fr 1fr',
+                gap: '12px',
+                marginTop: '15px',
                 marginBottom: '15px',
-                padding: '15px', 
-                backgroundColor: 'var(--slate-light)', 
-                border: '1px dashed var(--slate-border)', 
+                padding: '15px',
+                backgroundColor: 'var(--slate-light)',
+                border: '1px dashed var(--slate-border)',
                 borderRadius: 'var(--radius-md)',
                 gridColumn: '1 / -1'
               }}>
@@ -437,24 +443,24 @@ const CreateTicketModal = ({ isOpen, onClose, clients = [], engineers = [], curr
 
             <div className="form-group">
               <label>Requested By (Contact Name)</label>
-              <input 
-                type="text" 
-                name="reqBy" 
-                value={formData.reqBy} 
-                onChange={handleChange} 
-                placeholder="e.g., John Smith" 
+              <input
+                type="text"
+                name="reqBy"
+                value={formData.reqBy}
+                onChange={handleChange}
+                placeholder="e.g., John Smith"
                 disabled={status.loading}
               />
             </div>
 
             <div className="form-group">
               <label>Phone Number</label>
-              <input 
-                type="tel" 
-                name="phoneNumber" 
-                value={formData.phoneNumber} 
-                onChange={handleChange} 
-                placeholder="e.g., +1 234 567 890" 
+              <input
+                type="tel"
+                name="phoneNumber"
+                value={formData.phoneNumber}
+                onChange={handleChange}
+                placeholder="e.g., +1 234 567 890"
                 disabled={status.loading}
               />
             </div>
@@ -489,7 +495,7 @@ const CreateTicketModal = ({ isOpen, onClose, clients = [], engineers = [], curr
               <label>Category *</label>
               <select name="category" value={formData.category || ''} onChange={handleChange} required disabled={status.loading}>
                 <option value="" disabled>Select...</option>
-                
+
                 {/* Map the standard correct options */}
                 {STANDARD_CATEGORIES.map(cat => (
                   <option key={cat} value={cat}>{cat}</option>
@@ -519,15 +525,22 @@ const CreateTicketModal = ({ isOpen, onClose, clients = [], engineers = [], curr
               </select>
             </div>
 
+            {/* Type of Service Dropdown */}
             <div className="form-group">
               <label>Type of Service</label>
-              <select name="serviceType" value={formData.serviceType || ''} onChange={handleChange} disabled={status.loading}>
-                <option value="">Select...</option>
-                <option>DLP</option>
-                <option>OEM- Warranty</option>
-                <option>Out of Warranty</option>
-                <option>C-AMC</option>
-                <option>NC- AMC</option>
+              <select
+                name="serviceType"
+                value={formData.serviceType || ''}
+                onChange={handleChange}
+                className="md3-input"
+                disabled={status.loading}
+              >
+                <option value="">Select Service Type...</option>
+                <option value="Comprehensive AMC">Comprehensive AMC</option>
+                <option value="Non-Comprehensive AMC">Non-Comprehensive AMC</option>
+                <option value="DLP">DLP</option>
+                <option value="Warranty">Warranty</option>
+                <option value="Out Of Support">Out Of Support</option>
               </select>
             </div>
 
@@ -539,21 +552,21 @@ const CreateTicketModal = ({ isOpen, onClose, clients = [], engineers = [], curr
             )}
             <div className="form-group">
               <label>Sales Order Reference</label>
-              <input 
-                type="text" 
-                name="salesOrder" 
-                value={formData.salesOrder} 
-                onChange={handleChange} 
-                placeholder="e.g., SO-9921" 
+              <input
+                type="text"
+                name="salesOrder"
+                value={formData.salesOrder}
+                onChange={handleChange}
+                placeholder="e.g., SO-9921"
                 disabled={status.loading}
               />
             </div>
             {/* --- Equipment Tracking --- */}
             <div className="form-group">
               <label>Make / Model</label>
-              <div style={{display:'flex', gap:'10px'}}>
-                <input type="text" name="productMake" placeholder="Make" value={formData.productMake} onChange={handleChange} style={{flex:1}} disabled={status.loading} />
-                <input type="text" name="productModel" placeholder="Model" value={formData.productModel} onChange={handleChange} style={{flex:1}} disabled={status.loading} />
+              <div style={{ display: 'flex', gap: '10px' }}>
+                <input type="text" name="productMake" placeholder="Make" value={formData.productMake} onChange={handleChange} style={{ flex: 1 }} disabled={status.loading} />
+                <input type="text" name="productModel" placeholder="Model" value={formData.productModel} onChange={handleChange} style={{ flex: 1 }} disabled={status.loading} />
               </div>
             </div>
 
@@ -584,13 +597,13 @@ const CreateTicketModal = ({ isOpen, onClose, clients = [], engineers = [], curr
 
             <div className="form-group">
               <label>Attachment URL</label>
-              <input 
-                type="text" 
-                name="attachmentUrl" 
-                value={formData.attachmentUrl || ''} 
-                onChange={handleChange} 
-                placeholder="https://..." 
-                disabled={status.loading} 
+              <input
+                type="text"
+                name="attachmentUrl"
+                value={formData.attachmentUrl || ''}
+                onChange={handleChange}
+                placeholder="https://..."
+                disabled={status.loading}
               />
             </div>
 

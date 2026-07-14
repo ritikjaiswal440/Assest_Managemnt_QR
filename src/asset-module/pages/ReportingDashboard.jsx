@@ -56,7 +56,7 @@ export default function ReportingDashboard() {
 
     // 2. Map Columns based on Schema
     if (isTask) {
-      headers = ['Task ID', 'Parent Ticket', 'Category', 'Issue', 'Company', 'Branch', 'Asset Make & Model', 'Asset Serial', 'Assigned Engineer', 'Status', 'Date'];
+      headers = ['Task ID', 'Parent Ticket', 'Category', 'Issue', 'Support Type', 'Company', 'Branch', 'Asset Make & Model', 'Asset Serial', 'Assigned Engineer', 'Status', 'Date'];
       rows = data.map(t => {
         const parentRef = t['Parent Ticket_ID_Ref'] || t.Parent_Ticket_ID_Ref || t.Ticket_ID_Ref || t.Parent_Ticket_ID || t.Ticket_ID;
         const parentTicket = tickets?.find(pt => String(pt.Ticket_ID).trim().toLowerCase() === String(parentRef).trim().toLowerCase()) || {};
@@ -68,6 +68,7 @@ export default function ReportingDashboard() {
           parentRef !== (t.Task_ID || t.Ticket_ID) ? parentRef : '', // Don't duplicate if it's the same
           parentTicket.Category || t.Category || '',
           parentTicket.Issue_Type || parentTicket.Issue || t.Issue_Type || t.Issue || '',
+          t.Support_Type || t.supportType || parentTicket.Service_Type || parentTicket.ServiceType || t.Service_Type || '',
           t.Company_Name || parentTicket.Company_Name || t.Company || '',
           t.Branch || parentTicket.Branch || '',
           `${linkedAsset.Make || linkedAsset.ProductMake || parentTicket.Make || ''} ${linkedAsset.Model || linkedAsset.ProductModel || ''}`.trim(),
@@ -78,7 +79,7 @@ export default function ReportingDashboard() {
         ];
       });
     } else if (isTicket) {
-      headers = ['Ticket ID', 'Category', 'Issue', 'Company', 'Asset Make & Model', 'Asset Serial', 'Status', 'Open Date'];
+      headers = ['Ticket ID', 'Category', 'Issue', 'Support Type', 'Company', 'Asset Make & Model', 'Asset Serial', 'Status', 'Open Date'];
       rows = data.map(t => {
         const assetRef = t.Asset_Ref_Code || t.Unique_Product_Id;
         const linkedAsset = assets?.find(a => a.Ref_Code === assetRef || a.Unique_Product_Id === assetRef) || {};
@@ -86,6 +87,7 @@ export default function ReportingDashboard() {
           t.Ticket_ID || '',
           t.Category || '',
           t.Issue_Type || t.Issue || '',
+          t.Support_Type || t.supportType || t.Service_Type || t.ServiceType || '',
           t.Company_Name || t.Company || '',
           `${linkedAsset.Make || linkedAsset.ProductMake || t.Make || ''} ${linkedAsset.Model || linkedAsset.ProductModel || ''}`.trim(),
           linkedAsset.Serial_No || linkedAsset.ProductSerial || '',
@@ -1836,6 +1838,7 @@ export default function ReportingDashboard() {
                       <>
                         <th style={{ padding: '12px', color: '#475569' }}>TICKET ID</th>
                         <th style={{ padding: '12px', color: '#475569' }}>ISSUE DETAILS</th>
+                        <th style={{ padding: '12px', color: '#475569' }}>SUPPORT TYPE</th>
                         <th style={{ padding: '12px', color: '#475569' }}>HARDWARE MAKE</th>
                         <th style={{ padding: '12px', color: '#475569' }}>COMPANY</th>
                         <th style={{ padding: '12px', color: '#475569' }}>OPEN DATE</th>
@@ -1857,7 +1860,7 @@ export default function ReportingDashboard() {
                 {/* DYNAMIC BODY: Maps the hoisted modalData array */}
                 <tbody>
                   {modalData.length === 0 ? (
-                    <tr><td colSpan="6" style={{ padding: '32px', textAlign: 'center', color: '#64748b' }}>No data found.</td></tr>
+                    <tr><td colSpan={kpiDrillDown === 'COMPLAINTS' || (typeof kpiDrillDown === 'string' && kpiDrillDown.startsWith('CHART_')) ? 7 : 6} style={{ padding: '32px', textAlign: 'center', color: '#64748b' }}>No data found.</td></tr>
                   ) : (
                     modalData.map((item, i) => {
                       const isTicket = item.hasOwnProperty('Ticket_ID') || item.hasOwnProperty('Task_ID');
@@ -1880,6 +1883,8 @@ export default function ReportingDashboard() {
                         // NEW: Extract Engineer Name
                         const engName = item.Engineer_Name || item.Assigned_Engineer || item.assignedEngineer || item.Assigned_To || 'Unassigned';
 
+                        const supportType = item.Support_Type || item.supportType || parentTicket.Service_Type || parentTicket.ServiceType || item.Service_Type || '';
+
                         return (
                           <tr key={i} style={{ borderBottom: '1px solid #e2e8f0', background: i % 2 === 0 ? '#ffffff' : '#f8fafc' }}>
                             <td style={{ padding: '12px', color: '#3b82f6' }}>
@@ -1891,6 +1896,23 @@ export default function ReportingDashboard() {
                             <td style={{ padding: '12px', color: '#475569' }}>
                                <div style={{ fontWeight: 'bold' }}>{parentTicket.Category || item.Category || 'Other'}</div>
                                <div style={{ fontSize: '0.75rem' }}>{parentTicket.Issue_Type || parentTicket.Issue || item.Issue_Type || item.Issue || ''}</div>
+                            </td>
+                            <td style={{ padding: '12px', color: '#475569' }}>
+                              {supportType ? (
+                                <span style={{
+                                  display: 'inline-block',
+                                  padding: '4px 8px',
+                                  borderRadius: '4px',
+                                  fontSize: '0.75rem',
+                                  fontWeight: 'bold',
+                                  backgroundColor: supportType === 'Comprehensive' ? '#e2fbe8' : '#fff3cd',
+                                  color: supportType === 'Comprehensive' ? '#1e7e34' : '#856404'
+                                }}>
+                                  {supportType}
+                                </span>
+                              ) : (
+                                <span style={{ color: '#94a3b8' }}>N/A</span>
+                              )}
                             </td>
                             <td style={{ padding: '12px', color: '#475569' }}>
                                <div style={{ fontWeight: 'bold', color: '#334155' }}>{linkedAsset.Make || linkedAsset.ProductMake || parentTicket.Make || parentTicket.ProductMake || 'Unknown'} {linkedAsset.Model || linkedAsset.ProductModel || ''}</div>
