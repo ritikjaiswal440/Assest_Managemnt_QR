@@ -93,7 +93,7 @@ function doGet(e) {
 
         // Loop through Company_Master to find all branches for this Ref_Code
         for (let i = 1; i < data.length; i++) {
-          if (String(data[i][refIdx]).trim() === String(code).trim()) {
+          if (String(data[i][refIdx]).trim().toLowerCase() === String(code).trim().toLowerCase()) {
             matchedBranches.push({
               Location: data[i][locIdx] || "",
               Branch: data[i][branchIdx] || "",
@@ -132,7 +132,7 @@ function doGet(e) {
 
           // Note: Start at 1 to skip headers
           for (let j = 1; j < assetData.length; j++) {
-            if (String(assetData[j][aRefIdx]).trim() === String(code).trim()) {
+            if (String(assetData[j][aRefIdx]).trim().toLowerCase() === String(code).trim().toLowerCase()) {
               matchedAssets.push({
                 Unique_Product_Id: assetData[j][aIdIdx] || "",
                 Asset_Ref: assetData[j][aIdIdx] || "",
@@ -3987,8 +3987,8 @@ function handleGenerateServiceReport(payload) {
 
       <div class="grid">
         <div class="card">
-          <h3>Ticket Metadata</h3>
-          <div class="field"><span class="field-label">Intake Reference:</span><span class="field-value">${ticketRow.Intake_ID_Ref || "N/A"}</span></div>
+          <h3>Ticket Information</h3>
+          <div class="field"><span class="field-label">Service Request:</span><span class="field-value">${ticketRow.Intake_ID_Ref || "N/A"}</span></div>
           <div class="field"><span class="field-label">Reference Code:</span><span class="field-value">${ticketRow.Ref_Code || "N/A"}</span></div>
           <div class="field"><span class="field-label">Service Type:</span><span class="field-value">${ticketRow.Service_Type || "Standard"}</span></div>
           <div class="field"><span class="field-label">Open Date:</span><span class="field-value">${openDateStr}</span></div>
@@ -4000,7 +4000,7 @@ function handleGenerateServiceReport(payload) {
         <div class="card">
           <h3>Client & Site Info</h3>
           <div class="field"><span class="field-label">Organization Name:</span><span class="field-value">${ticketRow.Company_Name || "N/A"}</span></div>
-          <div class="field"><span class="field-label">Primary Site Location:</span><span class="field-value">${ticketRow.Location || "N/A"}</span></div>
+          <div class="field"><span class="field-label">City:</span><span class="field-value">${ticketRow.Location || "N/A"}</span></div>
            <div class="field"><span class="field-label">Branch:</span><span class="field-value">${ticketRow.Branch || ticketRow.Sub_Location || "N/A"}</span></div>
           <div class="field"><span class="field-label">Room / Zone Name:</span><span class="field-value">${ticketRow.Room_Name || "N/A"}</span></div>
         </div>
@@ -4015,9 +4015,8 @@ function handleGenerateServiceReport(payload) {
             <div class="field"><span class="field-label">Serial Number (S/N):</span><span class="field-value">${ticketRow.ProductSerial || "N/A"}</span></div>
           </div>
           <div>
-            <div class="field"><span class="field-label">IP Address:</span><span class="field-value">${ticketRow.IP_Address || "N/A"}</span></div>
-            <div class="field"><span class="field-label">MAC ID:</span><span class="field-value">${ticketRow.MAC_ID || "N/A"}</span></div>
             <div class="field"><span class="field-label">Warranty End:</span><span class="field-value">${ticketRow.Warranty_End_Date ? new Date(ticketRow.Warranty_End_Date).toLocaleDateString() : "N/A"}</span></div>
+            <div class="field"><span class="field-label">Warranty Remaining:</span><span class="field-value">${ticketRow.Warranty_Days_Left !== undefined && ticketRow.Warranty_Days_Left !== "" ? ticketRow.Warranty_Days_Left + " Days" : "N/A"}</span></div>
           </div>
         </div>
       </div>
@@ -4038,7 +4037,7 @@ function handleGenerateServiceReport(payload) {
 
       <div class="footer">
         <p>This is a system generated Service Report from Audio-Visual Dynamic Pro-Support.</p>
-        <p>AV Dynamic LLP | operations@avdynamic.co.in | Secure SLA Log System</p>
+        <p>AV Dynamic LLP | prosupport@avdynamic.co.in | Secure SLA Log System</p>
       </div>
     </body>
     </html>

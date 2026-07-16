@@ -41,6 +41,16 @@ const Home = () => {
               />
               <button type="submit" className="btn btn-primary">Start Request</button>
             </form>
+            <div style={{ textAlign: 'center', marginTop: '16px', borderTop: '1px solid #e2e8f0', paddingTop: '12px', width: '100%' }}>
+              <p style={{ fontSize: '0.85rem', color: '#64748b', marginBottom: '8px' }}>Don't have a Reference code?</p>
+              <button 
+                type="button" 
+                onClick={() => navigate('/general-request')} 
+                style={{ background: 'none', border: 'none', color: '#1a73e8', fontWeight: 'bold', cursor: 'pointer', textDecoration: 'underline', padding: 0 }}
+              >
+                Submit a General Request
+              </button>
+            </div>
           </div>
 
           {/* Card 2: Track Ticket */}

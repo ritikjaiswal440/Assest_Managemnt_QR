@@ -7,7 +7,7 @@ import {
 } from 'recharts';
 import './ReportingDashboard.css';
 
-export default function ReportingDashboard() {
+export default function ReportingDashboard({ isClient = false, clientCompany = '' }) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
@@ -38,6 +38,13 @@ export default function ReportingDashboard() {
     startDate: '', endDate: '', brand: '',
     companyName: '', location: '', roomName: ''
   });
+
+  // Set initial companyName in filters if isClient is true
+  useEffect(() => {
+    if (isClient && clientCompany) {
+      setFilters(prev => ({ ...prev, companyName: clientCompany }));
+    }
+  }, [isClient, clientCompany]);
 
   // UTILITY: Smart Dynamic CSV Exporter
   const exportToCSV = (data, filename) => {
@@ -137,7 +144,11 @@ export default function ReportingDashboard() {
     setLoading(true);
     setError(null);
     try {
-      const res = await assetApi('getDashboardKPIs', filters);
+      const activeFilters = { ...filters };
+      if (isClient && clientCompany) {
+        activeFilters.companyName = clientCompany;
+      }
+      const res = await assetApi('getDashboardKPIs', activeFilters);
       if (res && res.success && res.data) {
         setKpiMetrics(res.data.metrics || {});
         setCategoryTrends(res.data.categoryFailures || []);
@@ -153,18 +164,43 @@ export default function ReportingDashboard() {
       ]);
 
       // Robust check for GAS response structure
+      let fetchedAssets = [];
       if (assetsRes && assetsRes.success) {
-        setAssets(assetsRes.data || []);
+        fetchedAssets = assetsRes.data || [];
       } else if (assetsRes && Array.isArray(assetsRes)) {
-        setAssets(assetsRes);
+        fetchedAssets = assetsRes;
       }
+      if (isClient && clientCompany) {
+        fetchedAssets = fetchedAssets.filter(asset => 
+          String(asset.Company_Name || asset.companyName || '').toLowerCase().trim() === String(clientCompany).toLowerCase().trim()
+        );
+      }
+      setAssets(fetchedAssets);
 
+      let fetchedTickets = [];
       if (ticketsRes && ticketsRes.success) {
-        setTickets(ticketsRes.data || []);
+        fetchedTickets = ticketsRes.data || [];
       }
+      if (isClient && clientCompany) {
+        fetchedTickets = fetchedTickets.filter(t => 
+          String(t.Company_Name || t.companyName || '').toLowerCase().trim() === String(clientCompany).toLowerCase().trim()
+        );
+      }
+      setTickets(fetchedTickets);
+
+      let fetchedTasks = [];
       if (dashboardRes && dashboardRes.success && dashboardRes.data) {
-        setEngineerTasks(dashboardRes.data.children || []);
+        fetchedTasks = dashboardRes.data.children || [];
       }
+      if (isClient && clientCompany) {
+        fetchedTasks = fetchedTasks.filter(t => {
+          const parentRef = t.Ticket_ID_Ref || t.Parent_Ticket_ID_Ref || t.Parent_Ticket_ID || t.Ticket_ID;
+          const parentTicket = fetchedTickets.find(pt => String(pt.Ticket_ID).trim().toLowerCase() === String(parentRef).trim().toLowerCase()) || {};
+          const ticketCompany = t.Company_Name || t.Company || parentTicket.Company_Name || '';
+          return String(ticketCompany).toLowerCase().trim() === String(clientCompany).toLowerCase().trim();
+        });
+      }
+      setEngineerTasks(fetchedTasks);
     } catch (err) {
       console.error(err);
       setError("Failed to fetch analytics.");
@@ -1121,15 +1157,17 @@ export default function ReportingDashboard() {
           </select>
         </div>
 
-        <div className="filter-group">
-          <label>Company</label>
-          <select className="md3-input" name="companyName" value={filters.companyName} onChange={handleFilterChange}>
-            <option value="">All Companies</option>
-            {(filterOptions.companies || []).map(c => (
-              <option key={c} value={c}>{c}</option>
-            ))}
-          </select>
-        </div>
+        {!isClient && (
+          <div className="filter-group">
+            <label>Company</label>
+            <select className="md3-input" name="companyName" value={filters.companyName} onChange={handleFilterChange}>
+              <option value="">All Companies</option>
+              {(filterOptions.companies || []).map(c => (
+                <option key={c} value={c}>{c}</option>
+              ))}
+            </select>
+          </div>
+        )}
 
         <div className="filter-group">
           <label>Branch / Location</label>

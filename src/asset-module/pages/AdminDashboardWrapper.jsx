@@ -9,6 +9,8 @@ import ReportingDashboard from './ReportingDashboard';
 
 function AdminDashboardWrapper() {
   const { user, logout } = useAuth();
+  const isClient = user?.role === 'Client';
+  const clientCompany = user?.companyName || user?.company;
   
   // Tab/View Navigation state: 'assets' | 'companies' | 'bulk' | 'analytics'
   const [activeTab, setActiveTab] = useState('assets');
@@ -37,18 +39,22 @@ function AdminDashboardWrapper() {
           >
             <span>📦</span> Asset Master
           </button>
-          <button
-            className={`nav-item ${activeTab === 'companies' ? 'active' : ''}`}
-            onClick={() => setActiveTab('companies')}
-          >
-            <span>🏢</span> Company Master
-          </button>
-          <button
-            className={`nav-item ${activeTab === 'bulk' ? 'active' : ''}`}
-            onClick={() => setActiveTab('bulk')}
-          >
-            <span>🗃️</span> Data Operations
-          </button>
+          {!isClient && (
+            <button
+              className={`nav-item ${activeTab === 'companies' ? 'active' : ''}`}
+              onClick={() => setActiveTab('companies')}
+            >
+              <span>🏢</span> Company Master
+            </button>
+          )}
+          {!isClient && (
+            <button
+              className={`nav-item ${activeTab === 'bulk' ? 'active' : ''}`}
+              onClick={() => setActiveTab('bulk')}
+            >
+              <span>🗃️</span> Data Operations
+            </button>
+          )}
           <button
             className={`nav-item ${activeTab === 'analytics' ? 'active' : ''}`}
             onClick={() => setActiveTab('analytics')}
@@ -77,10 +83,10 @@ function AdminDashboardWrapper() {
         </header>
 
         {/* View switching logic */}
-        {activeTab === 'assets' && <AssetDashboard />}
-        {activeTab === 'companies' && <CompanyDashboard />}
-        {activeTab === 'bulk' && <BulkDataPanel />}
-        {activeTab === 'analytics' && <ReportingDashboard />}
+        {activeTab === 'assets' && <AssetDashboard isClient={isClient} clientCompany={clientCompany} />}
+        {activeTab === 'companies' && !isClient && <CompanyDashboard />}
+        {activeTab === 'bulk' && !isClient && <BulkDataPanel />}
+        {activeTab === 'analytics' && <ReportingDashboard isClient={isClient} clientCompany={clientCompany} />}
       </main>
     </div>
   );

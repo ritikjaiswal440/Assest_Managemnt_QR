@@ -164,6 +164,40 @@ const TicketRequest = () => {
     setStatus({ loading: true, error: null });
 
     try {
+      // 1. Fetch branches and assets first!
+      const verifyResponse = await fetch(`${import.meta.env.VITE_GAS_API_URL}?action=verifyRefCode&code=${codeToUse}`);
+      const verifyData = await verifyResponse.json();
+
+      if (!verifyData.success || !verifyData.branches || verifyData.branches.length === 0) {
+        setStatus({ loading: false, error: "Reference Code not found or has no active branches." });
+        return;
+      }
+
+      // Populate branches and assets
+      setBranchOptions(verifyData.branches);
+      setCompanyAssets(verifyData.assets || []);
+
+      // If there are multiple branches and the user hasn't selected one yet,
+      // we must show the branch selector on the auth screen instead of entering the form.
+      if (verifyData.branches.length > 1 && !selectedBranch) {
+        setStatus({ loading: false, error: null });
+        return; // Stay on auth view so they can select a branch
+      }
+
+      // If only one branch, auto-select it
+      let activeBranch = selectedBranch;
+      if (verifyData.branches.length === 1) {
+        activeBranch = verifyData.branches[0].Branch;
+        setSelectedBranch(activeBranch);
+        setLocation(verifyData.branches[0].Location);
+      } else if (selectedBranch) {
+        const matchingBranch = verifyData.branches.find(b => b.Branch === selectedBranch);
+        if (matchingBranch) {
+          setLocation(matchingBranch.Location);
+        }
+      }
+
+      // 2. Validate reference
       const response = await validateRef({ ref: codeToUse });
       if (response?.success) {
         setCompany(response?.data?.companyName || "Verified Client");
@@ -183,7 +217,8 @@ const TicketRequest = () => {
       } else {
         setStatus({ loading: false, error: response?.message || "Invalid reference code." });
       }
-    } catch {
+    } catch (err) {
+      console.error(err);
       setStatus({ loading: false, error: "Network error. Please try again." });
     }
   }, [serviceRequestId, dropdownData.assets, branchOptions, selectedBranch]);

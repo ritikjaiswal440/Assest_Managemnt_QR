@@ -5,7 +5,7 @@ import AssetFormModal from '../components/AssetFormModal';
 import QRLabel from '../components/QRLabel';
 import html2canvas from 'html2canvas';
 
-export default function AssetDashboard() {
+export default function AssetDashboard({ isClient = false, clientCompany = '' }) {
   // UTILITY: Calculates if a specific date range is currently active
   const getTimelineBadge = (startDate, endDate) => {
     if (!startDate && !endDate) return <span className="status-badge na">N/A</span>;
@@ -63,10 +63,11 @@ export default function AssetDashboard() {
       setCompanies(companyData);
 
       const assetRes = await fetch(`${import.meta.env.VITE_GAS_API_URL}?route=getAssets`).catch(() => null);
+      let fetchedList = [];
       if (assetRes && assetRes.ok) {
         const aResult = await assetRes.json();
         if (aResult.status === 'success') {
-          setAssets(aResult.data || []);
+          fetchedList = aResult.data || [];
           setError('');
         } else {
           throw new Error(aResult.message);
@@ -74,11 +75,19 @@ export default function AssetDashboard() {
       } else {
         throw new Error("API not ready");
       }
+
+      if (isClient && clientCompany) {
+        fetchedList = fetchedList.filter(asset => 
+          String(asset.Company_Name || asset.companyName || '').toLowerCase().trim() === String(clientCompany).toLowerCase().trim() ||
+          String(asset.Client || '').toLowerCase().trim() === String(clientCompany).toLowerCase().trim()
+        );
+      }
+      setAssets(fetchedList);
     } catch (err) {
       console.error(err);
       setError('Failed to fetch assets. Operating with sandbox/offline fallback data.');
       // Fallback mock data
-      setAssets([
+      let mockList = [
         {
           Unique_Product_Id: 'AVD/PD/000001',
           id: 'AVD/PD/000001',
@@ -143,7 +152,14 @@ export default function AssetDashboard() {
           assetStatus: 'In_Repair',
           signature: 'def456uvw'
         }
-      ]);
+      ];
+      if (isClient && clientCompany) {
+        mockList = mockList.filter(asset => 
+          String(asset.Company_Name || asset.companyName || '').toLowerCase().trim() === String(clientCompany).toLowerCase().trim() ||
+          String(asset.Client || '').toLowerCase().trim() === String(clientCompany).toLowerCase().trim()
+        );
+      }
+      setAssets(mockList);
     } finally {
       setLoading(false);
     }
@@ -437,16 +453,18 @@ export default function AssetDashboard() {
           />
         </div>
         <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
-          <button 
-            className="btn-filled" 
-            style={{ borderRadius: '20px' }}
-            onClick={() => {
-              setEditingAsset(null);
-              setIsModalOpen(true);
-            }}
-          >
-            + Add Asset
-          </button>
+          {!isClient && (
+            <button 
+              className="btn-filled" 
+              style={{ borderRadius: '20px' }}
+              onClick={() => {
+                setEditingAsset(null);
+                setIsModalOpen(true);
+              }}
+            >
+              + Add Asset
+            </button>
+          )}
         </div>
       </div>
 
@@ -606,16 +624,18 @@ export default function AssetDashboard() {
                           >
                             Print Label
                           </button>
-                          <button 
-                            className="row-action-btn"
-                            style={{ fontSize: '0.8rem', padding: '4px 8px' }}
-                            onClick={() => {
-                              setEditingAsset(asset);
-                              setIsModalOpen(true);
-                            }}
-                          >
-                            Edit
-                          </button>
+                           {!isClient && (
+                            <button 
+                              className="row-action-btn"
+                              style={{ fontSize: '0.8rem', padding: '4px 8px' }}
+                              onClick={() => {
+                                setEditingAsset(asset);
+                                setIsModalOpen(true);
+                              }}
+                            >
+                              Edit
+                            </button>
+                          )}
                         </div>
                       </td>
                     </tr>

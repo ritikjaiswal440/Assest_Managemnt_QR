@@ -55,6 +55,9 @@ const escapeCsvField = (val) => {
 
 const Dashboard = () => {
   const { user } = useAuth();
+  const isClient = user?.role === 'Client';
+  const clientCompany = user?.companyName || user?.company;
+
   const [filteredParents, setFilteredParents] = useState([]);
   const [kpiParents, setKpiParents] = useState([]);
   const [assignConfig, setAssignConfig] = useState({ isOpen: false, parentId: null });
@@ -95,22 +98,55 @@ const Dashboard = () => {
         fetchMasterTickets()
       ]);
 
+      let fetchedMaster = [];
+      if (masterRes?.success && Array.isArray(masterRes.data)) {
+        fetchedMaster = masterRes.data;
+      } else if (kpiRes?.success && kpiRes.data?.parents) {
+        fetchedMaster = kpiRes.data.parents;
+      }
+      if (isClient && clientCompany) {
+        fetchedMaster = fetchedMaster.filter(p => 
+          String(p.Company_Name || p.companyName || p.Company || '').toLowerCase().trim() === String(clientCompany).toLowerCase().trim()
+        );
+      }
+      setMasterData(fetchedMaster);
+
+      let fetchedIntakes = [];
+      if (intakeRes?.success && Array.isArray(intakeRes.data)) {
+        fetchedIntakes = intakeRes.data;
+      } else if (kpiRes?.success && kpiRes.data?.serviceRequests) {
+        fetchedIntakes = kpiRes.data.serviceRequests;
+      }
+      if (isClient && clientCompany) {
+        fetchedIntakes = fetchedIntakes.filter(r => 
+          String(r.Company_Name || r.companyName || r.Company || '').toLowerCase().trim() === String(clientCompany).toLowerCase().trim()
+        );
+      }
+      setIntakeData(fetchedIntakes);
+
       if (kpiRes?.success && kpiRes.data) {
-        setKpiMetrics(kpiRes.data);
+        let metricsData = { ...kpiRes.data };
+        if (isClient && clientCompany) {
+          if (Array.isArray(metricsData.children)) {
+            metricsData.children = metricsData.children.filter(c => {
+              const parentRef = c.Ticket_ID_Ref || c.Parent_Ticket_ID_Ref || c.Parent_Ticket_ID || c.Ticket_ID;
+              const parentTicket = fetchedMaster.find(pt => String(pt.Ticket_ID).trim().toLowerCase() === String(parentRef).trim().toLowerCase()) || {};
+              const ticketCompany = c.Company_Name || c.Company || parentTicket.Company_Name || '';
+              return String(ticketCompany).toLowerCase().trim() === String(clientCompany).toLowerCase().trim();
+            });
+          }
+          if (Array.isArray(metricsData.logs)) {
+            metricsData.logs = metricsData.logs.filter(l => {
+              const ticketRef = l.Target_ID || l.Ticket_ID || l.targetId || l.ticketId;
+              const parentTicket = fetchedMaster.find(pt => String(pt.Ticket_ID).trim().toLowerCase() === String(ticketRef).trim().toLowerCase()) || {};
+              const ticketCompany = l.Company_Name || parentTicket.Company_Name || '';
+              return String(ticketCompany).toLowerCase().trim() === String(clientCompany).toLowerCase().trim();
+            });
+          }
+        }
+        setKpiMetrics(metricsData);
       } else {
         setError(kpiRes?.message || "Failed to retrieve operational metrics.");
-      }
-
-      if (intakeRes?.success && Array.isArray(intakeRes.data)) {
-        setIntakeData(intakeRes.data);
-      } else if (kpiRes?.success && kpiRes.data?.serviceRequests) {
-        setIntakeData(kpiRes.data.serviceRequests);
-      }
-
-      if (masterRes?.success && Array.isArray(masterRes.data)) {
-        setMasterData(masterRes.data);
-      } else if (kpiRes?.success && kpiRes.data?.parents) {
-        setMasterData(kpiRes.data.parents);
       }
       
     } catch (err) {
@@ -119,7 +155,7 @@ const Dashboard = () => {
     } finally {
       setIsLoading(false);
     }
-  }, []);
+  }, [isClient, clientCompany]);
 
   // Fetch dashboard data on component mount
   useEffect(() => {
@@ -160,8 +196,8 @@ const Dashboard = () => {
         });
         return matchesParentEng || hasAssignedChild;
       }
-      if (user?.role === 'Client') {
-        return String(p.Company_Name || p['Company Name'] || p.companyName || '').trim().toLowerCase() === String(user.company || '').trim().toLowerCase();
+      if (isClient && clientCompany) {
+        return String(p.Company_Name || p['Company Name'] || p.companyName || '').trim().toLowerCase() === String(clientCompany).trim().toLowerCase();
       }
       return true;
     });

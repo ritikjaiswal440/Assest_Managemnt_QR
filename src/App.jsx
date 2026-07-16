@@ -8,6 +8,7 @@ import Login from './pages/Login';
 import Dashboard from './pages/Dashboard';
 import TicketRequest from './pages/TicketRequest';
 import TrackTicket from './pages/TrackTicket';
+import GeneralRequest from './pages/GeneralRequest';
 
 // Standalone Asset & Complaint System Page Imports
 import PublicComplaintPortal from './asset-module/pages/PublicComplaintPortal';
@@ -45,6 +46,7 @@ function App() {
           {/* Public / Open Ticket Routes */}
           <Route path="/request" element={<TicketRequest />} />
           <Route path="/track" element={<TrackTicket />} />
+          <Route path="/general-request" element={<GeneralRequest />} />
           
           {/* Standalone Asset System: Public QR Complaint Portal */}
           <Route path="/asset/*" element={<PublicComplaintPortal />} />
