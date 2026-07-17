@@ -37,9 +37,23 @@ const RemarkModal = ({ isOpen, onClose, parentId, currentUser, onSuccess }) => {
     }
     setStatus({ loading: true, error: null });
 
+    const userCompany = currentUser?.companyName || currentUser?.company || "";
+    const isInternal = userCompany.toLowerCase().includes('av dynamic');
+    
+    let roleDisplay = currentUser?.role || 'User';
+    if (currentUser?.role === 'Admin') {
+      roleDisplay = isInternal ? 'Internal Admin' : 'Client Admin';
+    } else if (currentUser?.role === 'Client') {
+      roleDisplay = 'Client User';
+    } else {
+      roleDisplay = isInternal ? `Internal ${currentUser?.role}` : `Client ${currentUser?.role}`;
+    }
+
     const payload = {
       parentId: parentId || '',
       remark: remark.trim(),
+      role: roleDisplay,
+      name: currentUser?.name || '',
       userRole: currentUser?.role || '',
       actorEmail: currentUser?.email || ''
     };

@@ -2375,7 +2375,9 @@ function handleParentRemarkRequest(payload) {
         if (String(data[i][idIdx]).trim() === String(payload.parentId).trim()) {
           const currentRemarks = data[i][remarksIdx] || "";
           const timestamp = new Date().toISOString();
-          const newRemark = `[${timestamp} - Admin] ${payload.remark}`;
+          const roleTag = payload.role || 'Admin';
+          const namePart = payload.name ? ` - ${payload.name}` : '';
+          const newRemark = `[${timestamp} - ${roleTag}${namePart}] ${payload.remark}`;
           const updatedRemarks = currentRemarks ? currentRemarks + "\n" + newRemark : newRemark;
           ticketSheet.getRange(i + 1, remarksIdx + 1).setValue(updatedRemarks);
           break;

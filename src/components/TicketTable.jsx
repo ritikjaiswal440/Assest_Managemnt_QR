@@ -6,6 +6,21 @@ const TicketTable = ({ parents, children, logs = [], userRole, isAdmin, currentU
   const [pingingTasks, setPingingTasks] = useState({});
   const [generatingPDFs, setGeneratingPDFs] = useState({});
 
+  const isClient = userRole === 'Client';
+
+  const hasUnreadClientUpdate = (remarksString) => {
+    if (!remarksString) return false;
+    const lines = String(remarksString).split('\n').filter(line => line.trim() !== '');
+    if (lines.length === 0) return false;
+    
+    const lastLine = lines[lines.length - 1];
+    const bracketEnd = lastLine.indexOf(']');
+    if (bracketEnd === -1) return false;
+    
+    const tagContent = lastLine.substring(0, bracketEnd);
+    return tagContent.toLowerCase().includes('client');
+  };
+
   const handlePing = async (childTicket, parentTicket) => {
     const childId = childTicket.Task_ID;
     setPingingTasks(prev => ({ ...prev, [childId]: true }));
@@ -91,7 +106,7 @@ const TicketTable = ({ parents, children, logs = [], userRole, isAdmin, currentU
               <th>Client / Location</th>
               <th>Issue Category</th>
               <th>Status</th>
-              {isAdmin && <th>Actions</th>}
+              {(isAdmin || userRole === 'Client') && <th>Actions</th>}
             </tr>
           </thead>
           <tbody>
@@ -157,7 +172,26 @@ const TicketTable = ({ parents, children, logs = [], userRole, isAdmin, currentU
                   {/* --- PARENT ROW --- */}
                   <tr className="parent-row" onClick={() => toggleRow(pId)}>
                     <td style={{ fontFamily: 'SFMono-Regular, Consolas, "Liberation Mono", Menlo, monospace', fontSize: '0.9rem' }}>
-                      <span style={{ fontWeight: '700', color: 'var(--primary-action)' }}>{p.Ticket_ID}</span><br />
+                      <span style={{ fontWeight: '700', color: 'var(--primary-action)' }}>{p.Ticket_ID}</span>
+                      {!isClient && hasUnreadClientUpdate(p.Admin_Remarks) && (
+                        <span 
+                          style={{
+                            backgroundColor: '#ef4444', 
+                            color: 'white', 
+                            fontSize: '10px', 
+                            padding: '2px 6px', 
+                            borderRadius: '4px', 
+                            marginLeft: '8px',
+                            fontWeight: 'bold',
+                            verticalAlign: 'middle',
+                            display: 'inline-block'
+                          }}
+                          title="The client recently added a remark to this ticket."
+                        >
+                          Client Updated
+                        </span>
+                      )}
+                      <br />
                       <span style={{ fontSize: '0.75rem', color: 'var(--slate-gray)', fontWeight: '600' }}>Sub-ref: {p.Intake_ID_Ref || 'N/A'}</span>
                     </td>
                     <td>
@@ -175,7 +209,7 @@ const TicketTable = ({ parents, children, logs = [], userRole, isAdmin, currentU
                       )}
                     </td>
 
-                    {isAdmin && (
+                    {(isAdmin || userRole === 'Client') && (
                       <td onClick={(e) => e.stopPropagation()}>
                         {pStatus !== 'Closed' && (
                           <div className="table-actions-container">
@@ -185,12 +219,14 @@ const TicketTable = ({ parents, children, logs = [], userRole, isAdmin, currentU
                             >
                               + Remark
                             </button>
-                            <button
-                              className="btn-assign"
-                              onClick={() => onOpenAssign(pId)}
-                            >
-                              Assign Eng
-                            </button>
+                            {isAdmin && (
+                              <button
+                                className="btn-assign"
+                                onClick={() => onOpenAssign(pId)}
+                              >
+                                Assign Eng
+                              </button>
+                            )}
                             {isAdmin && pStatus === 'Ready to Close' && (
                               <button
                                 onClick={() => onCloseParent(p.Ticket_ID)}

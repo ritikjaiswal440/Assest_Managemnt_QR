@@ -1,5 +1,5 @@
 /* eslint-disable react-hooks/set-state-in-effect */
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { gasApi, fetchIntakeQueue, fetchMasterTickets, getDashboard } from '../services/apiClient';
 import KpiCards from '../components/KpiCards';
@@ -76,6 +76,43 @@ const Dashboard = () => {
 
   // Update modal state to support pre-filling data
   const [createModalConfig, setCreateModalConfig] = useState({ isOpen: false, prefillData: null });
+
+  // --- NEW: Company Wise Aggregation ---
+  const companyStats = useMemo(() => {
+    const tickets = masterData || [];
+    if (tickets.length === 0) return [];
+    
+    const stats = {};
+    tickets.forEach(t => {
+      const company = t.Company_Name || t.companyName || 'Unknown Company';
+      if (!stats[company]) {
+        stats[company] = { 
+          company, 
+          total: 0, 
+          open: 0, 
+          inProgress: 0, 
+          readyToClose: 0, 
+          closed: 0 
+        };
+      }
+      
+      stats[company].total += 1;
+      
+      const status = String(t.Status || '').toLowerCase().trim();
+      if (status === 'open' || status === 'opened') {
+        stats[company].open += 1;
+      } else if (status === 'in progress') {
+        stats[company].inProgress += 1;
+      } else if (status === 'ready to close') {
+        stats[company].readyToClose += 1;
+      } else if (status === 'closed' || status === 'resolved') {
+        stats[company].closed += 1;
+      }
+    });
+    
+    // Convert object to array and sort alphabetically by company name
+    return Object.values(stats).sort((a, b) => a.company.localeCompare(b.company));
+  }, [masterData]);
   const [activeFilters, setActiveFilters] = useState({
     searchTerm: '',
     company: 'All',
@@ -636,11 +673,30 @@ const Dashboard = () => {
                     </span>
                   )}
                 </button>
+                {!isClient && (
+                  <button 
+                    onClick={() => setActiveTab('companyWise')}
+                    style={{
+                      padding: '10px 24px',
+                      borderRadius: '24px',
+                      border: 'none',
+                      fontSize: '1rem',
+                      fontWeight: '600',
+                      cursor: 'pointer',
+                      backgroundColor: activeTab === 'companyWise' ? 'var(--primary-action)' : 'var(--slate-light)',
+                      color: activeTab === 'companyWise' ? '#ffffff' : 'var(--slate-dark)',
+                      transition: 'all var(--transition-fast)',
+                      marginLeft: '10px'
+                    }}
+                  >
+                    Company Wise Ticket
+                  </button>
+                )}
               </div>
             )}
             
             <div className="table-placeholder-content">
-              {activeTab === 'tickets' || user?.role === 'Client' ? (
+              {(activeTab === 'tickets' || user?.role === 'Client') && (
                 <>
                   <FilterBar 
                     bundle={{ clients: kpiMetrics?.clients || [], parents: masterData }} 
@@ -662,7 +718,8 @@ const Dashboard = () => {
                     onPingEngineer={handlePingEngineer}
                   />
                 </>
-              ) : (
+              )}
+              {activeTab === 'requests' && user?.role !== 'Client' && (
                 <>
                   <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '15px' }}>
                     <button
@@ -694,6 +751,42 @@ const Dashboard = () => {
                     onUnarchiveRequest={handleUnarchiveRequest}
                   />
                 </>
+              )}
+              {activeTab === 'companyWise' && !isClient && (
+                <div className="card" style={{ padding: '24px', overflowX: 'auto' }}>
+                  <h3 style={{ marginBottom: '20px', color: '#1e293b' }}>Company Wise Ticket Summary</h3>
+                  
+                  <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
+                    <thead>
+                      <tr style={{ backgroundColor: '#f8fafc', borderBottom: '2px solid #e2e8f0' }}>
+                        <th style={{ padding: '12px', color: '#475569', fontWeight: '600' }}>Company Name</th>
+                        <th style={{ padding: '12px', color: '#475569', fontWeight: '600', textAlign: 'center' }}>Total Tickets</th>
+                        <th style={{ padding: '12px', color: '#3b82f6', fontWeight: '600', textAlign: 'center' }}>Opened</th>
+                        <th style={{ padding: '12px', color: '#f59e0b', fontWeight: '600', textAlign: 'center' }}>In Progress</th>
+                        <th style={{ padding: '12px', color: '#8b5cf6', fontWeight: '600', textAlign: 'center' }}>Ready to Close</th>
+                        <th style={{ padding: '12px', color: '#10b981', fontWeight: '600', textAlign: 'center' }}>Closed</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {companyStats.length === 0 ? (
+                        <tr>
+                          <td colSpan="6" style={{ padding: '20px', textAlign: 'center', color: '#64748b' }}>No ticket data available.</td>
+                        </tr>
+                      ) : (
+                        companyStats.map((stat, idx) => (
+                          <tr key={idx} style={{ borderBottom: '1px solid #e2e8f0' }}>
+                            <td style={{ padding: '12px', fontWeight: '500', color: '#334155' }}>{stat.company}</td>
+                            <td style={{ padding: '12px', textAlign: 'center', fontWeight: 'bold' }}>{stat.total}</td>
+                            <td style={{ padding: '12px', textAlign: 'center' }}>{stat.open}</td>
+                            <td style={{ padding: '12px', textAlign: 'center' }}>{stat.inProgress}</td>
+                            <td style={{ padding: '12px', textAlign: 'center' }}>{stat.readyToClose}</td>
+                            <td style={{ padding: '12px', textAlign: 'center' }}>{stat.closed}</td>
+                          </tr>
+                        ))
+                      )}
+                    </tbody>
+                  </table>
+                </div>
               )}
             </div>
           </>
