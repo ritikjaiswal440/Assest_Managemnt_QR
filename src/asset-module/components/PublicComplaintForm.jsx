@@ -8,53 +8,17 @@ export default function PublicComplaintForm({ asset, signature, assets = [] }) {
     clientEmail: '',
     phoneNumber: '',
     description: '',
-    Support_Type: '',
     Asset_ID: ''
   });
 
   const handleAssetSelect = (e) => {
     const selectedAssetId = e.target.value;
     setFormData(prev => ({ ...prev, Asset_ID: selectedAssetId }));
-
-    // Lookup the support type from your existing 'assets' data array
-    const foundAsset = assets.find(a => a.Unique_Product_Id === selectedAssetId);
-    
-    if (foundAsset) {
-      setFormData(prev => ({
-        ...prev,
-        Support_Type: foundAsset.Support_Type || foundAsset.supportType || 'General' // Pre-fills the field
-      }));
-    }
   };
 
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [successReference, setSuccessReference] = useState(null);
   const [error, setError] = useState(null);
-
-  useEffect(() => {
-    if (asset) {
-      // Determine default support type based on AMC details
-      const today = new Date();
-      let detectedType = '';
-      
-      const compEnd = asset.AMC_End_Date || asset.amcEndDate;
-      const nonCompEnd = asset.NON_CAMC_End_Date || asset.nonCamcEndDate;
-      
-      if (compEnd && new Date(compEnd) >= today) {
-        detectedType = 'Comprehensive';
-      } else if (nonCompEnd && new Date(nonCompEnd) >= today) {
-        detectedType = 'Non-Comprehensive';
-      } else if (compEnd) {
-        detectedType = 'Comprehensive';
-      } else if (nonCompEnd) {
-        detectedType = 'Non-Comprehensive';
-      }
-      
-      if (detectedType) {
-        setFormData(prev => ({ ...prev, Support_Type: detectedType }));
-      }
-    }
-  }, [asset]);
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -79,7 +43,6 @@ export default function PublicComplaintForm({ asset, signature, assets = [] }) {
         clientEmail: formData.clientEmail,
         phoneNumber: formData.phoneNumber,
         description: formData.description,
-        Support_Type: formData.Support_Type,
         Unique_Product_Id: assetId, // Guaranteed resolution
         security_signature: signature
       };
@@ -168,20 +131,7 @@ export default function PublicComplaintForm({ asset, signature, assets = [] }) {
           />
         </div>
 
-        <div className="form-group">
-          <label>Support Type</label>
-          <select 
-            name="Support_Type" 
-            value={formData.Support_Type} 
-            onChange={handleChange} 
-            className="md3-input"
-            style={{ width: '100%', height: '40px', background: '#ffffff', borderRadius: '4px', border: '1px solid #ccc' }}
-          >
-            <option value="">Select Support Type</option>
-            <option value="Comprehensive">Comprehensive</option>
-            <option value="Non-Comprehensive">Non-Comprehensive</option>
-          </select>
-        </div>
+
 
         <div className="form-group">
           <label>Description of Issue *</label>

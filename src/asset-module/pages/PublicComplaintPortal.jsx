@@ -25,8 +25,7 @@ export default function PublicComplaintPortal() {
     requestedBy: '',
     clientEmail: '',
     phoneNumber: '',
-    description: '',
-    Support_Type: ''
+    description: ''
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [successReference, setSuccessReference] = useState(null);
@@ -57,30 +56,6 @@ export default function PublicComplaintPortal() {
 
         if (response && response.success && response.data) {
           setAsset(response.data);
-          
-          // Pre-fill Support_Type based on AMC details
-          const today = new Date();
-          let detectedType = 'General';
-          const compEnd = response.data.AMC_End_Date || response.data.amcEndDate;
-          const nonCompEnd = response.data.NON_CAMC_End_Date || response.data.nonCamcEndDate;
-          const existSupport = response.data.Support_Type || response.data.supportType;
-          
-          if (existSupport) {
-            detectedType = existSupport;
-          } else if (compEnd && new Date(compEnd) >= today) {
-            detectedType = 'Comprehensive';
-          } else if (nonCompEnd && new Date(nonCompEnd) >= today) {
-            detectedType = 'Non-Comprehensive';
-          } else if (compEnd) {
-            detectedType = 'Comprehensive';
-          } else if (nonCompEnd) {
-            detectedType = 'Non-Comprehensive';
-          }
-          
-          setFormData(prev => ({
-            ...prev,
-            Support_Type: detectedType
-          }));
         } else {
           setError(response?.message || 'Access Denied: Invalid security signature or asset not found.');
         }
@@ -187,7 +162,6 @@ export default function PublicComplaintPortal() {
         Warranty_End_Date: asset.Warranty_End_Date || asset.WARRANTY_END_DATE || asset.warrantyEndDate || "",
         Warranty_Days_Left: asset.Warranty_Days_Left || asset.WARRANTY_DAYS_LEFT || asset.warrantyDaysLeft || "",
         Asset_Status: asset.Asset_Status || asset.ASSET_STATUS || asset.assetStatus || "Active",
-        Support_Type: formData.Support_Type || asset.Support_Type || asset.supportType || "General",
         
         Requester_Name: formData.requestedBy || "",
         Client_Email: formData.clientEmail || "",
@@ -221,7 +195,6 @@ export default function PublicComplaintPortal() {
           DLP_Period: asset.DLP_Period || asset.DLP_PERIOD || asset.dlpPeriod || "",
           Warranty_Days_Left: asset.Warranty_Days_Left || asset.WARRANTY_DAYS_LEFT || asset.warrantyDaysLeft || "",
           Asset_Status: asset.Asset_Status || asset.ASSET_STATUS || asset.assetStatus || "",
-          Support_Type: formData.Support_Type || asset.Support_Type || asset.supportType || "General",
           Issue_Type: "Hardware"
         }
       };
@@ -528,21 +501,7 @@ export default function PublicComplaintPortal() {
                   />
                 </div>
 
-                <div className="form-group">
-                  <label>Support Type</label>
-                  <select 
-                    name="Support_Type" 
-                    value={formData.Support_Type} 
-                    onChange={handleFormChange} 
-                    className="md3-input"
-                    style={{ width: '100%', height: '40px', background: '#ffffff', borderRadius: '4px', border: '1px solid #ccc' }}
-                    disabled={isSubmitting}
-                  >
-                    <option value="">Select Support Type</option>
-                    <option value="Comprehensive">Comprehensive</option>
-                    <option value="Non-Comprehensive">Non-Comprehensive</option>
-                  </select>
-                </div>
+
 
                 <div className="form-group">
                   <label>Description of Issue *</label>
