@@ -261,14 +261,14 @@ export default function PublicComplaintPortal() {
             <div style={{ padding: '16px 24px', background: '#f8fafc', borderBottom: '1px solid #e2e8f0', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <h3 style={{ margin: 0, fontSize: '1.1rem', color: '#0f172a', fontWeight: '600' }}>Hardware Verification</h3>
               <span style={{ 
-                background: asset.supportType?.toLowerCase().includes('out') ? '#fee2e2' : '#e0f2fe', 
-                color: asset.supportType?.toLowerCase().includes('out') ? '#b91c1c' : '#0369a1', 
-                padding: '4px 10px', 
+                backgroundColor: (asset.Support_Type || asset.supportType || asset.serviceType) === 'Out Of Support' ? '#fee2e2' : '#dcfce7', 
+                color: (asset.Support_Type || asset.supportType || asset.serviceType) === 'Out Of Support' ? '#ef4444' : '#10b981', 
+                padding: '6px 12px', 
                 borderRadius: '20px', 
-                fontSize: '0.75rem', 
+                fontSize: '0.85rem', 
                 fontWeight: 'bold' 
               }}>
-                {asset.supportType || 'Standard SLA'}
+                {asset.Support_Type || asset.supportType || asset.serviceType || 'General'}
               </span>
             </div>
 
@@ -298,7 +298,7 @@ export default function PublicComplaintPortal() {
               <div style={{ marginBottom: '24px' }}>
                 <h4 style={{ color: '#64748b', fontSize: '0.8rem', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '12px', borderBottom: '1px solid #f1f5f9', paddingBottom: '8px' }}>Deployment Location</h4>
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: '16px' }}>
-                  <div><div style={{ fontSize: '0.75rem', color: '#64748b', marginBottom: '4px' }}>Site &gt; Branch</div><div style={{ fontWeight: '500', color: '#334155' }}>{(asset.Location || asset.location || 'N/A')} &gt; {(asset.Branch || asset.Sub_Location || asset.subLocation || 'N/A')}</div></div>
+                  <div><div style={{ fontSize: '0.75rem', color: '#64748b', marginBottom: '4px' }}>Site &gt; Branch / Batch</div><div style={{ fontWeight: '500', color: '#334155' }}>{(asset.Location || asset.Site || asset.location || 'N/A')} &gt; {(asset.Branch || asset.Batch || asset.Sub_Location || asset.subLocation || 'N/A')}</div></div>
                   <div><div style={{ fontSize: '0.75rem', color: '#64748b', marginBottom: '4px' }}>Room</div><div style={{ fontWeight: '500', color: '#334155' }}>Flr {(asset.Floor || asset.floor || '-')} | {(asset.Room_Type || asset.roomType || 'N/A')}</div></div>
                   <div><div style={{ fontSize: '0.75rem', color: '#64748b', marginBottom: '4px' }}>Designation</div><div style={{ fontWeight: '500', color: '#334155' }}>{asset.Room_Name || asset.roomName || '-'}</div></div>
                 </div>
@@ -342,11 +342,19 @@ export default function PublicComplaintPortal() {
                     </div>
                   </div>
                   <div>
-                    <div style={{ fontSize: '0.75rem', color: '#64748b', marginBottom: '4px' }}>DLP Period</div>
+                    <div style={{ fontSize: '0.75rem', color: '#64748b', marginBottom: '4px' }}>DLP End Date</div>
                     <div style={{ fontWeight: '500', color: '#334155' }}>
                       {(() => {
+                        const dlpEnd = asset.DLP_End_Date || asset.dlpEndDate;
+                        if (dlpEnd) {
+                          try {
+                            const d = new Date(dlpEnd);
+                            if (!isNaN(d.getTime())) {
+                              return d.toLocaleDateString();
+                            }
+                          } catch(e) {}
+                        }
                         const val = asset.DLP_Period || asset.dlpPeriod;
-                        if (!val) return 'N/A';
                         if (typeof val === 'string' && (val.includes('-') || val.includes('T'))) {
                           try {
                             const d = new Date(val);
@@ -355,7 +363,7 @@ export default function PublicComplaintPortal() {
                             }
                           } catch(e) {}
                         }
-                        return `${val} Months`;
+                        return 'N/A';
                       })()}
                     </div>
                   </div>
@@ -384,7 +392,7 @@ export default function PublicComplaintPortal() {
               </div>
             </div>
 
-            {asset.supportType?.toLowerCase().includes('out') && (
+            {((asset.Support_Type || asset.supportType || asset.serviceType || '')?.toLowerCase().includes('out')) && (
               <div style={{ padding: '12px 24px', background: '#fffbeb', borderTop: '1px solid #fef3c7', color: '#b45309', fontSize: '0.85rem' }}>
                 <strong>Attention:</strong> This hardware is currently <strong>Out of Support</strong>. New service requests may require quote approvals before engineer dispatch.
               </div>
