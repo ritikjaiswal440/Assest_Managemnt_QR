@@ -225,8 +225,8 @@ export default function PublicComplaintPortal() {
     );
   }
 
-  // --- STRICT MAPPING: Read directly from Asset_Master column ---
-  const activeSla = asset?.Support_Type || asset?.supportType || asset?.serviceType || 'Out Of Support';
+  // --- STRICT MAPPING: Catch all casing variations from the API ---
+  const activeSla = asset?.Support_Type || asset?.supportType || asset?.support_type || asset?.serviceType || 'Out Of Support';
   
   // Case-insensitive check to determine if the badge should turn red
   const isOutOfSupport = activeSla.trim().toLowerCase() === 'out of support' || activeSla.trim().toLowerCase() === 'general';

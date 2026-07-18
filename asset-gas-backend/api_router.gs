@@ -1478,6 +1478,7 @@ function handleGetPublicAssetDetails(params) {
   const invoiceNoIdx = headers.indexOf('Invoice_No');
   const macIdx = headers.indexOf('MAC_ID');
   const ipIdx = headers.indexOf('IP_Address');
+  const supportTypeIdx = headers.indexOf('Support_Type');
 
   let asset = null;
   for (let i = 1; i < data.length; i++) {
@@ -1504,7 +1505,8 @@ function handleGetPublicAssetDetails(params) {
         Sales_Order: salesOrderIdx !== -1 ? data[i][salesOrderIdx] : '',
         Invoice_No: invoiceNoIdx !== -1 ? data[i][invoiceNoIdx] : '',
         MAC_ID: macIdx !== -1 ? data[i][macIdx] : '',
-        IP_Address: ipIdx !== -1 ? data[i][ipIdx] : ''
+        IP_Address: ipIdx !== -1 ? data[i][ipIdx] : '',
+        Support_Type: supportTypeIdx !== -1 ? data[i][supportTypeIdx] : 'Out Of Support'
       };
       break;
     }
@@ -1612,7 +1614,9 @@ function handleGetPublicAssetDetails(params) {
     productMake: asset.Make,
     productModel: asset.Model,
     productSerial: asset.Serial_Number,
-    supportType: supportType,
+    supportType: asset.Support_Type || 'Out Of Support',
+    Support_Type: asset.Support_Type || 'Out Of Support',
+    support_type: asset.Support_Type || 'Out Of Support',
     isExpired: isExpired,
     warrantyEndDate: asset.Warranty_End,
     warrantyStartDate: asset.Warranty_Start,
