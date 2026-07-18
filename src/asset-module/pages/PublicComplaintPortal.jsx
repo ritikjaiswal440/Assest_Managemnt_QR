@@ -225,6 +225,48 @@ export default function PublicComplaintPortal() {
     );
   }
 
+  // --- NEW: Dynamic SLA Calculator ---
+  const getActiveSupportType = (assetObj) => {
+    if (!assetObj) return 'Unknown';
+    const now = new Date();
+    
+    // Helper to check if today falls within a start and end date
+    const isDateActive = (start, end) => {
+      if (!start || !end) return false;
+      const startDate = new Date(start);
+      const endDate = new Date(end);
+      return now >= startDate && now <= endDate;
+    };
+
+    // Prioritize active AMCs, then Warranty, then DLP
+    const compStart = assetObj.AMC_Start_Date || assetObj.amcStartDate || assetObj.AMC_Start || assetObj.amcStart;
+    const compEnd = assetObj.AMC_End_Date || assetObj.amcEndDate || assetObj.AMC_End || assetObj.amcEnd;
+    if (isDateActive(compStart, compEnd)) return 'Comprehensive AMC';
+
+    const nonCompStart = assetObj.NON_CAMC_Start_Date || assetObj.nonCamcStartDate || assetObj.Non_Comp_AMC_Start || assetObj.nonCompAmcStart;
+    const nonCompEnd = assetObj.NON_CAMC_End_Date || assetObj.nonCamcEndDate || assetObj.Non_Comp_AMC_End || assetObj.nonCompAmcEnd;
+    if (isDateActive(nonCompStart, nonCompEnd)) return 'Non-Comprehensive AMC';
+
+    const warrantyStart = assetObj.Warranty_Start_Date || assetObj.warrantyStartDate || assetObj.Warranty_Start || assetObj.warrantyStart;
+    const warrantyEnd = assetObj.Warranty_End_Date || assetObj.warrantyEndDate || assetObj.Warranty_End || assetObj.warrantyEnd;
+    if (isDateActive(warrantyStart, warrantyEnd)) return 'Warranty';
+
+    const dlpStart = assetObj.DLP_Start_Date || assetObj.dlpStartDate || assetObj.DLP_Start || assetObj.dlpStart;
+    const dlpEnd = assetObj.DLP_End_Date || assetObj.dlpEndDate || assetObj.DLP_End || assetObj.dlpEnd;
+    if (isDateActive(dlpStart, dlpEnd)) return 'DLP';
+    
+    // Fallback if dates are missing but a valid manual string exists
+    const staticType = assetObj.Support_Type || assetObj.supportType || assetObj.serviceType;
+    if (staticType && staticType !== 'Out Of Support' && staticType !== 'General' && staticType !== '') {
+        return staticType;
+    }
+
+    return 'Out Of Support';
+  };
+
+  const activeSla = getActiveSupportType(asset);
+  const isOutOfSupport = activeSla === 'Out Of Support';
+
   const getTierClass = (tier) => {
     if (!tier) return '';
     const lTier = tier.toLowerCase();
@@ -260,16 +302,18 @@ export default function PublicComplaintPortal() {
           }}>
             <div style={{ padding: '16px 24px', background: '#f8fafc', borderBottom: '1px solid #e2e8f0', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <h3 style={{ margin: 0, fontSize: '1.1rem', color: '#0f172a', fontWeight: '600' }}>Hardware Verification</h3>
-              <span style={{ 
-                backgroundColor: (asset.Support_Type || asset.supportType || asset.serviceType) === 'Out Of Support' ? '#fee2e2' : '#dcfce7', 
-                color: (asset.Support_Type || asset.supportType || asset.serviceType) === 'Out Of Support' ? '#ef4444' : '#10b981', 
-                padding: '6px 12px', 
-                borderRadius: '20px', 
-                fontSize: '0.85rem', 
-                fontWeight: 'bold' 
-              }}>
-                {asset.Support_Type || asset.supportType || asset.serviceType || 'General'}
-              </span>
+              {asset && (
+                <span style={{ 
+                  backgroundColor: isOutOfSupport ? '#fee2e2' : '#dcfce7', 
+                  color: isOutOfSupport ? '#ef4444' : '#10b981', 
+                  padding: '6px 12px', 
+                  borderRadius: '20px', 
+                  fontSize: '0.85rem', 
+                  fontWeight: 'bold' 
+                }}>
+                  {activeSla}
+                </span>
+              )}
             </div>
 
             <div style={{ padding: '24px' }}>
@@ -392,7 +436,7 @@ export default function PublicComplaintPortal() {
               </div>
             </div>
 
-            {((asset.Support_Type || asset.supportType || asset.serviceType || '')?.toLowerCase().includes('out')) && (
+            {isOutOfSupport && (
               <div style={{ padding: '12px 24px', background: '#fffbeb', borderTop: '1px solid #fef3c7', color: '#b45309', fontSize: '0.85rem' }}>
                 <strong>Attention:</strong> This hardware is currently <strong>Out of Support</strong>. New service requests may require quote approvals before engineer dispatch.
               </div>
